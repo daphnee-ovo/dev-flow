@@ -1,0 +1,33 @@
+{
+  "name": "dev-flow-plugin",
+  "id": "dev-flow-plugin",
+  "owner": {
+    "name": "xinyue"
+  },
+  "metadata": {
+    "description": "项目全流程管理插件：从需求到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE）",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "dev-flow",
+      "source": "./",
+      "description": "项目全流程管理。支持独立阶段命令 /prd /spec /task /dev-test /test /done，自动化 hooks，独立 agent 角色隔离。",
+      "version": "1.0.0",
+      "author": {
+        "name": "xinyue"
+      },
+      "keywords": [
+        "project-management",
+        "workflow",
+        "prd",
+        "spec",
+        "task",
+        "testing",
+        "dev-flow"
+      ],
+      "category": "workflow",
+      "strict": false
+    }
+  ]
+}
