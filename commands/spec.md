@@ -10,14 +10,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 1. 检查 `<DOC_ROOT>/PRD.md` 是否存在
 2. 如果不存在 → **停止，告知用户先执行 /prd**，不继续
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**必须使用以下格式启动 Agent：**
+**必须启动独立子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "SPEC agent - 技术规范设计",
-  prompt: `<读取 agents/spec-agent.md 的完整内容>
+description: "SPEC agent - 技术规范设计"
+prompt: `<读取 agents/spec-agent.md 的完整内容>
 
 ## 输入文档
 
@@ -33,7 +32,6 @@ Agent({
 - 不要参考 PRD 的讨论过程（你看不到，也不需要）
 - 不要拆解任务（那是 TASK 阶段的事）
 - 不要开始写代码`
-})
 ```
 
 ## 输入隔离规则

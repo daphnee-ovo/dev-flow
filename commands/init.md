@@ -1,5 +1,5 @@
 ---
-description: 初始化 dev-flow 项目 — 扫描现状、创建/对齐 dev-doc、更新 CLAUDE.md
+description: 初始化 dev-flow 项目 — 扫描现状、创建/对齐 dev-doc、更新 agent 指令文件
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
@@ -10,7 +10,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 `/init` 是 dev-flow 的入口命令。不管项目处于何种状态，执行后保证：
 1. `dev-doc/` 目录结构符合规范
 2. 所有文档格式符合 `dev-doc-spec.md`（STATUS/TASK/Issue/Session 格式、命名、yaml 头）
-3. 项目级 `CLAUDE.md` 包含 dev-flow 规范
+3. 项目级 agent 指令文件（Codex 的 `AGENTS.md` / Claude Code 的 `CLAUDE.md`）包含 dev-flow 规范
 4. 项目状态与实际代码/文档一致（冲突已解决或记录为 issue）
 
 ## 执行流程
@@ -43,7 +43,7 @@ fi
    mkdir -p tmp
    ```
 3. 写入 STATUS.md（初始阶段按模式确定）
-4. 跳到「阶段 F：更新 CLAUDE.md」
+4. 跳到「阶段 F：更新 agent 指令文件」
 
 ---
 
@@ -233,11 +233,17 @@ fi
 
 ---
 
-### 阶段 F：更新 CLAUDE.md（始终执行）
+### 阶段 F：更新 agent 指令文件（始终执行）
 
-**不管路径 A 还是 B，最后都必须更新项目级 CLAUDE.md。**
+**不管路径 A 还是 B，最后都必须更新项目级 agent 指令文件。**
 
-读取项目根目录的 `CLAUDE.md`（如不存在则创建）。确保包含以下 dev-flow 段落：
+按当前运行环境优先选择：
+- Codex：优先更新 `AGENTS.md`
+- Claude Code：优先更新 `CLAUDE.md`
+- 如果两个文件都存在，两个文件都更新，保持 dev-flow 段落一致
+- 如果两个文件都不存在，创建当前运行环境对应的文件
+
+确保目标文件包含以下 dev-flow 段落：
 
 ```markdown
 ## Dev-Flow 项目规范
@@ -253,9 +259,9 @@ fi
 ```
 
 更新规则：
-- 如果 CLAUDE.md 已有 `## Dev-Flow` 段落，替换该段落
+- 如果目标文件已有 `## Dev-Flow` 段落，替换该段落
 - 如果没有，追加到文件末尾
-- 保留 CLAUDE.md 中其他用户内容不动
+- 保留目标文件中其他用户内容不动
 
 ### 阶段 G：.gitignore 检查
 
@@ -275,19 +281,18 @@ tmp/
 当前阶段：<phase>
 迭代版本：v<N>
 文档目录：<DOC_ROOT>/
-CLAUDE.md：已更新 ✓
+agent 指令文件：已更新 ✓
 
 下一步：<对应命令>
 ```
 
 ## Agent 调度
 
-路径 B 的扫描工作量较大，使用 subagent 并行：
+路径 B 的扫描工作量较大，使用 subagent 并行。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：
 
 ```
-Agent({
-  description: "项目扫描 - 代码与文档分析",
-  prompt: `扫描当前项目，输出以下信息：
+description: "项目扫描 - 代码与文档分析"
+prompt: `扫描当前项目，输出以下信息：
   1. 项目结构（主要目录和文件）
   2. 技术栈（语言、框架、依赖）
   3. 代码规模（文件数、预估行数）
@@ -296,7 +301,6 @@ Agent({
   6. git log 最近 20 条
   7. README 摘要
   不要修改任何文件。`
-})
 ```
 
 冲突检测如果涉及多个模块，也可并行拆分。
@@ -306,5 +310,5 @@ Agent({
 - `/init` 可以重复执行
 - 已有目录不会删除或覆盖内容
 - STATUS.md 会按实际情况更新
-- CLAUDE.md 只更新 dev-flow 段落，不影响其他内容
+- agent 指令文件只更新 dev-flow 段落，不影响其他内容
 - 每次执行都会重新扫描和对齐

@@ -36,14 +36,13 @@ find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/dev/nul
 
 4. 修复完成后验证并关闭 issue
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**对每个未关闭 issue，启动独立修复 Agent：**
+**对每个未关闭 issue，启动独立修复子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "FIX - 修复 issue: <issue 标题>",
-  prompt: `你是一名高级开发工程师。你的任务是修复以下 issue。
+description: "FIX - 修复 issue: <issue 标题>"
+prompt: `你是一名高级开发工程师。你的任务是修复以下 issue。
 
 ## Issue 内容
 
@@ -75,7 +74,6 @@ Agent({
 - 不要添加 SPEC 未要求的新功能
 - 不要修改其他 issue 的相关代码（避免冲突）
 - 禁止使用系统 /tmp/，临时文件只能放项目 tmp/ 下`
-})
 ```
 
 ## 输入隔离规则

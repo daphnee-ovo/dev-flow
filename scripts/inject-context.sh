@@ -1,7 +1,7 @@
 #!/bin/bash
 # Hook: UserPromptSubmit
 # 每次用户发消息时，注入当前项目阶段上下文 + 规范提醒
-# 让 Claude 永远知道项目在哪个阶段、该做什么、遵守什么规范
+# 让当前 agent 永远知道项目在哪个阶段、该做什么、遵守什么规范
 
 if [ ! -d "dev-doc" ]; then
   exit 0

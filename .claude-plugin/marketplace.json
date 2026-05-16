@@ -1,21 +1,17 @@
 {
-  "name": "dev-flow",
-  "id": "dev-flow",
+  "name": "daphnee-ovo",
+  "description": "项目全流程管理插件：从需求到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE）",
   "owner": {
-    "name": "xinyue"
-  },
-  "metadata": {
-    "description": "项目全流程管理插件：从需求到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE）",
-    "version": "1.0.0"
+    "name": "daphnee-ovo"
   },
   "plugins": [
     {
       "name": "dev-flow",
       "source": "./",
-      "description": "项目全流程管理。支持独立阶段命令 /brainstorm /prd /spec /task /devtest /fix /test /done /status /check /iterate /mode，自动化 hooks，独立 agent 角色隔离。",
+      "description": "项目全流程管理。支持独立阶段命令 /init /brainstorm /prd /spec /task /devtest /fix /test /done /status /check /iterate /mode，自动化 hooks，独立 agent 角色隔离。",
       "version": "1.0.0",
       "author": {
-        "name": "xinyue"
+        "name": "daphnee-ovo"
       },
       "keywords": [
         "project-management",
@@ -27,8 +23,7 @@
         "dev-flow"
       ],
       "category": "workflow",
-      "homepage": "https://github.com/daphnee-ovo/dev-flow",
-      "strict": false
+      "homepage": "https://github.com/daphnee-ovo/dev-flow"
     }
   ]
 }

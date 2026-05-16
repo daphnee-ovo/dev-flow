@@ -43,14 +43,13 @@ mkdir -p dev-doc/{issue,session/{task,memory}}
 - 等同于原来的深度追问模式
 - 输出正式 PRD.md
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**必须使用以下格式启动 Agent，不允许传入额外上下文：**
+**必须启动独立子代理，不允许传入额外上下文。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "PRD agent - 产品需求定义",
-  prompt: `<读取 agents/prd-agent.md 的完整内容>
+description: "PRD agent - 产品需求定义"
+prompt: `<读取 agents/prd-agent.md 的完整内容>
 
 ## 项目信息
 
@@ -72,7 +71,6 @@ Agent({
 - 不要设计技术方案（那是 SPEC 的事）
 - 不要拆解任务（那是 TASK 的事）
 - 不要阅读任何已有代码`
-})
 ```
 
 ## 输入隔离规则

@@ -15,14 +15,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 **在启动 agent 之前**，立即更新 STATUS.md 为 TEST。
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**启动全新独立 TEST agent（完整版），绝对不复用开发上下文：**
+**启动全新独立 TEST agent（完整版），绝对不复用开发上下文。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "项目 TEST - 全量验证",
-  prompt: `<读取 agents/test-agent.md 的完整内容>
+description: "项目 TEST - 全量验证"
+prompt: `<读取 agents/test-agent.md 的完整内容>
 
 ## 输入文档
 
@@ -46,7 +45,6 @@ Agent({
 - 不要因为 SPEC 没要求的功能缺失而报 issue
 - 不要因为 TASK 标记为"非目标"的内容报 issue
 - 不要信任"开发者说测过了"——自己验证`
-})
 ```
 
 ## 输入隔离规则

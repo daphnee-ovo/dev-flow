@@ -11,14 +11,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 2. 如果模式为 `full` 或 `quick`：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
 3. 如果模式为 `fast`：不要求 SPEC.md，直接进入任务拆解（基于用户描述或已有代码）
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**必须使用以下格式启动 Agent：**
+**必须启动独立子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "TASK agent - 任务拆解",
-  prompt: `<读取 agents/task-agent.md 的完整内容>
+description: "TASK agent - 任务拆解"
+prompt: `<读取 agents/task-agent.md 的完整内容>
 
 ## 输入文档
 
@@ -35,7 +34,6 @@ Agent({
 - 不要参考 SPEC 的讨论过程
 - 不要开始写代码
 - 不要设计新的架构方案`
-})
 ```
 
 ## 输入隔离规则

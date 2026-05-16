@@ -1,7 +1,7 @@
 #!/bin/bash
 # Hook: PostToolUse(Edit) on TASK.md
 # 检测 TASK.md 是否有新勾选的任务，强制触发例行测试提醒
-# 输出非空内容 = Claude 收到提醒
+# 输出非空内容 = 当前 agent 收到提醒
 
 if [ ! -d "dev-doc" ]; then
   exit 0

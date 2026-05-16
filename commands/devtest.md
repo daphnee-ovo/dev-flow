@@ -15,14 +15,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 - 每完成一个任务后**必须**执行（hooks 会强制提醒）
 - STATUS 保持 DEV，不切换阶段
 
-## Agent 调度（强制模板）
+## Agent 调度（隔离模板）
 
-**启动轻量独立 TEST subagent，范围限定为单个任务：**
+**启动轻量独立 TEST subagent，范围限定为单个任务。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
 
 ```
-Agent({
-  description: "例行 TEST - 验证任务 <任务名>",
-  prompt: `你是一名 QA 工程师。验证以下任务是否真正完成。
+description: "例行 TEST - 验证任务 <任务名>"
+prompt: `你是一名 QA 工程师。验证以下任务是否真正完成。
 
 ## 验证目标
 
@@ -77,7 +76,6 @@ Done when：<该任务的 Done when 标准，原文>
 - 不要建议新功能
 - 不要因为 SPEC 没要求的功能缺失而报"未通过"
 - 禁止使用系统 /tmp/，临时文件只能放项目 tmp/ 下`
-})
 ```
 
 ## 输入隔离规则
