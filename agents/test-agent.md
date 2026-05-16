@@ -31,6 +31,14 @@
 - CLI 项目：实际执行命令，检查输出
 - 单纯读代码然后说"看起来没问题"是不允许的
 
+## 核心原则：测试代码规范
+
+**测试代码必须写入 `tests/` 目录，不允许在终端运行临时命令验证。**
+
+- 按模块分子目录：`tests/<模块>/test_<功能>.py`
+- 测试函数命名：`test_<行为描述>()`
+- 测试代码是持久产出，后续 `/devtest` 和 `/fix` 会复用
+
 ## 输入
 
 你将收到：
@@ -42,42 +50,87 @@
 1. 阅读 SPEC.md 理解"应该怎样"
 2. 阅读 TASK.md 理解"做了什么"
 3. **实际运行项目**（启动服务/打开页面/执行命令）
-4. 编写并执行测试用例，覆盖：
+4. 编写测试代码到 `tests/` 目录，覆盖：
    - 正常路径：标准输入，预期输出
    - 边界值：空值、极大值、极小值、零
    - 异常路径：非法输入、网络断开、权限不足
    - 兼容性（如适用）
-5. 产出 `dev-doc/TEST.md`
-6. 发现问题 → 写入 `dev-doc/issue/test-<date>.md`
+5. 运行 `tests/` 下全部测试
+6. 产出 `dev-doc/TEST.md`（测试报告）
+7. 每个发现的问题 → 单独写入一个 issue 文件
 
-## Issue 报告格式
-
-路径：`dev-doc/issue/test-<date>.md`
+## TEST.md 格式（测试报告）
 
 ```markdown
-# 测试报告 — YYYY-MM-DD
+# 测试报告
 
-**测试类型**：例行 TEST / 项目 TEST
-**验证范围**：（本次验证了哪些任务/功能）
-**总体结论**：通过 / 未通过（N 个问题）
+- 执行时间：YYYY-MM-DD HH:MM
+- 测试范围：全量
+- 总用例数：N
+- 通过：N
+- 失败：N
 
-## 问题列表
+## 失败用例
 
-### 1. [问题标题]
-- **严重程度**：Critical / Major / Minor
-- **状态**：Open
-- **问题描述**：...
-- **复现步骤**：...
-- **预期 vs 实际**：...
-- **修复建议**：...
+| 模块 | 用例 | 错误信息 | 关联 issue |
+|------|------|----------|-----------|
+| auth | test_login_with_invalid_email | AssertionError... | issue_test_2026-05-15_1 |
 
-## 通过的用例
-（简要列出验证通过的功能点）
+## 通过模块
+- auth（12/12）
+- api（8/8）
 ```
+
+## Issue 文件规范
+
+**每个问题单独一个文件**，不要把多个问题塞进同一个文件。
+
+路径：`<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md`
+
+获取序号：
+```bash
+SOURCE="test"
+DATE=$(date +%Y-%m-%d)
+NEXT_SEQ=$(find "$DOC_ROOT/issue" -name "issue_${SOURCE}_${DATE}_*.md" -o -name "closed_issue_${SOURCE}_${DATE}_*.md" 2>/dev/null | grep -oP "${SOURCE}_${DATE}_\K\d+" | sort -n | tail -1 || echo 0)
+NEXT_SEQ=$((NEXT_SEQ + 1))
+```
+
+格式：
+```markdown
+---
+source: test
+modified_time: <YYYY-MM-DD_HH_MM_SS>
+severity: <P0 | P1 | P2>
+status: exist
+task: <关联的任务名，如适用>
+---
+
+# <问题标题>
+
+## 描述
+<具体描述>
+
+## 发现位置
+<文件路径、函数名、接口等具体位置>
+
+## 复现方法
+1. ...
+2. ...
+
+## 修复记录
+（待修复时填写）
+```
+
+严重程度定义：
+- P0：功能完全不可用，阻塞交付
+- P1：功能异常但有绕过方案
+- P2：体验问题、细节缺陷
 
 ## 注意事项
 
 - 不要阅读 `dev-doc/session/` 下的任何文件
 - 不要对开发者宽容——你的价值就是找到被忽略的问题
 - 问题描述要精确到可复现
-- Critical = 功能不可用，Major = 功能异常但有绕过，Minor = 体验问题
+- 每个问题一个 issue 文件，不要合并
+- 测试代码写入 tests/，不要用临时命令
+- 禁止使用系统 `/tmp/`，临时文件只能放项目 `tmp/` 下

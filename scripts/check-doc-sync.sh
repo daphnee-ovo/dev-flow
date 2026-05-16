@@ -46,6 +46,12 @@ case "$CHANGED_FILE" in
     ;;
 esac
 
+# fast 模式下无 SPEC，跳过
+MODE=$(grep "开发模式" "$STATUS_FILE" | sed 's/.*：//' | tr -d ' ')
+if [ "$MODE" = "fast" ]; then
+  exit 0
+fi
+
 # 检查 SPEC.md 中是否有相关内容可能需要同步
 SPEC_FILE="$DOC_ROOT/SPEC.md"
 if [ ! -f "$SPEC_FILE" ]; then

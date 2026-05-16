@@ -1,7 +1,7 @@
 #!/bin/bash
 # Hook: session 结束时自动保存会话记录
 # 触发时机：Stop
-# 支持单工程和多工程模式
+# 命名规范：<3位序号>-<topic>.md
 
 if [ ! -d "dev-doc" ]; then
   exit 0
@@ -15,21 +15,24 @@ else
   DOC_ROOT="dev-doc"
 fi
 
-mkdir -p "$DOC_ROOT/session/task"
+mkdir -p "$DOC_ROOT/session/memory"
 
-DATE=$(date +%Y-%m-%d)
-TIME=$(date +%H%M)
-SESSION_FILE="$DOC_ROOT/session/task/task-session-${DATE}-${TIME}.md"
+# 获取下一个序号
+NEXT_SEQ=$(find "$DOC_ROOT/session" -maxdepth 1 -name "*.md" 2>/dev/null | grep -oP '\d{3}' | sort -n | tail -1 || echo 0)
+NEXT_SEQ=$(printf "%03d" $((10#$NEXT_SEQ + 1)))
 
-# 当天已有记录则不重复创建
-if ls "$DOC_ROOT"/session/task/task-session-${DATE}*.md 1>/dev/null 2>&1; then
-  exit 0
-fi
-
-# 读取当前阶段
+# 读取当前阶段作为 topic
 PHASE="unknown"
 if [ -f "$DOC_ROOT/STATUS.md" ]; then
-  PHASE=$(grep "当前阶段" "$DOC_ROOT/STATUS.md" | sed 's/.*：//' | tr -d ' ')
+  PHASE=$(grep "当前阶段" "$DOC_ROOT/STATUS.md" | sed 's/.*：//' | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+fi
+
+DATE=$(date +%Y-%m-%d)
+SESSION_FILE="$DOC_ROOT/session/${NEXT_SEQ}-${PHASE}-session.md"
+
+# 当天已有同阶段记录则不重复创建
+if find "$DOC_ROOT/session" -maxdepth 1 -name "*-${PHASE}-session.md" -newer "$DOC_ROOT/STATUS.md" 2>/dev/null | grep -q .; then
+  exit 0
 fi
 
 cat > "$SESSION_FILE" << EOF

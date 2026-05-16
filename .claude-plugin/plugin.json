@@ -6,15 +6,21 @@
     "name": "xinyue"
   },
   "commands": [
+    "./commands/init.md",
     "./commands/prd.md",
     "./commands/spec.md",
     "./commands/task.md",
-    "./commands/dev-test.md",
+    "./commands/devtest.md",
+    "./commands/fix.md",
     "./commands/test.md",
     "./commands/done.md",
-    "./commands/status.md"
+    "./commands/status.md",
+    "./commands/check.md",
+    "./commands/iterate.md",
+    "./commands/brainstorm.md",
+    "./commands/mode.md"
   ],
-  "homepage": "https://github.com/xinyue/dev-flow-plugin",
+  "homepage": "https://github.com/daphnee-ovo/dev-flow",
   "license": "MIT",
   "keywords": ["project-management", "workflow", "dev-flow", "agents", "hooks"]
 }

@@ -34,8 +34,9 @@ Agent({
 
 ## 输出路径
 
-- 测试文档：<DOC_ROOT>/TEST.md
-- 问题报告：<DOC_ROOT>/issue/test-<today>.md
+- 测试代码：tests/（按模块分目录，test_<功能>.py）
+- 测试报告：<DOC_ROOT>/TEST.md
+- Issue 文件：<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md（每个问题单独一个文件）
 
 ## 禁止
 

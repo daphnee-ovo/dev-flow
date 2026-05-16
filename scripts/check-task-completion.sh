@@ -38,15 +38,16 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 if [ "$UNDONE" -eq 0 ]; then
-  # 全部完成 → 提醒进入项目 TEST
-  echo "[dev-flow] ⚠ 所有任务已完成（$DONE/$TOTAL）。"
-  echo "→ 必须立即执行 /test 进行项目级全量验证。不要直接向用户报告'开发完成'。"
+  # 全部完成 → 强制进入项目 TEST
+  echo "[dev-flow] 所有任务已完成（$DONE/$TOTAL）。"
+  echo "→ 立即执行 /test 进行全量验证。禁止跳过，禁止先向用户报告完成。"
 else
-  # 有新勾选 → 提醒执行例行测试
-  # 通过检查最近勾选的任务来判断是否需要提醒
+  # 有新勾选 → 强制触发 devtest
   LAST_CHECKED=$(grep -n "^- \[x\]" "$TASK_FILE" | tail -1 | cut -d: -f1)
   if [ -n "$LAST_CHECKED" ]; then
-    echo "[dev-flow] 检测到任务勾选（$DONE/$TOTAL 完成）。"
-    echo "→ 如果刚完成了任务，必须执行 /dev-test 验证后才能继续下一个任务。"
+    # 提取刚完成的任务名
+    TASK_NAME=$(sed -n "${LAST_CHECKED}p" "$TASK_FILE" | sed 's/^- \[x\] //' | sed 's/（.*//;s/(.*$//')
+    echo "[dev-flow] 任务完成（$DONE/$TOTAL）：$TASK_NAME"
+    echo "→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。"
   fi
 fi

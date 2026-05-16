@@ -7,8 +7,9 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 ## 前置检查（阻断）
 
-1. 检查 `<DOC_ROOT>/SPEC.md` 是否存在
-2. 如果不存在 → **停止，告知用户先执行 /spec**，不继续
+1. 读取 STATUS.md 中的开发模式
+2. 如果模式为 `full` 或 `quick`：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
+3. 如果模式为 `fast`：不要求 SPEC.md，直接进入任务拆解（基于用户描述或已有代码）
 
 ## Agent 调度（强制模板）
 

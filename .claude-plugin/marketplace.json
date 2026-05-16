@@ -1,6 +1,6 @@
 {
-  "name": "dev-flow-plugin",
-  "id": "dev-flow-plugin",
+  "name": "dev-flow",
+  "id": "dev-flow",
   "owner": {
     "name": "xinyue"
   },
@@ -12,7 +12,7 @@
     {
       "name": "dev-flow",
       "source": "./",
-      "description": "项目全流程管理。支持独立阶段命令 /prd /spec /task /dev-test /test /done，自动化 hooks，独立 agent 角色隔离。",
+      "description": "项目全流程管理。支持独立阶段命令 /brainstorm /prd /spec /task /devtest /fix /test /done /status /check /iterate /mode，自动化 hooks，独立 agent 角色隔离。",
       "version": "1.0.0",
       "author": {
         "name": "xinyue"
@@ -27,6 +27,7 @@
         "dev-flow"
       ],
       "category": "workflow",
+      "homepage": "https://github.com/daphnee-ovo/dev-flow",
       "strict": false
     }
   ]

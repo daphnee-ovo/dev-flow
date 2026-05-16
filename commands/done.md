@@ -17,7 +17,7 @@ UNDONE=$(grep -c "^- \[ \]" "$DOC_ROOT/TASK.md" 2>/dev/null || echo 999)
 [ "$UNDONE" -gt 0 ] && echo "BLOCKED: $UNDONE 个任务未完成" && exit 1
 
 # 2. 无未关闭 issue
-OPEN=$(find "$DOC_ROOT/issue" -name "*.md" ! -name "*.closed.md" 2>/dev/null | wc -l)
+OPEN=$(find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/dev/null | wc -l)
 [ "$OPEN" -gt 0 ] && echo "BLOCKED: $OPEN 个未关闭 issue" && exit 1
 
 # 3. TEST.md 存在
@@ -31,7 +31,7 @@ OPEN=$(find "$DOC_ROOT/issue" -name "*.md" ! -name "*.closed.md" 2>/dev/null | w
 ## 交付清单
 
 - [ ] TASK.md 所有任务已勾选 `[x]`
-- [ ] `dev-doc/issue/` 中无未关闭 issue（所有 .md 都是 .closed.md）
+- [ ] `dev-doc/issue/` 中无未关闭 issue（所有 issue 文件都有 `closed_` 前缀）
 - [ ] TEST.md 存在且有测试结果
 - [ ] SPEC.md 与实际代码一致（抽查关键接口/数据模型）
 - [ ] 代码可正常运行（执行启动命令，无报错）
