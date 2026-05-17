@@ -1,0 +1,17 @@
+# STATUS.yaml 格式模板
+# 文件名固定为 STATUS.yaml，纯 YAML 格式
+#
+# 字段说明：
+#   name      - 项目标识
+#   phase     - 流程所在阶段：PRD | SPEC | TASK | DEV | TEST | DONE
+#   mode      - 开发模式：full | quick | fast | mvp
+#   iteration - 迭代版本号，从 1 开始递增
+#   updated   - 每次阶段变更时更新
+#   started   - /iterate 或首次 /mode 时记录
+
+name: <项目名称>
+phase: DEV
+mode: full
+iteration: 1
+updated: 2026-01-01 00:00
+started: 2026-01-01 00:00

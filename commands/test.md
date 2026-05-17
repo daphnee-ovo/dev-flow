@@ -7,13 +7,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 ## 前置检查（阻断）
 
-1. 读取 TASK.md，统计 `- [ ]`（未完成）数量
+1. 读取 `task/` 目录下所有活跃 task 文件，统计未完成任务数量
 2. 如果有未完成任务 → **停止，告知用户先完成所有任务**，不继续
 3. 检查 `dev-doc/issue/` 中是否有未关闭的 issue → 提醒先修复
 
 ## 阶段切换
 
-**在启动 agent 之前**，立即更新 STATUS.md 为 TEST。
+**在启动 agent 之前**，立即更新 STATUS.yaml 为 TEST。
 
 ## Agent 调度（隔离模板）
 
@@ -28,8 +28,8 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 ### SPEC.md（验证标准）
 <SPEC.md 完整内容，原样粘贴>
 
-### TASK.md（验证范围）
-<TASK.md 完整内容，原样粘贴>
+### Task 文件（验证范围）
+<task/ 目录下所有未完成 task 文件的内容，原样粘贴>
 
 ## 输出路径
 
@@ -39,7 +39,6 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 
 ## 禁止
 
-- 不要阅读 dev-doc/session/ 下的任何文件
 - 不要查看 git log 或 commit 历史
 - 不要参考开发过程中的任何对话
 - 不要因为 SPEC 没要求的功能缺失而报 issue
@@ -53,9 +52,9 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 |----------|----------|
 | agents/test-agent.md 内容 | PRD.md |
 | SPEC.md 完整内容（原文） | 开发阶段的任何对话历史 |
-| TASK.md 完整内容（原文） | session/memory/ 记录 |
-| DOC_ROOT 路径 | git log / commit messages |
-| 当前日期（用于 issue 文件名） | 例行 TEST 的结果历史 |
+| task/ 目录下所有 task 文件内容 | git log / commit messages |
+| DOC_ROOT 路径 | 例行 TEST 的结果历史 |
+| 当前日期（用于 issue 文件名） | |
 
 ## 为什么严格隔离
 

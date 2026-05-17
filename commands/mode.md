@@ -1,6 +1,6 @@
 ---
 description: 选择开发模式 — 控制流程阶段
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
+allowed-tools: Bash, Read, AskUserQuestion
 ---
 
 # MODE — 开发模式选择
@@ -14,46 +14,15 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 | `fast` | task → dev → test → done | 小改动、技术方案已知 |
 | `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
 
-## 执行步骤
+## 执行方式
 
-### 1. 模式检测
-
-```bash
-if find dev-doc -maxdepth 2 -name "STATUS.md" -path "*/*/STATUS.md" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
-```
-
-### 2. 设置模式
-
-如果用户指定了模式（如 `/mode quick`），直接设置。否则询问。
-
-### 3. 初始化
-
-如果 `dev-doc/` 不存在：
+如果用户指定了模式（如 `/mode quick`），直接运行脚本：
 
 ```bash
-mkdir -p dev-doc/{issue,session/{task,memory}}
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
 ```
 
-### 4. 写入 STATUS.md
-
-在 STATUS.md 中记录：
-
-```markdown
-开发模式：<mode>
-```
-
-### 5. 输出确认
-
-```
-[dev-flow] 模式已设置：<mode>
-流程：<阶段列表，用 → 连接>
-下一步：<第一个阶段对应的命令>
-```
+如果未指定模式，先询问用户选择，再运行脚本。
 
 ## 各模式规则
 
@@ -90,7 +59,7 @@ mkdir -p dev-doc/{issue,session/{task,memory}}
 约束：
 - 产出不直接进入生产
 - 验证后如需正式开发，切换模式重新走流程
-- STATUS 标记为 MVP
+- 开发完成后使用 `/iterate` 进入下一轮（无需 `/done`）
 
 下一步：`/brainstorm`
 
@@ -98,7 +67,7 @@ mkdir -p dev-doc/{issue,session/{task,memory}}
 
 | 命令 | full | quick | fast | mvp |
 |------|:----:|:-----:|:----:|:---:|
-| `/brainstorm` | ✓ | - | - | ✓ |
+| `/brainstorm` | ✓ | ✓ | ✓ | ✓ |
 | `/prd` | ✓ | - | - | - |
 | `/spec` | ✓ | ✓ | - | ✓ |
 | `/task` | ✓ | ✓ | ✓ | - |
@@ -107,10 +76,12 @@ mkdir -p dev-doc/{issue,session/{task,memory}}
 | `/test` | ✓ | ✓ | ✓ | - |
 | `/done` | ✓ | ✓ | ✓ | - |
 | `/check` | ✓ | ✓ | ✓ | - |
-| `/iterate` | ✓ | ✓ | ✓ | - |
+| `/iterate` | ✓ | ✓ | ✓ | ✓ |
 | `/status` | ✓ | ✓ | ✓ | ✓ |
 
-`-` 表示当前模式下此命令会提示"当前模式无需此步骤"。
+`-` 表示当前模式流程中不包含此步骤，执行时提示"当前模式无需此步骤"。
+
+> 注：`/brainstorm` 是自由探索工具，不属于任何模式的必经阶段，但在所有模式下都可随时使用。
 
 ## 模式切换
 
@@ -121,10 +92,10 @@ mkdir -p dev-doc/{issue,session/{task,memory}}
 
 ## hooks 联动
 
-`inject-context.sh` 读取 STATUS.md 中的模式字段，输出中体现：
+`inject-context.sh` 读取 STATUS.yaml 中的模式字段，输出中体现：
 
 ```
-[dev-flow] 当前阶段：DEV | 模式：quick | 任务进度：2/5
+[dev-flow quick] STAGE: DEV | TASK: 2/5 | ISSUE: 0
 ```
 
 如果用户在当前模式下执行不可用的命令，提示：

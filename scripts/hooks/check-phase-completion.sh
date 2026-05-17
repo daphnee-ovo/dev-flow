@@ -15,7 +15,7 @@ fi
 
 REL_PATH="${CHANGED_FILE#dev-doc/}"
 FIRST_SEGMENT="${REL_PATH%%/*}"
-if [ -f "dev-doc/$FIRST_SEGMENT/STATUS.md" ]; then
+if [ -f "dev-doc/$FIRST_SEGMENT/STATUS.yaml" ]; then
   DOC_ROOT="dev-doc/$FIRST_SEGMENT"
   TARGET_FILE="${REL_PATH#$FIRST_SEGMENT/}"
 else
@@ -57,9 +57,19 @@ case "$TARGET_FILE" in
     fi
     ;;
   TASK.md)
+    # 兼容旧格式
     FILE_PATH="$DOC_ROOT/TASK.md"
     if ! grep -q "Done when" "$FILE_PATH"; then
       ISSUES="$ISSUES\n- TASK 缺少 Done when 验收标准"
+    fi
+    if grep -q "Done when：完成" "$FILE_PATH" || grep -q "Done when：实现" "$FILE_PATH"; then
+      ISSUES="$ISSUES\n- TASK 存在模糊的 Done when（'完成'或'实现'不是有效标准）"
+    fi
+    ;;
+  task/task_*.md)
+    FILE_PATH="$DOC_ROOT/$TARGET_FILE"
+    if ! grep -q "Done when" "$FILE_PATH"; then
+      ISSUES="$ISSUES\n- TASK 文件缺少 Done when 验收标准"
     fi
     if grep -q "Done when：完成" "$FILE_PATH" || grep -q "Done when：实现" "$FILE_PATH"; then
       ISSUES="$ISSUES\n- TASK 存在模糊的 Done when（'完成'或'实现'不是有效标准）"

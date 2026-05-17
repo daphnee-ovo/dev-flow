@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/inject-context.sh",
+            "command": "./scripts/hooks/inject-context.sh",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/block-system-tmp.sh",
+            "command": "./scripts/hooks/block-system-tmp.sh",
             "timeout": 5
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/block-system-tmp.sh",
+            "command": "./scripts/hooks/block-system-tmp.sh",
             "timeout": 5
           }
         ]
@@ -37,11 +37,11 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/check-task-completion.sh",
+            "command": "./scripts/hooks/check-task-completion.sh",
             "timeout": 10
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/check-doc-sync.sh",
+            "command": "./scripts/hooks/check-doc-sync.sh",
             "timeout": 10
           }
         ]
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/update-status.sh",
+            "command": "./scripts/hooks/update-status.sh",
             "timeout": 10
           }
         ]
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/check-phase-completion.sh",
+            "command": "./scripts/hooks/check-phase-completion.sh",
             "timeout": 10
           }
         ]
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/save-session.sh",
+            "command": "./scripts/hooks/save-changelog.sh",
             "timeout": 30
           }
         ]

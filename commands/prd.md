@@ -12,12 +12,12 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 3. 检查是否存在 `BRAINSTORM.md`（决定工作模式）
 4. 读取本插件的 `agents/prd-agent.md`
 5. **启动独立 Agent（严格按模板）**
-6. Agent 完成后，更新 `STATUS.md`
+6. Agent 完成后，更新 `STATUS.yaml`
 
 ## 模式检测
 
 ```bash
-if find dev-doc -maxdepth 2 -name "STATUS.md" -path "*/*/STATUS.md" 2>/dev/null | grep -q .; then
+if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
   BRANCH=$(git branch --show-current 2>/dev/null)
   DOC_ROOT="dev-doc/$BRANCH"
 else
@@ -28,7 +28,7 @@ fi
 ## 新项目初始化
 
 ```bash
-mkdir -p dev-doc/{issue,session/{task,memory}}
+mkdir -p dev-doc/{task,issue,archive} tests tmp
 ```
 
 ## 两种工作模式
@@ -80,10 +80,10 @@ prompt: `<读取 agents/prd-agent.md 的完整内容>
 | 用户对项目的描述原文 | 之前对话中的非需求讨论 |
 | agents/prd-agent.md 内容 | 已有代码内容 |
 | BRAINSTORM.md 内容（如存在） | 其他阶段的文档（SPEC/TASK） |
-| DOC_ROOT 路径 | 会话历史或 session 记录 |
+| DOC_ROOT 路径 | 无关的会话历史 |
 
 ## 完成后
 
 1. 确认 PRD.md 已写入
-2. 更新 STATUS.md：当前阶段 → PRD
+2. 更新 STATUS.yaml：当前阶段 → PRD
 3. 提示用户：确认 PRD 后执行 `/spec` 推进

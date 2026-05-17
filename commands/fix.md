@@ -15,7 +15,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 ## 模式检测
 
 ```bash
-if find dev-doc -maxdepth 2 -name "STATUS.md" -path "*/*/STATUS.md" 2>/dev/null | grep -q .; then
+if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
   BRANCH=$(git branch --show-current 2>/dev/null)
   DOC_ROOT="dev-doc/$BRANCH"
 else
@@ -69,7 +69,7 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 
 ## 禁止
 
-- 不要阅读 dev-doc/session/ 下的文件
+- 不要阅读无关的历史文件
 - 不要修改与 issue 无关的代码
 - 不要添加 SPEC 未要求的新功能
 - 不要修改其他 issue 的相关代码（避免冲突）
@@ -82,18 +82,12 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 |----------|----------|
 | 该 issue 的完整内容 | 其他 issue 的内容 |
 | SPEC.md 中相关部分 | 开发过程对话历史 |
-| TASK.md 中相关任务描述 | session/memory/ 记录 |
+| task/ 中相关任务描述 | 无关历史记录 |
 | | PRD.md |
 
 ## 结果处理
 
-- **已修复** → 将 issue 文件重命名加 `closed_` 前缀（如 `issue_test_2026-05-15_1.md` → `closed_issue_test_2026-05-15_1.md`），更新 yaml 头 status 为 fix，追加修复记录：
-  ```markdown
-  ## 修复记录
-  - 修复时间：<当前时间>
-  - 修改文件：<Agent 报告的文件列表>
-  - 验证方式：<如何验证>
-  ```
+- **已修复** → 将 issue 文件中对应条目勾选为 `[x]`，在 fix 字段填写修复说明。当文件中所有条目均为 `[x]` 时，重命名加 `closed_` 前缀（如 `issue_test_2026-05-15_1.md` → `closed_issue_test_2026-05-15_1.md`）
 
 - **无法修复** → 保持 issue 打开状态，向用户报告原因和建议
 

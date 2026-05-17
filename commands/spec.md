@@ -28,7 +28,7 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 
 ## 禁止
 
-- 不要阅读 dev-doc/session/ 下的任何文件
+- 不要阅读无关的历史文件
 - 不要参考 PRD 的讨论过程（你看不到，也不需要）
 - 不要拆解任务（那是 TASK 阶段的事）
 - 不要开始写代码`
@@ -42,7 +42,7 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 | PRD.md 完整内容（原文） | 用户与 PRD agent 的交互历史 |
 | DOC_ROOT 路径 | 任何代码文件内容 |
 | | TASK.md / TEST.md |
-| | session/memory/ 中的记录 |
+| | 无关历史记录 |
 
 ## 为什么严格隔离
 
@@ -51,5 +51,5 @@ SPEC agent 只看"最终需求是什么"，不看"需求是怎么讨论出来的
 ## 完成后
 
 1. 确认 SPEC.md 已写入
-2. 更新 STATUS.md：当前阶段 → SPEC
+2. 更新 STATUS.yaml：当前阶段 → SPEC
 3. 提示用户：确认 SPEC 后执行 `/task` 推进

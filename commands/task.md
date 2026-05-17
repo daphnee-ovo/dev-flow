@@ -7,7 +7,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 ## 前置检查（阻断）
 
-1. 读取 STATUS.md 中的开发模式
+1. 读取 STATUS.yaml 中的开发模式
 2. 如果模式为 `full` 或 `quick`：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
 3. 如果模式为 `fast`：不要求 SPEC.md，直接进入任务拆解（基于用户描述或已有代码）
 
@@ -25,12 +25,29 @@ prompt: `<读取 agents/task-agent.md 的完整内容>
 
 ## 输出路径
 
-将任务清单写入：<DOC_ROOT>/TASK.md
+将任务清单写入：<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md
+
+如果 task/ 目录不存在，先创建它。
+seq 为当天该目录下的下一个序号。
+
+## 输出格式
+
+文件使用以下格式：
+
+---
+title: TASK - <批次主题>
+nums: <任务总数>
+---
+
+- [ ] T1：<标题>
+  - level: P0
+  - details：<描述>
+  - depends on：无
+  - Done when：<完成标准>
 
 ## 禁止
 
 - 不要阅读 PRD.md（你不需要知道"为什么做"，只需要知道"怎么做"）
-- 不要阅读 dev-doc/session/ 下的任何文件
 - 不要参考 SPEC 的讨论过程
 - 不要开始写代码
 - 不要设计新的架构方案`
@@ -43,7 +60,6 @@ prompt: `<读取 agents/task-agent.md 的完整内容>
 | agents/task-agent.md 内容 | PRD.md |
 | SPEC.md 完整内容（原文） | PRD/SPEC 阶段的对话历史 |
 | DOC_ROOT 路径 | 任何代码文件内容 |
-| | session/memory/ 中的记录 |
 
 ## 为什么严格隔离
 
@@ -51,6 +67,6 @@ TASK agent 只看"技术方案是什么"，基于此独立判断如何拆分。�
 
 ## 完成后
 
-1. 确认 TASK.md 已写入
-2. 更新 STATUS.md：当前阶段 → TASK
+1. 确认 task 文件已写入 `<DOC_ROOT>/task/`
+2. 更新 STATUS.yaml：当前阶段 → TASK
 3. 提示用户：确认任务清单后，STATUS 将切换为 DEV，开始开发

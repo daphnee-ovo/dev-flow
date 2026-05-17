@@ -43,12 +43,12 @@
 
 你将收到：
 - `dev-doc/SPEC.md`：系统应该怎样工作（验证的唯一标准）
-- `dev-doc/TASK.md`：开发者做了什么（验证范围边界）
+- `dev-doc/task/` 目录下的任务文件：开发者做了什么（验证范围边界）
 
 ## 任务
 
 1. 阅读 SPEC.md 理解"应该怎样"
-2. 阅读 TASK.md 理解"做了什么"
+2. 阅读 task/ 目录下的任务文件理解"做了什么"
 3. **实际运行项目**（启动服务/打开页面/执行命令）
 4. 编写测试代码到 `tests/` 目录，覆盖：
    - 正常路径：标准输入，预期输出
@@ -83,7 +83,7 @@
 
 ## Issue 文件规范
 
-**每个问题单独一个文件**，不要把多个问题塞进同一个文件。
+同一次测试发现的问题写入同一个 issue 文件（按 source+date 归批）。
 
 路径：`<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md`
 
@@ -99,26 +99,22 @@ NEXT_SEQ=$((NEXT_SEQ + 1))
 ```markdown
 ---
 source: test
-modified_time: <YYYY-MM-DD_HH_MM_SS>
-severity: <P0 | P1 | P2>
-status: exist
-task: <关联的任务名，如适用>
+nums: <issue 总数>
 ---
 
-# <问题标题>
+- [ ] I1：<问题标题>
+  - severity: P0
+  - location：<文件路径:行号>
+  - description：<具体描述>
+  - reproduce：<复现方法>
+  - fix：<关闭时填写修复说明>
 
-## 描述
-<具体描述>
-
-## 发现位置
-<文件路径、函数名、接口等具体位置>
-
-## 复现方法
-1. ...
-2. ...
-
-## 修复记录
-（待修复时填写）
+- [ ] I2：<问题标题>
+  - severity: P1
+  - location：<文件路径:行号>
+  - description：<描述>
+  - reproduce：<复现方法>
+  - fix：
 ```
 
 严重程度定义：
@@ -128,9 +124,9 @@ task: <关联的任务名，如适用>
 
 ## 注意事项
 
-- 不要阅读 `dev-doc/session/` 下的任何文件
+- 不要阅读 `dev-doc/CHANGELOG.md`（与测试无关）
 - 不要对开发者宽容——你的价值就是找到被忽略的问题
 - 问题描述要精确到可复现
-- 每个问题一个 issue 文件，不要合并
+- 同一次测试的问题写入同一个 issue 文件（按 source+date 归批）
 - 测试代码写入 tests/，不要用临时命令
 - 禁止使用系统 `/tmp/`，临时文件只能放项目 `tmp/` 下

@@ -9,19 +9,19 @@ fi
 
 # 确定文档根目录
 BRANCH=$(git branch --show-current 2>/dev/null)
-if [ -n "$BRANCH" ] && [ -f "dev-doc/$BRANCH/STATUS.md" ]; then
+if [ -n "$BRANCH" ] && [ -f "dev-doc/$BRANCH/STATUS.yaml" ]; then
   DOC_ROOT="dev-doc/$BRANCH"
 else
   DOC_ROOT="dev-doc"
 fi
 
-STATUS_FILE="$DOC_ROOT/STATUS.md"
+STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ ! -f "$STATUS_FILE" ]; then
   exit 0
 fi
 
 # 只在 DEV 阶段检查
-PHASE=$(grep "当前阶段" "$STATUS_FILE" | sed 's/.*：//' | tr -d ' ')
+PHASE=$(grep "^phase:" "$STATUS_FILE" | sed 's/^phase: *//')
 if [ "$PHASE" != "DEV" ]; then
   exit 0
 fi
@@ -47,7 +47,7 @@ case "$CHANGED_FILE" in
 esac
 
 # fast 模式下无 SPEC，跳过
-MODE=$(grep "开发模式" "$STATUS_FILE" | sed 's/.*：//' | tr -d ' ')
+MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
 if [ "$MODE" = "fast" ]; then
   exit 0
 fi

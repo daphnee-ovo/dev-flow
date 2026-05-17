@@ -1,28 +1,71 @@
 ---
 description: 执行交付检查 — 确认项目可以交付
-allowed-tools: Bash, Read, Write, Edit
+allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 ---
 
 # DONE — 交付确认
 
-## 前置检查（阻断）
-
-逐条硬检查，任何一条不通过都**停止并报告**：
+## 模式检测
 
 ```bash
-DOC_ROOT="dev-doc"  # 或多工程模式下的路径
+if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
+  BRANCH=$(git branch --show-current 2>/dev/null)
+  DOC_ROOT="dev-doc/$BRANCH"
+else
+  DOC_ROOT="dev-doc"
+fi
 
-# 1. TASK 全部完成
-UNDONE=$(grep -c "^- \[ \]" "$DOC_ROOT/TASK.md" 2>/dev/null || echo 999)
-[ "$UNDONE" -gt 0 ] && echo "BLOCKED: $UNDONE 个任务未完成" && exit 1
-
-# 2. 无未关闭 issue
-OPEN=$(find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/dev/null | wc -l)
-[ "$OPEN" -gt 0 ] && echo "BLOCKED: $OPEN 个未关闭 issue" && exit 1
-
-# 3. TEST.md 存在
-[ ! -f "$DOC_ROOT/TEST.md" ] && echo "BLOCKED: 未执行项目测试" && exit 1
+MODE=$(grep "^mode:" "$DOC_ROOT/STATUS.yaml" | sed 's/^mode: *//')
 ```
+
+## 按模式分级检查
+
+根据 STATUS.yaml 的 mode 确定检查项：
+
+```bash
+BLOCKED=""
+
+case "$MODE" in
+  full)
+    [ ! -f "$DOC_ROOT/PRD.md" ] && BLOCKED="缺少 PRD.md"
+    [ ! -f "$DOC_ROOT/SPEC.md" ] && BLOCKED="缺少 SPEC.md"
+    ;;
+  quick)
+    [ ! -f "$DOC_ROOT/SPEC.md" ] && BLOCKED="缺少 SPEC.md"
+    ;;
+  fast)
+    ;;
+  mvp)
+    [ ! -f "$DOC_ROOT/SPEC.md" ] && BLOCKED="缺少 SPEC.md"
+    ;;
+esac
+
+# 通用检查（除 mvp 外）
+if [ "$MODE" != "mvp" ]; then
+  # task 全完成
+  UNDONE=0
+  for f in "$DOC_ROOT/task/task_"*.md; do
+    [ -f "$f" ] || continue
+    CNT=$(grep -c "^- \[ \]" "$f" 2>/dev/null) || true; UNDONE=$((UNDONE + ${CNT:-0}))
+  done
+  [ "$UNDONE" -gt 0 ] && BLOCKED="$UNDONE 个任务未完成"
+
+  # TEST.md 存在
+  [ ! -f "$DOC_ROOT/TEST.md" ] && BLOCKED="未执行项目测试"
+
+  # 无 P0 issue
+  P0_OPEN=0
+  for f in "$DOC_ROOT/issue/issue_"*.md; do
+    [ -f "$f" ] || continue
+    if grep -q "severity: P0" "$f" && grep -q "^- \[ \]" "$f"; then
+      P0_OPEN=$((P0_OPEN + 1))
+    fi
+  done
+  [ "$P0_OPEN" -gt 0 ] && BLOCKED="$P0_OPEN 个 P0 issue 未关闭"
+fi
+```
+
+mvp 模式特殊处理：只要求 SPEC 存在 + 代码可运行（询问用户确认）。
 
 ## 执行方式
 
@@ -30,12 +73,16 @@ OPEN=$(find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/
 
 ## 交付清单
 
-- [ ] TASK.md 所有任务已勾选 `[x]`
-- [ ] `dev-doc/issue/` 中无未关闭 issue（所有 issue 文件都有 `closed_` 前缀）
-- [ ] TEST.md 存在且有测试结果
+| 模式 | 检查项 |
+|------|--------|
+| full | PRD + SPEC + task 全完成 + TEST 全过 + 无 P0 issue |
+| quick | SPEC + task 全完成 + TEST 全过 + 无 P0 issue |
+| fast | task 全完成 + TEST 全过 + 无 P0 issue |
+| mvp | SPEC 存在 + 代码可运行（用户确认） |
+
+所有模式通用：
 - [ ] SPEC.md 与实际代码一致（抽查关键接口/数据模型）
 - [ ] 代码可正常运行（执行启动命令，无报错）
-- [ ] session 记录已保存
 
 ## SPEC 一致性抽查
 
@@ -48,5 +95,5 @@ OPEN=$(find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/
 
 ## 完成后
 
-1. 更新 STATUS.md：当前阶段 → DONE，勾选所有阶段
+1. 更新 STATUS.yaml：当前阶段 → DONE
 2. 输出交付报告

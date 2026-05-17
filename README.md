@@ -1,115 +1,242 @@
+**Language:** English | [中文](README.zh-CN.md)
+
+---
+
+<div align="center">
+
 # dev-flow
 
-项目全流程管理插件，支持 Claude Code 和 OpenAI Codex CLI。从需求探索到交付的完整生命周期管理。
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/network)
 
-## 安装
+**Full lifecycle project management plugin for Claude Code & Codex CLI.**
+
+From brainstorming to delivery — structured phases, role isolation, and automated hooks.
+
+</div>
+
+---
+
+## Quick Start
 
 ### Claude Code
 
 ```bash
-# 添加 marketplace
+# Add marketplace
 /plugin marketplace add daphnee-ovo/dev-flow
 
-# 安装插件
+# Install plugin
 /plugin install dev-flow@daphnee-ovo
 ```
 
 ### Codex CLI
 
 ```bash
-# 添加 marketplace
+# Add marketplace
 codex plugin marketplace add daphnee-ovo/dev-flow
 ```
 
-然后在 Codex 中打开 `/plugins`，搜索 `Dev-Flow` 并安装。安装后执行 `/init` 初始化项目。
+Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to initialize your project.
 
-本地开发时也可以直接添加当前目录：
+> For local development, you can also add the repo directly:
+> ```bash
+> codex plugin marketplace add .
+> ```
 
-```bash
-codex plugin marketplace add .
+### First Run
+
+```
+/init          → Initialize project, select development mode
+/brainstorm    → Collaborative requirement exploration (optional)
+/prd           → Produce requirements document
+/spec          → Produce technical specification
+/task          → Break down task list
+               → Development (auto-triggers /devtest on task completion)
+/test          → Full test suite
+/done          → Delivery confirmation
 ```
 
-## 快速开始
+---
 
-```
-/init          → 初始化项目，选择开发模式
-/brainstorm    → 协作式需求探索（可选）
-/prd           → 产出需求文档
-/spec          → 产出技术规范
-/task          → 拆解任务清单
-               → 开发（完成任务后自动触发 /devtest）
-/test          → 全量测试
-/done          → 交付确认
-```
+## Commands
 
-## 命令
+| Command | Description |
+|---------|-------------|
+| `/init` | Initialize project (create dev-doc, select mode, validate specs) |
+| `/brainstorm` | Collaborative requirement exploration & design before implementation |
+| `/prd` | Launch PRD agent — produce PRD.md |
+| `/spec` | Launch SPEC agent — produce SPEC.md |
+| `/task` | Launch TASK agent — produce task files |
+| `/issue` | Manually create issue files |
+| `/devtest` | Routine dev testing (task-level verification) |
+| `/fix` | Auto-read open issues and fix them |
+| `/test` | Full TEST agent (project-level verification) |
+| `/done` | Delivery checklist |
+| `/status` | Report current project status & progress |
+| `/check` | Check if dev work is synced with dev-doc |
+| `/iterate` | Start new iteration after delivery (archive + reset) |
+| `/mode` | Select development mode (full/quick/fast/mvp) |
 
-| 命令 | 说明 |
-|------|------|
-| `/init` | 初始化项目（创建 dev-doc、选择模式、规范校验） |
-| `/brainstorm` | 实现前的协作式需求探索与设计 |
-| `/prd` | 启动需求探索，产出 PRD.md |
-| `/spec` | 启动技术规范设计，产出 SPEC.md |
-| `/task` | 启动任务拆解，产出 TASK.md |
-| `/devtest` | 开发中例行测试（任务级验证） |
-| `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 项目级全量测试 |
-| `/done` | 交付确认检查 |
-| `/status` | 查看当前项目状态 |
-| `/check` | 文档同步检查 |
-| `/iterate` | 交付后启动新迭代 |
-| `/mode` | 选择开发模式 |
+---
 
-## 开发模式
+## Development Modes
 
-| 模式 | 流程 | 适用场景 |
+| Mode | Flow | Use Case |
 |------|------|----------|
-| `full` | brainstorm → prd → spec → task → dev → test → done | 全新项目、需求模糊 |
-| `quick` | spec → task → dev → test → done | 需求明确的功能开发 |
-| `fast` | task → dev → test → done | 小改动、技术方案已知 |
-| `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
+| `full` | brainstorm → prd → spec → task → dev → test → done | New projects, unclear requirements |
+| `quick` | spec → task → dev → test → done | Clear requirements, feature development |
+| `fast` | task → dev → test → done | Small changes, known technical approach |
+| `mvp` | brainstorm → spec → dev | Quick idea validation, prototyping |
 
-## 核心特性
+---
 
-**角色隔离** — 每个阶段由独立 agent 执行，避免思维定势：
+## Core Features
 
-| 阶段 | 角色 |
-|------|------|
-| PRD | 懂技术的高级产品经理 |
-| SPEC | 资深架构师 |
-| TASK | 经验丰富的技术主管 |
-| DEV | 主 agent 直接执行 |
-| TEST | 严格的 QA 工程师 |
+### Role Isolation
 
-**自动化 hooks** — 无需手动操作：
-- 每次对话注入当前阶段状态和规范提醒
-- 任务完成后自动触发例行测试
-- 代码变更时提醒同步文档
-- 会话结束时自动保存记录
+Each phase is executed by an independent agent to avoid cognitive bias:
 
-Codex 使用 `.codex-plugin/plugin.json`、`skills/dev-flow/SKILL.md` 和根目录 `hooks.json` 加载插件；Claude Code 继续使用 `.claude-plugin/`、`.claude/skills/` 和 `hooks/hooks.json`。
+| Phase | Role |
+|-------|------|
+| PRD | Senior product manager with technical background |
+| SPEC | Senior architect |
+| TASK | Experienced tech lead |
+| DEV | Main agent (direct execution) |
+| TEST | Strict QA engineer |
 
-**文档驱动** — 插件在项目中维护 `dev-doc/` 目录：
+### Automated Hooks
+
+No manual operations needed:
+
+- **Context injection** — injects current phase status and spec reminders on every message
+- **Auto devtest** — triggers routine testing when a task is marked complete
+- **Doc sync check** — reminds you to sync documentation when code changes
+- **Changelog save** — automatically saves changelog on conversation end
+- **`/tmp/` blocking** — prevents writing to system temp directories (enforces project-local tmp/)
+
+### Document-Driven Development
+
+The plugin maintains a `dev-doc/` directory in your project:
 
 ```
 dev-doc/
-├── STATUS.md              # 项目状态
-├── BRAINSTORM.md          # 头脑风暴
-├── PRD.md                 # 产品需求
-├── SPEC.md                # 技术规范
-├── TASK.md                # 任务清单
-├── TEST.md                # 测试报告
-├── issue/                 # 问题追踪
-├── session/               # 会话记录
-└── archive/               # 历史迭代
+├── STATUS.yaml            # Project status
+├── CHANGELOG.md           # Session changelog (append-only)
+├── BRAINSTORM.md          # Brainstorming notes
+├── PRD.md                 # Product requirements
+├── SPEC.md                # Technical specification
+├── TEST.md                # Test report
+├── task/                  # Task files (task_<date>_<seq>.md)
+├── issue/                 # Issue tracking (issue_<source>_<date>_<seq>.md)
+└── archive/               # Historical iterations (v<N>-<topic>/)
 ```
 
-**迭代管理** — `/iterate` 归档当前版本，启动新一轮开发。
+### Iteration Management
 
-## 致谢
+`/iterate` archives the current version and starts a new development cycle. All documents are versioned under `archive/v<N>-<topic>/`.
 
-`/brainstorm` 命令灵感来自 [superpowers](https://github.com/obra/superpowers)。
+---
+
+## Cross-Platform Support
+
+dev-flow supports both **Claude Code** and **OpenAI Codex CLI** with platform-specific configurations:
+
+| Component | Claude Code | Codex CLI |
+|-----------|-------------|-----------|
+| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` |
+| Skill entry | `.claude/skills/dev-flow/SKILL.md` | `skills/dev-flow/SKILL.md` |
+| Hooks config | `hooks/hooks.json` | `hooks.json` (root) |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` |
+| Sub-agent API | `Agent({...})` | `spawn_agent` |
+
+Commands in `commands/` are written in a runtime-neutral style that works across both platforms.
+
+---
+
+## Project Structure
+
+```
+dev-flow/
+├── .claude-plugin/
+│   ├── plugin.json            # Claude Code plugin config
+│   └── marketplace.json       # Marketplace metadata
+├── .codex-plugin/
+│   └── plugin.json            # Codex CLI plugin manifest
+├── .claude/skills/dev-flow/
+│   └── SKILL.md               # Claude Code skill trigger
+├── skills/dev-flow/
+│   └── SKILL.md               # Codex CLI skill entry
+├── commands/                   # Slash command definitions
+│   ├── init.md
+│   ├── brainstorm.md
+│   ├── prd.md
+│   ├── spec.md
+│   ├── task.md
+│   ├── devtest.md
+│   ├── fix.md
+│   ├── test.md
+│   ├── done.md
+│   ├── status.md
+│   ├── check.md
+│   ├── iterate.md
+│   └── mode.md
+├── agents/                     # Agent prompt templates
+│   ├── prd-agent.md
+│   ├── spec-agent.md
+│   ├── task-agent.md
+│   └── test-agent.md
+├── hooks/
+│   └── hooks.json              # Claude Code hook registration
+├── hooks.json                  # Codex CLI hook registration
+├── scripts/
+│   ├── hooks/                  # Hook scripts
+│   │   ├── inject-context.sh
+│   │   ├── block-system-tmp.sh
+│   │   ├── check-task-completion.sh
+│   │   ├── check-doc-sync.sh
+│   │   ├── check-phase-completion.sh
+│   │   ├── update-status.sh
+│   │   └── save-changelog.sh
+│   ├── commands/               # Scripted commands
+│   │   ├── status.sh
+│   │   ├── check.sh
+│   │   ├── mode.sh
+│   │   └── iterate.sh
+│   └── init/                   # Init command scripts
+│       ├── scan-project.sh
+│       ├── validate.sh
+│       └── migrate.sh
+├── references/                 # Internal spec references
+│   ├── dev-flow-spec.md
+│   └── dev-doc/                # Document format templates
+│       ├── STATUS.yaml
+│       ├── TASK-FILE.md
+│       ├── CHANGELOG.md
+│       ├── TEST.md
+│       └── ISSUE.md
+├── CLAUDE.md
+├── AGENTS.md
+├── README.md
+├── README.zh-CN.md
+├── CONTRIBUTING.md
+└── LICENSE
+```
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup and conventions.
+
+---
+
+## Credits
+
+The `/brainstorm` command is inspired by [superpowers](https://github.com/obra/superpowers).
+
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)

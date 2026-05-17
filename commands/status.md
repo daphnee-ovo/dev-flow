@@ -5,42 +5,12 @@ allowed-tools: Bash, Read
 
 # STATUS — 项目状态报告
 
-## 执行步骤
+## 执行方式
 
-1. 检测项目模式（单工程/多工程）
-2. 读取 `dev-doc/STATUS.md`
-3. 读取 `dev-doc/TASK.md` 统计任务完成比例
-4. 扫描 `dev-doc/issue/` 统计未关闭 issue
-5. 扫描 `dev-doc/session/task/` 获取最近会话记录
-6. 输出格式化状态报告
-
-## 输出格式
-
-```
-[dev-flow] 项目状态报告
-━━━━━━━━━━━━━━━━━━━━━━
-项目名称：<name>
-当前阶段：<phase>
-更新时间：<date>
-
-任务进度：[████░░░░░░] X/Y 完成
-未关闭 Issue：N 个
-最近动态：
-  - <date>: <action>
-  - <date>: <action>
-
-建议下一步：<suggestion>
-```
-
-## 模式检测
+直接运行脚本，展示输出：
 
 ```bash
-if find dev-doc -maxdepth 2 -name "STATUS.md" -path "*/*/STATUS.md" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/status.sh"
 ```
 
-如果 `dev-doc/` 不存在，提示这是新项目，建议执行 `/prd` 开始。
+脚本自动处理多工程检测、统计、格式化输出。Agent 只需运行并展示结果。

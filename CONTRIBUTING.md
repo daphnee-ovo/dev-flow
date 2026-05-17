@@ -58,17 +58,32 @@ dev-flow/
 ├── hooks/
 │   └── hooks.json              # hook 事件注册
 ├── hooks.json                  # Codex hook 事件注册
-├── scripts/                    # hook 脚本
-│   ├── inject-context.sh
-│   ├── block-system-tmp.sh
-│   ├── check-task-completion.sh
-│   ├── check-doc-sync.sh
-│   ├── check-phase-completion.sh
-│   ├── update-status.sh
-│   └── save-session.sh
+├── scripts/
+│   ├── hooks/                  # hook 脚本
+│   │   ├── inject-context.sh
+│   │   ├── block-system-tmp.sh
+│   │   ├── check-task-completion.sh
+│   │   ├── check-doc-sync.sh
+│   │   ├── check-phase-completion.sh
+│   │   ├── update-status.sh
+│   │   └── save-changelog.sh
+│   ├── commands/               # 脚本化命令
+│   │   ├── status.sh
+│   │   ├── check.sh
+│   │   ├── mode.sh
+│   │   └── iterate.sh
+│   └── init/                   # init 命令脚本
+│       ├── scan-project.sh
+│       ├── validate.sh
+│       └── migrate.sh
 ├── references/                 # 内部参考规范
-│   ├── dev-doc-spec.md
-│   └── status-template.md
+│   ├── dev-flow-spec.md
+│   └── dev-doc/                # 文档格式模板
+│       ├── STATUS.yaml
+│       ├── TASK-FILE.md
+│       ├── CHANGELOG.md
+│       ├── TEST.md
+│       └── ISSUE.md
 ├── CLAUDE.md                   # Claude Code 插件级指令
 ├── AGENTS.md                   # Codex 插件级指令
 ├── README.md
@@ -79,7 +94,7 @@ dev-flow/
 ## 开发约定
 
 - 命令文件使用 YAML frontmatter（description + allowed-tools）
-- Claude hook 使用 `${CLAUDE_PLUGIN_ROOT}` 引用插件根目录；Codex 根级 `hooks.json` 使用相对路径调用 `scripts/`
+- Claude hook 使用 `${CLAUDE_PLUGIN_ROOT}` 引用插件根目录；Codex 根级 `hooks.json` 使用相对路径调用 `scripts/hooks/`
 - 命令中涉及独立 agent 时，写成运行时中立的"子代理 prompt 模板"；Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`
 - hook 脚本 exit 0 = 通过，exit 2 = 阻断工具执行
 - 新增命令后需在 `.claude-plugin/plugin.json` 的 commands 数组中注册；Codex 通过 `commands/` 目录发现命令，仍要确认新命令内容不包含 Claude-only API
@@ -91,13 +106,14 @@ Codex 插件至少需要这些入口：
 - `.codex-plugin/plugin.json`：Codex 插件 manifest，声明 `skills`、`hooks`、展示信息和能力
 - `skills/<skill-name>/SKILL.md`：Codex skill 入口，负责触发描述和运行约定
 - `commands/*.md`：slash command 定义，尽量写成运行时中立的流程说明
-- `hooks.json`：Codex 根级 hook 注册，命令路径使用相对路径，如 `./scripts/inject-context.sh`
-- `scripts/*.sh`：hook 脚本应可被 Claude 和 Codex 复用，不要只依赖 Claude 专属环境变量
+- `hooks.json`：Codex 根级 hook 注册，命令路径使用相对路径，如 `./scripts/hooks/inject-context.sh`
+- `scripts/hooks/*.sh`：hook 脚本应可被 Claude 和 Codex 复用，不要只依赖 Claude 专属环境变量
+- `scripts/init/*.sh`：init 命令专用脚本，负责扫描和校验，输出结构化报告
 
 编写 Codex 兼容内容时注意：
 
 - 不要在通用命令里写死 `Agent({...})`、`AskUserQuestion` 等 Claude Code API。写成"启动独立子代理"、"向用户确认"，并注明 Codex 使用 `spawn_agent`。
-- 不要在 Codex hook 中使用 `${CLAUDE_PLUGIN_ROOT}`。Codex 插件根目录下的 `hooks.json` 用 `./scripts/...`。
+- 不要在 Codex hook 中使用 `${CLAUDE_PLUGIN_ROOT}`。Codex 插件根目录下的 `hooks.json` 用 `./scripts/hooks/...`。
 - hook 脚本如果读取工具输入，优先兼容多环境，例如同时支持 `CLAUDE_TOOL_INPUT`、`CODEX_TOOL_INPUT` 和 stdin。
 - 项目级指令文件不要只更新 `CLAUDE.md`。Codex 项目优先更新 `AGENTS.md`；如果两个文件都存在，保持 dev-flow 段落一致。
 - `.codex-plugin/plugin.json` 不使用 Claude 的 `commands` 字段。Codex 的命令文件可以放在根级 `commands/`。
@@ -110,8 +126,8 @@ Codex 插件至少需要这些入口：
 
 - `.claude-plugin/plugin.json` 新增或删除命令后，确认根级 `commands/` 内容也适合 Codex 读取。
 - `.claude/skills/dev-flow/SKILL.md` 有行为变更时，同步到 `skills/dev-flow/SKILL.md`。
-- `hooks/hooks.json` 有 hook 变更时，同步到根级 `hooks.json`，并把 `${CLAUDE_PLUGIN_ROOT}/scripts/...` 改成 `./scripts/...`。
-- `scripts/*.sh` 不要只读取 Claude 环境变量；新增输入读取逻辑时同步检查 Codex。
+- `hooks/hooks.json` 有 hook 变更时，同步到根级 `hooks.json`，并把 `${CLAUDE_PLUGIN_ROOT}/scripts/hooks/...` 改成 `./scripts/hooks/...`。
+- `scripts/hooks/*.sh` 不要只读取 Claude 环境变量；新增输入读取逻辑时同步检查 Codex。
 - 命令文档里如果新增了 `Agent({...})` 示例，改成运行时中立的子代理 prompt 模板。
 - `/init`、`/mode` 等会写项目指令的命令，确认同时覆盖 `AGENTS.md` 和 `CLAUDE.md` 的规则。
 - README 安装说明如果变更，Claude Code 和 Codex CLI 两段都要更新。
