@@ -123,7 +123,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
 **agent 只处理 `needs_confirm` 和 `warnings`**：
 - `needs_confirm` → 询问用户确认后执行（如重命名 issue/task 文件）
 - `warnings` → 直接修复（如补全 STATUS.yaml 缺失字段、补全 issue yaml 头）
+  - `issue_nums_mismatch` → 直接修正 frontmatter 中的 nums 值为实际条目数
+  - `issue_bad_item_format` → 修正条目格式为 `- [ ] I<N>：<标题>`
+  - `issue_missing_required_fields` → 询问用户补充缺失字段或标记占位符
+  - `issue_invalid_severity` → 修正为合法值 P0/P1/P2
 - `auto_fixed` → 仅在最终报告中告知用户
+
+**规范对照**：处理 `warnings` 时，agent 必须读取 `${CLAUDE_PLUGIN_ROOT}/references/dev-doc/` 下的对应规范文档（如修复 issue 格式问题则读 ISSUE.md，修复 task 格式问题则读 TASK.md），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
 
 ---
 

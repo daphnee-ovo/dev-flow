@@ -30,13 +30,16 @@ if [ ! -f "$CHANGELOG" ]; then
   printf "# Changelog\n\n" > "$CHANGELOG"
 fi
 
+# 清理 TOPIC 中的控制字符（保留中文等 UTF-8 多字节字符）
+TOPIC=$(printf '%s' "$TOPIC" | sed 's/[[:cntrl:]]//g')
+
 # 检查是否已有当天日期段
-if ! grep -q "^## $DATE" "$CHANGELOG"; then
-  # 在 # Changelog 行之后插入新日期段
-  sed -i "/^# Changelog$/a\\\\n## $DATE" "$CHANGELOG"
+if ! grep -aq "^## $DATE" "$CHANGELOG"; then
+  # 用 printf 追加而非 sed 插入（避免 header 大小写不匹配问题）
+  printf "\n## %s\n" "$DATE" >> "$CHANGELOG"
 fi
 
-# 在当天日期段下追加记录
-sed -i "/^## $DATE$/a - $TIME $TOPIC" "$CHANGELOG"
+# 追加记录到文件末尾（当天最新在最后）
+printf -- "- %s %s\n" "$TIME" "$TOPIC" >> "$CHANGELOG"
 
 echo "[dev-flow] CHANGELOG 已更新：$TIME $TOPIC"

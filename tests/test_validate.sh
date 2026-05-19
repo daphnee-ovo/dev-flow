@@ -207,6 +207,180 @@ else
   ERRORS="$ERRORS\n  FAIL: .gitignore 应含 tmp/"
 fi
 
+# === TEST 9: issue 条目格式校验 ===
+echo "TEST 9: issue 条目格式校验"
+setup
+mkdir -p dev-doc/issue
+cat > dev-doc/STATUS.yaml << 'EOF'
+name: test
+phase: DEV
+mode: full
+iteration: 1
+updated: 2026-05-15 10:00
+started: 2026-05-15 10:00
+EOF
+# 正确格式
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 2
+---
+- [ ] I1：正确格式条目
+  - severity: P0
+  - location：file.sh:10
+  - description：描述
+- [ ] I2：另一个正确条目
+  - severity: P1
+  - location：file.sh:20
+  - description：描述2
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "issue_bad_item_format" "正确格式不应报告 bad_item_format"
+
+# 错误格式（缺少 I<N>：前缀）
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 2
+---
+- [ ] 缺少编号的条目
+  - severity: P0
+  - location：file.sh:10
+  - description：描述
+- [ ] I2：正确条目
+  - severity: P1
+  - location：file.sh:20
+  - description：描述2
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_contains "$OUTPUT" "issue_bad_item_format" "缺少 I<N>：前缀应报告 bad_item_format"
+
+# === TEST 10: issue 必需子字段校验 ===
+echo "TEST 10: issue 必需子字段校验"
+setup
+mkdir -p dev-doc/issue
+cat > dev-doc/STATUS.yaml << 'EOF'
+name: test
+phase: DEV
+mode: full
+iteration: 1
+updated: 2026-05-15 10:00
+started: 2026-05-15 10:00
+EOF
+# 缺少 severity 和 description
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 1
+---
+- [ ] I1：缺少必需字段
+  - location：file.sh:10
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_contains "$OUTPUT" "issue_missing_required_fields" "缺少必需子字段应报告"
+
+# 完整字段不报告
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 1
+---
+- [ ] I1：完整字段条目
+  - severity: P0
+  - location：file.sh:10
+  - description：描述完整
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "issue_missing_required_fields" "完整字段不应报告 missing_required_fields"
+
+# === TEST 11: issue nums 一致性校验 ===
+echo "TEST 11: issue nums 一致性校验"
+setup
+mkdir -p dev-doc/issue
+cat > dev-doc/STATUS.yaml << 'EOF'
+name: test
+phase: DEV
+mode: full
+iteration: 1
+updated: 2026-05-15 10:00
+started: 2026-05-15 10:00
+EOF
+# nums 值与实际条目数不一致
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 5
+---
+- [ ] I1：条目一
+  - severity: P0
+  - location：file.sh:10
+  - description：描述
+- [ ] I2：条目二
+  - severity: P1
+  - location：file.sh:20
+  - description：描述2
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_contains "$OUTPUT" "issue_nums_mismatch" "nums 不一致应报告"
+
+# nums 一致不报告
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 2
+---
+- [ ] I1：条目一
+  - severity: P0
+  - location：file.sh:10
+  - description：描述
+- [ ] I2：条目二
+  - severity: P1
+  - location：file.sh:20
+  - description：描述2
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "issue_nums_mismatch" "nums 一致不应报告"
+
+# === TEST 12: issue severity 合法值校验 ===
+echo "TEST 12: issue severity 合法值校验"
+setup
+mkdir -p dev-doc/issue
+cat > dev-doc/STATUS.yaml << 'EOF'
+name: test
+phase: DEV
+mode: full
+iteration: 1
+updated: 2026-05-15 10:00
+started: 2026-05-15 10:00
+EOF
+# 非法 severity 值
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 1
+---
+- [ ] I1：非法严重级别
+  - severity: HIGH
+  - location：file.sh:10
+  - description：描述
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_contains "$OUTPUT" "issue_invalid_severity" "非法 severity 应报告"
+
+# 合法 severity 不报告
+cat > "dev-doc/issue/issue_test_2026-05-15_1.md" << 'EOF'
+---
+source: test
+nums: 1
+---
+- [ ] I1：合法严重级别
+  - severity: P2
+  - location：file.sh:10
+  - description：描述
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "issue_invalid_severity" "合法 severity 不应报告"
+
 # === 汇总 ===
 teardown
 echo ""

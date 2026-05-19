@@ -21,6 +21,11 @@
             "type": "command",
             "command": "./scripts/hooks/block-system-tmp.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "./scripts/hooks/block-non-dev-edit.sh",
+            "timeout": 5
           }
         ]
       },

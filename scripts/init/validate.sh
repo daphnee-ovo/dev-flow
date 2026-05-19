@@ -82,6 +82,54 @@ if [ -d "$DOC_ROOT/issue" ]; then
       if [ "$ALL_DONE" = false ] && [[ "$BASENAME" == closed_* ]]; then
         NEEDS_CONFIRM+=("issue_closed_but_open_items:$BASENAME")
       fi
+      # 检查内容结构：条目格式和必需子字段
+      if [ "$TOTAL" -gt 0 ]; then
+        # 校验 nums 字段与实际条目数一致
+        NUMS_VAL=$(grep "^nums:" "$f" | sed 's/^nums: *//')
+        if [ -n "$NUMS_VAL" ] && [ "$NUMS_VAL" != "$TOTAL" ]; then
+          WARNINGS+=("issue_nums_mismatch:$BASENAME:nums=$NUMS_VAL,actual=$TOTAL")
+        fi
+        # 校验条目格式：- [ ] I<N>：<标题>
+        BAD_FORMAT=$(grep "^- \[" "$f" | grep -cvE '^\- \[[ x]\] I[0-9]+：' 2>/dev/null) || true
+        BAD_FORMAT=${BAD_FORMAT:-0}
+        if [ "$BAD_FORMAT" -gt 0 ]; then
+          WARNINGS+=("issue_bad_item_format:$BASENAME:$BAD_FORMAT")
+        fi
+        # 校验必需子字段（severity, location, description）
+        ITEMS_MISSING_FIELDS=0
+        IN_ITEM=false
+        HAS_SEVERITY=false; HAS_LOCATION=false; HAS_DESC=false
+        while IFS= read -r line; do
+          if echo "$line" | grep -qE '^- \[[ x]\]'; then
+            # 新条目开始前，检查上一个条目
+            if [ "$IN_ITEM" = true ]; then
+              if [ "$HAS_SEVERITY" = false ] || [ "$HAS_LOCATION" = false ] || [ "$HAS_DESC" = false ]; then
+                ITEMS_MISSING_FIELDS=$((ITEMS_MISSING_FIELDS + 1))
+              fi
+            fi
+            IN_ITEM=true; HAS_SEVERITY=false; HAS_LOCATION=false; HAS_DESC=false
+          elif [ "$IN_ITEM" = true ]; then
+            echo "$line" | grep -q "severity:" && HAS_SEVERITY=true
+            echo "$line" | grep -q "location" && HAS_LOCATION=true
+            echo "$line" | grep -q "description" && HAS_DESC=true
+          fi
+        done < "$f"
+        # 检查最后一个条目
+        if [ "$IN_ITEM" = true ]; then
+          if [ "$HAS_SEVERITY" = false ] || [ "$HAS_LOCATION" = false ] || [ "$HAS_DESC" = false ]; then
+            ITEMS_MISSING_FIELDS=$((ITEMS_MISSING_FIELDS + 1))
+          fi
+        fi
+        if [ "$ITEMS_MISSING_FIELDS" -gt 0 ]; then
+          WARNINGS+=("issue_missing_required_fields:$BASENAME:$ITEMS_MISSING_FIELDS")
+        fi
+        # 校验 severity 值
+        BAD_SEVERITY=$(grep -E "^\s+- severity:" "$f" | grep -cvE 'P[012]' 2>/dev/null) || true
+        BAD_SEVERITY=${BAD_SEVERITY:-0}
+        if [ "$BAD_SEVERITY" -gt 0 ]; then
+          WARNINGS+=("issue_invalid_severity:$BASENAME:$BAD_SEVERITY")
+        fi
+      fi
     fi
   done
 fi
@@ -95,7 +143,7 @@ if [ -f "$CHANGELOG" ]; then
   fi
 else
   # CHANGELOG 不存在时自动创建
-  echo "# CHANGELOG" > "$CHANGELOG"
+  echo "# Changelog" > "$CHANGELOG"
   AUTO_FIXED+=("created_changelog")
 fi
 

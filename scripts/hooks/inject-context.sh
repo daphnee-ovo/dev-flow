@@ -148,6 +148,6 @@ fi
 
 # === 最近一条 CHANGELOG ===
 if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
-  LAST_ENTRY=$(grep "^- " "$DOC_ROOT/CHANGELOG.md" | head -1)
+  LAST_ENTRY=$(grep -a "^- " "$DOC_ROOT/CHANGELOG.md" | head -1)
   [ -n "$LAST_ENTRY" ] && echo "[LAST] $LAST_ENTRY"
 fi
