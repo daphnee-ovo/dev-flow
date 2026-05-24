@@ -203,12 +203,83 @@ test_no_task_files() {
   cleanup
 }
 
+# === 预览模式不应产生副作用（文件不被移动/创建） ===
+test_preview_no_side_effects() {
+  setup_env
+
+  # 添加 CHANGELOG 和 closed issue
+  echo "# CHANGELOG" > dev-doc/CHANGELOG.md
+  mkdir -p dev-doc/issue
+  cat > dev-doc/issue/closed_issue_test_2026-05-24_1.md << 'EOF'
+- [x] I1：已修复
+  - severity: P1
+EOF
+  git add -A && git commit -q -m "add files"
+
+  # 不带 DEVFLOW_NO_CONFIRM 运行（预览模式）
+  local output
+  output=$(bash scripts/commands/iterate.sh "preview" 2>&1)
+  local code=$?
+
+  # 预览应以 exit 0 结束
+  assert_eq "预览模式exit0" "0" "$code"
+  assert_contains "预览显示摘要" "迭代摘要" "$output"
+  assert_contains "预览显示等待确认" "等待 agent 确认" "$output"
+
+  # 验证无副作用：文件未被移动
+  if [ -f "dev-doc/task/done_task_v2.2.md" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1)); ERRORS="${ERRORS}\nFAIL: 预览不应移动done_task"
+  fi
+  if [ -f "dev-doc/issue/closed_issue_test_2026-05-24_1.md" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1)); ERRORS="${ERRORS}\nFAIL: 预览不应移动closed_issue"
+  fi
+  if [ -f "dev-doc/CHANGELOG.md" ] && grep -q "CHANGELOG" "dev-doc/CHANGELOG.md"; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1)); ERRORS="${ERRORS}\nFAIL: 预览不应移动CHANGELOG"
+  fi
+  # archive 目录不应存在
+  if [ ! -d "dev-doc/archive" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1)); ERRORS="${ERRORS}\nFAIL: 预览不应创建archive目录"
+  fi
+
+  cleanup
+}
+
+# === 预览后正式执行应成功（不报"已存在"） ===
+test_preview_then_confirm() {
+  setup_env
+
+  echo "# CHANGELOG" > dev-doc/CHANGELOG.md
+  git add -A && git commit -q -m "add changelog"
+
+  # 先预览
+  bash scripts/commands/iterate.sh "double" 2>&1 > /dev/null
+
+  # 再正式执行
+  local output
+  output=$(DEVFLOW_NO_CONFIRM=1 bash scripts/commands/iterate.sh "double" 2>&1)
+  local code=$?
+
+  assert_eq "预览后执行成功" "0" "$code"
+  assert_contains "预览后执行完成" "迭代完成" "$output"
+  cleanup
+}
+
 # === 运行所有测试 ===
 test_p0_issue_fixed_but_file_not_renamed
 test_closed_p0_issue_no_block
 test_multiple_issue_files_p0
 test_empty_issue_dir
 test_no_task_files
+test_preview_no_side_effects
+test_preview_then_confirm
 
 # === 报告 ===
 echo ""

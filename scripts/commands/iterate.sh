@@ -83,7 +83,7 @@ fi
 
 NEW_VERSION=$(version_bump "$VERSION" "$BUMP_TYPE")
 
-# ===== 阶段 3：归档（用当前版本号命名） =====
+# ===== 阶段 3：预览归档内容（不执行实际操作） =====
 ARCHIVE_DIR="$DOC_ROOT/archive/v${VERSION}-${TOPIC}"
 
 if [ -d "$ARCHIVE_DIR" ]; then
@@ -91,38 +91,21 @@ if [ -d "$ARCHIVE_DIR" ]; then
   exit 1
 fi
 
-mkdir -p "$ARCHIVE_DIR/issue"
-
 ARCHIVED=()
 
-# done_task_* → archive
+# 扫描将要归档的文件
 for f in "$DOC_ROOT/task/done_task_"*.md; do
   [ -f "$f" ] || continue
-  mv "$f" "$ARCHIVE_DIR/"
   ARCHIVED+=("$(basename "$f")")
 done
-
-# closed_issue_* → archive/issue/
 for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   [ -f "$f" ] || continue
-  mv "$f" "$ARCHIVE_DIR/issue/"
   ARCHIVED+=("$(basename "$f")")
 done
-
-# 主文档归档（复制）
 for doc in PRD.md SPEC.md TEST.md; do
-  if [ -f "$DOC_ROOT/$doc" ]; then
-    cp "$DOC_ROOT/$doc" "$ARCHIVE_DIR/"
-    ARCHIVED+=("$doc (copy)")
-  fi
+  [ -f "$DOC_ROOT/$doc" ] && ARCHIVED+=("$doc (copy)")
 done
-
-# CHANGELOG 归档后重置
-if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
-  mv "$DOC_ROOT/CHANGELOG.md" "$ARCHIVE_DIR/"
-  echo "# CHANGELOG" > "$DOC_ROOT/CHANGELOG.md"
-  ARCHIVED+=("CHANGELOG.md")
-fi
+[ -f "$DOC_ROOT/CHANGELOG.md" ] && ARCHIVED+=("CHANGELOG.md")
 
 # ===== 阶段 4：展示变更摘要 =====
 echo "[dev-flow] 迭代摘要"
@@ -146,7 +129,26 @@ if [ "${DEVFLOW_NO_CONFIRM:-}" != "1" ]; then
   exit 0
 fi
 
-# ===== 阶段 5：commit & tag =====
+# ===== 阶段 5：执行归档 =====
+mkdir -p "$ARCHIVE_DIR/issue"
+
+for f in "$DOC_ROOT/task/done_task_"*.md; do
+  [ -f "$f" ] || continue
+  mv "$f" "$ARCHIVE_DIR/"
+done
+for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
+  [ -f "$f" ] || continue
+  mv "$f" "$ARCHIVE_DIR/issue/"
+done
+for doc in PRD.md SPEC.md TEST.md; do
+  [ -f "$DOC_ROOT/$doc" ] && cp "$DOC_ROOT/$doc" "$ARCHIVE_DIR/"
+done
+if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
+  mv "$DOC_ROOT/CHANGELOG.md" "$ARCHIVE_DIR/"
+  echo "# CHANGELOG" > "$DOC_ROOT/CHANGELOG.md"
+fi
+
+# ===== 阶段 6（续）：commit & tag =====
 git add -A
 git commit -m "Release v${VERSION}: ${TOPIC}"
 
@@ -157,7 +159,7 @@ else
   echo "[dev-flow] 已创建 git tag: v$VERSION"
 fi
 
-# ===== 阶段 6：bump 版本号，开启新迭代 =====
+# ===== 阶段 7：bump 版本号，开启新迭代 =====
 version_write "$NEW_VERSION"
 
 # 重置 STATUS.yaml phase
