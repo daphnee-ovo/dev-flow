@@ -13,7 +13,7 @@
     "./commands/devtest.md",
     "./commands/fix.md",
     "./commands/test.md",
-    "./commands/done.md",
+    
     "./commands/status.md",
     "./commands/check.md",
     "./commands/iterate.md",

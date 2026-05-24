@@ -54,7 +54,7 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 /task          → 拆解任务清单
                → 开发（完成任务后自动触发 /devtest）
 /test          → 全量测试
-/done          → 交付确认
+
 ```
 
 ---
@@ -72,7 +72,6 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 | `/devtest` | 开发中例行测试（任务级验证） |
 | `/fix` | 自动读取未关闭 issue 并修复 |
 | `/test` | 完整 TEST agent（项目级全量验证） |
-| `/done` | 交付确认检查 |
 | `/status` | 查看当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |

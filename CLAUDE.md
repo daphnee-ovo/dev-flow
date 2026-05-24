@@ -15,22 +15,19 @@
 | `/devtest` | 开发中例行测试（任务级验证） |
 | `/fix` | 自动读取未关闭 issue 并修复 |
 | `/test` | 启动完整 TEST agent（项目级全量验证） |
-| `/done` | 执行交付检查 |
 | `/status` | 报告当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 dev-doc |
-| `/iterate` | 交付后启动新迭代（归档 + 重置） |
+| `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp） |
 
 ## 流程
 
 ```
-头脑风暴(BRAINSTORM) → 需求(PRD) → 规范(SPEC) → 任务(TASK) → 开发(DEV) → 测试(TEST) → 交付(DONE)
-        可选                                                  │                ↑         │
-                                                              │  例行TEST      │         │
-                                                              │  (任务级循环)    │ 项目TEST │
-                                                              └───────────────→│         │
-                                                                                         ↓
-                                                                              迭代(ITERATE) → 下一轮
+头脑风暴(BRAINSTORM) → 需求(PRD) → 规范(SPEC) → 任务(TASK) → 开发(DEV) → 测试(TEST) → 迭代(ITERATE) → 下一轮
+        可选                                                  │                ↑
+                                                              │  例行TEST      │
+                                                              │  (任务级循环)    │ 项目TEST
+                                                              └───────────────→│
 ```
 
 ## Hooks

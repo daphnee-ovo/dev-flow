@@ -91,6 +91,21 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 
 - **无法修复** → 保持 issue 打开状态，向用户报告原因和建议
 
+## P0 issue 关闭时自动 bump
+
+当一个包含 P0 severity 条目的 issue 文件被完全关闭时，自动执行 minor 版本 bump：
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/version.sh"
+VER=$(version_read)
+NEW_VER=$(version_bump "$VER" minor)
+version_write "$NEW_VER"
+git add VERSION
+git commit -m "Bump to v${NEW_VER}: P0 issue fixed"
+```
+
+判断条件：被关闭的 issue 文件中存在 `severity: P0` 的条目。非 P0 issue 关闭时不触发 bump。
+
 ## 完成后
 
 汇总所有 issue 的处理结果：

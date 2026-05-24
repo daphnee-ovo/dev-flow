@@ -1,6 +1,6 @@
 ---
 name: dev-flow
-description: "项目全流程管理。命令：/init（项目初始化）、/brainstorm（头脑风暴）、/prd（需求探索）、/spec（技术规范）、/task（任务拆解）、/issue（创建 issue）、/devtest（例行测试）、/fix（自动修复 issue）、/test（完整测试）、/done（交付确认）、/status（状态报告）、/check（文档同步检查）、/iterate（启动新迭代）、/mode（开发模式）。当用户提到创建项目、启动项目、初始化、项目状态、下一步、开始开发、新版本、迭代、头脑风暴、想法、模式时触发。"
+description: "项目全流程管理。命令：/init（项目初始化）、/brainstorm（头脑风暴）、/prd（需求探索）、/spec（技术规范）、/task（任务拆解）、/issue（创建 issue）、/devtest（例行测试）、/fix（自动修复 issue）、/test（完整测试）、/status（状态报告）、/check（文档同步检查）、/iterate（启动新迭代）、/mode（开发模式）。当用户提到创建项目、启动项目、初始化、项目状态、下一步、开始开发、新版本、迭代、头脑风暴、想法、模式时触发。"
 ---
 
 # Dev-Flow：项目全流程管理
@@ -15,7 +15,6 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 
 ## 运行约定
 
-- 用户输入 `/init`、`/brainstorm`、`/prd`、`/spec`、`/task`、`/issue`、`/devtest`、`/fix`、`/test`、`/done`、`/status`、`/check`、`/iterate`、`/mode` 时，按 `commands/<命令>.md` 的工作流执行。
 - 当命令要求"独立 agent"或"subagent"时，使用 `Agent({...})` 工具。
 - 当命令要求更新项目级 agent 指令时，Claude Code 项目优先更新 `CLAUDE.md`；如果 `AGENTS.md` 也存在，保持两者同步。
 
@@ -42,7 +41,6 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 | `/devtest` | DEV（内循环） | 轻量 QA |
 | `/fix` | DEV/TEST | 自动修复 issue |
 | `/test` | TEST | 严格的 QA 工程师 |
-| `/done` | DONE | 项目经理 |
 | `/status` | 任意 | 状态报告 |
 | `/check` | 任意 | 文档同步检查 |
 | `/iterate` | DONE → 新轮次 | 归档 + 重置 |

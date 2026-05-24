@@ -176,7 +176,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
 - 已有内容中非 dev-flow 产出的部分 → 保留不动
 - 已有某节但信息过时 → 更新
 - 目标文件不存在 → 整体生成
-- **不写入 mode/phase/iteration** — 由 STATUS.yaml + hooks 管理
+- **不写入 mode/phase** — 由 STATUS.yaml + hooks 管理
 - 已有 `.cursorrules` / `.windsurfrules` → 读取并整合
 
 ---

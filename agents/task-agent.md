@@ -73,15 +73,21 @@ nums: <任务总数>
 
 判断标准：如果这个任务不做，其他任务能否继续？能 → P1/P2；不能 → P0。
 
-## Done when 示例
+## Done when 规范
 
-好：
+**优先使用可执行格式**：`command | expected_output` 或 `command → exit_code`
+
+优秀（可自动验证）：
+- "`bash tests/test_auth.sh` 全部 PASS"
+- "`curl -s /api/users | jq length` 输出大于 0"
+- "`source calc.sh && divide 1 0 2>&1` 输出包含 error 且退出码非 0"
+
+合格（可人工验证）：
 - "运行 `npm test` 全部通过"
-- "访问 /login 能看到表单，错误密码显示提示"
-- "`curl /api/users` 返回 JSON 数组"
+- "访问 /login 能看到表单，错误密码显示红色提示"
 
-差：
-- "完成"、"实现了"、"代码写好了"
+不合格（模糊、不可验证）：
+- "完成"、"实现了"、"代码写好了"、"输出错误信息"
 
 ## 注意事项
 

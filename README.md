@@ -54,7 +54,6 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 /task          → Break down task list
                → Development (auto-triggers /devtest on task completion)
 /test          → Full test suite
-/done          → Delivery confirmation
 ```
 
 ---
@@ -72,7 +71,6 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 | `/devtest` | Routine dev testing (task-level verification) |
 | `/fix` | Auto-read open issues and fix them |
 | `/test` | Full TEST agent (project-level verification) |
-| `/done` | Delivery checklist |
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |

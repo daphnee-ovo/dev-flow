@@ -19,7 +19,7 @@ DATE=$(date +%Y-%m-%d)
 TIME=$(date +%H:%M)
 
 # 推断 topic：从最近 git commit message 取，fallback 用 phase
-TOPIC=$(git log --oneline -1 2>/dev/null | sed 's/^[a-f0-9]* //' | cut -c1-40)
+TOPIC=$(git log --oneline -1 2>/dev/null | sed 's/^[a-f0-9]* //')
 if [ -z "$TOPIC" ]; then
   TOPIC=$(grep "^phase:" "$DOC_ROOT/STATUS.yaml" 2>/dev/null | sed 's/^phase: *//' | tr '[:upper:]' '[:lower:]')
 fi
@@ -39,7 +39,12 @@ if ! grep -aq "^## $DATE" "$CHANGELOG"; then
   printf "\n## %s\n" "$DATE" >> "$CHANGELOG"
 fi
 
-# 追加记录到文件末尾（当天最新在最后）
-printf -- "- %s %s\n" "$TIME" "$TOPIC" >> "$CHANGELOG"
+# 去重：同一时间+同一 topic 不重复追加
+ENTRY="- $TIME $TOPIC"
+if grep -qF -- "$ENTRY" "$CHANGELOG" 2>/dev/null; then
+  exit 0
+fi
+
+printf -- "%s\n" "$ENTRY" >> "$CHANGELOG"
 
 echo "[dev-flow] CHANGELOG 已更新：$TIME $TOPIC"

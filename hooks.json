@@ -46,37 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/check-task-completion.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./scripts/hooks/check-doc-sync.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./scripts/hooks/update-status.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./scripts/hooks/check-phase-completion.sh",
+            "command": "./scripts/hooks/post-write.sh",
             "timeout": 10
           }
         ]

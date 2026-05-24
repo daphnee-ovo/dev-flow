@@ -63,8 +63,14 @@ if [ -d "$DOC_ROOT/issue" ]; then
   done
 fi
 
-# === 基础状态输出 ===
-echo "[dev-flow ${MODE:-?}] STAGE: $PHASE | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
+# === 基础状态输出（含版本号） ===
+if [ -f "VERSION" ]; then
+  VER=$(cat VERSION | tr -d '[:space:]')
+  TAG_EXISTS=$(git tag -l "v$VER" 2>/dev/null | grep -q "v$VER" && echo "synced" || echo "no-tag")
+  echo "[dev-flow ${MODE:-?}] v${VER}(${TAG_EXISTS}) | STAGE: $PHASE | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
+else
+  echo "[dev-flow ${MODE:-?}] STAGE: $PHASE | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
+fi
 
 # === 阶段 HINTS ===
 case "$PHASE" in
@@ -72,21 +78,29 @@ case "$PHASE" in
   SPEC) echo "[SPEC HINTS] 定义接口+数据模型+错误处理 → /task" ;;
   TASK) echo "[TASK HINTS] 每任务必须有 Done when → 进入 DEV" ;;
   DEV)
-    # 阻断：DEV 阶段必须有活跃 task 或 open issue 才能推进
+    # 阻断：DEV 阶段必须有活跃 task 或 open issue 或已完成的 task 才能推进
     ACTIVE_TASKS=0
     for f in "$DOC_ROOT/task/task_"*.md; do
       [ -f "$f" ] && ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
     done
-    if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ]; then
+    DONE_TASKS=0
+    for f in "$DOC_ROOT/task/done_task_"*.md; do
+      [ -f "$f" ] && DONE_TASKS=$((DONE_TASKS + 1))
+    done
+    if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -eq 0 ]; then
       echo "[BLOCKED] DEV 阶段无活跃 task 且无 open issue，无法推进。"
       echo "[BLOCKED] 请先执行 /task 创建任务，或 /issue 创建 issue。"
       exit 0
     fi
-    echo "[DEV HINTS] task/ 任务 → 勾选[x] → /devtest → tests/ | issue → /fix"
-    [ "$OPEN_ISSUES" -gt 0 ] && echo "[!] $OPEN_ISSUES issue open → /fix"
+    if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -gt 0 ]; then
+      echo "[DEV HINTS] 所有任务已完成，执行 /test 进行全量验证。"
+    else
+      echo "[DEV HINTS] task/ 任务 → 勾选[x] → /devtest → tests/ | issue → /fix"
+      [ "$OPEN_ISSUES" -gt 0 ] && echo "[!] $OPEN_ISSUES issue open → /fix"
+    fi
     ;;
   TEST)
-    echo "[TEST HINTS] 运行 tests/ 全量 → issue 或 /done"
+    echo "[TEST HINTS] 运行 tests/ 全量 → issue 或 /iterate"
     [ "$OPEN_ISSUES" -gt 0 ] && echo "[!] $OPEN_ISSUES issue open → /fix first"
     ;;
   DONE) echo "[DONE HINTS] /iterate 启动新迭代" ;;

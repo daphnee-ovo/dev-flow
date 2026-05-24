@@ -100,11 +100,11 @@ echo "=============================="
 echo "STATUS TEST 1: 完整输出格式"
 setup
 mkdir -p dev-doc/task dev-doc/issue
+echo "2.1.0" > VERSION
 cat > dev-doc/STATUS.yaml << 'EOF'
 name: my-project
 phase: DEV
 mode: full
-iteration: 2
 updated: 2026-05-15 14:00
 started: 2026-05-14 10:00
 EOF
@@ -132,7 +132,7 @@ OUTPUT=$(bash "$CMD_DIR/status.sh" "dev-doc" 2>&1)
 assert_contains "$OUTPUT" "my-project" "应显示项目名"
 assert_contains "$OUTPUT" "DEV" "应显示阶段"
 assert_contains "$OUTPUT" "full" "应显示模式"
-assert_contains "$OUTPUT" "v2" "应显示迭代版本"
+assert_contains "$OUTPUT" "v2.1.0" "应显示版本号"
 assert_contains "$OUTPUT" "2/3" "应显示正确的任务进度"
 assert_contains "$OUTPUT" "实现功能A" "应显示最近 CHANGELOG"
 assert_contains "$OUTPUT" "继续开发" "DEV 阶段未完成应建议继续开发"
@@ -156,7 +156,6 @@ cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DEV
 mode: full
-iteration: 1
 updated: 2026-05-15 14:00
 started: 2026-05-15 10:00
 EOF
@@ -172,7 +171,6 @@ cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DEV
 mode: full
-iteration: 1
 updated: 2026-05-15 14:00
 started: 2026-05-15 10:00
 EOF
@@ -192,7 +190,6 @@ cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DONE
 mode: full
-iteration: 1
 updated: 2026-05-15 14:00
 started: 2026-05-15 10:00
 EOF
@@ -246,7 +243,6 @@ cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DEV
 mode: full
-iteration: 1
 updated: 2026-05-01 10:00
 started: 2026-05-01 10:00
 EOF
@@ -281,15 +277,15 @@ EXIT=$?
 assert_exit_code "$EXIT" 1 "无参数应 exit 1"
 assert_contains "$OUTPUT" "用法" "应显示用法"
 
-# === iterate.sh TEST 2: 归档操作 ===
+# === iterate.sh TEST 2: 完整归档操作 ===
 echo "ITERATE TEST 2: 完整归档操作"
 setup
 mkdir -p dev-doc/task dev-doc/issue
+echo "1.0.0" > VERSION
 cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DONE
 mode: full
-iteration: 1
 updated: 2026-05-15 14:00
 started: 2026-05-14 10:00
 EOF
@@ -311,14 +307,15 @@ cat > dev-doc/CHANGELOG.md << 'EOF'
 ## 2026-05-15
 - 14:30 完成开发
 EOF
-OUTPUT=$(bash "$CMD_DIR/iterate.sh" "first-release" "dev-doc" 2>&1)
-assert_contains "$OUTPUT" "新迭代启动" "应输出新迭代启动"
-assert_dir_exists "dev-doc/archive/v1-first-release" "应创建归档目录"
-assert_file_exists "dev-doc/archive/v1-first-release/done_task_2026-05-14_1.md" "done_task 应被归档"
-assert_file_exists "dev-doc/archive/v1-first-release/issue/closed_issue_test_2026-05-14_1.md" "closed_issue 应被归档"
-assert_file_exists "dev-doc/archive/v1-first-release/PRD.md" "PRD 应被归档(copy)"
-assert_file_exists "dev-doc/archive/v1-first-release/SPEC.md" "SPEC 应被归档(copy)"
-assert_file_exists "dev-doc/archive/v1-first-release/CHANGELOG.md" "CHANGELOG 应被归档"
+git add -A && git commit -m "prepare" -q
+OUTPUT=$(DEVFLOW_NO_CONFIRM=1 bash "$CMD_DIR/iterate.sh" "first-release" "minor" "dev-doc" 2>&1)
+assert_contains "$OUTPUT" "迭代完成" "应输出迭代完成"
+assert_dir_exists "dev-doc/archive/v1.0.0-first-release" "应创建归档目录"
+assert_file_exists "dev-doc/archive/v1.0.0-first-release/done_task_2026-05-14_1.md" "done_task 应被归档"
+assert_file_exists "dev-doc/archive/v1.0.0-first-release/issue/closed_issue_test_2026-05-14_1.md" "closed_issue 应被归档"
+assert_file_exists "dev-doc/archive/v1.0.0-first-release/PRD.md" "PRD 应被归档(copy)"
+assert_file_exists "dev-doc/archive/v1.0.0-first-release/SPEC.md" "SPEC 应被归档(copy)"
+assert_file_exists "dev-doc/archive/v1.0.0-first-release/CHANGELOG.md" "CHANGELOG 应被归档"
 # 原位文件检查
 assert_file_not_exists "dev-doc/task/done_task_2026-05-14_1.md" "done_task 原位应被移走"
 assert_file_not_exists "dev-doc/issue/closed_issue_test_2026-05-14_1.md" "closed_issue 原位应被移走"
@@ -326,24 +323,24 @@ assert_file_exists "dev-doc/PRD.md" "PRD 原位应保留(copy)"
 assert_file_exists "dev-doc/CHANGELOG.md" "CHANGELOG 应重建"
 assert_file_contains "dev-doc/CHANGELOG.md" "# CHANGELOG" "新 CHANGELOG 应有头部"
 
-# === iterate.sh TEST 3: iteration 递增 ===
-echo "ITERATE TEST 3: iteration 递增"
-assert_file_contains "dev-doc/STATUS.yaml" "iteration: 2" "iteration 应从 1 递增到 2"
+# === iterate.sh TEST 3: VERSION bump 和 phase 重置 ===
+echo "ITERATE TEST 3: VERSION bump 和 phase 重置"
+assert_file_contains "VERSION" "1.1.0" "VERSION 应从 1.0.0 bump 到 1.1.0"
 assert_file_contains "dev-doc/STATUS.yaml" "phase: PRD" "full 模式归档后 phase 应重置为 PRD"
 
 # === iterate.sh TEST 4: archive 目录已存在时报错 ===
 echo "ITERATE TEST 4: archive 目录已存在时报错"
 setup
-mkdir -p dev-doc/task dev-doc/issue dev-doc/archive/v1-dup-topic
+mkdir -p dev-doc/task dev-doc/issue dev-doc/archive/v1.0.0-dup-topic
+echo "1.0.0" > VERSION
 cat > dev-doc/STATUS.yaml << 'EOF'
 name: test
 phase: DONE
 mode: full
-iteration: 1
 updated: 2026-05-15 14:00
 started: 2026-05-14 10:00
 EOF
-OUTPUT=$(bash "$CMD_DIR/iterate.sh" "dup-topic" "dev-doc" 2>&1)
+OUTPUT=$(DEVFLOW_NO_CONFIRM=1 bash "$CMD_DIR/iterate.sh" "dup-topic" "minor" "dev-doc" 2>&1)
 EXIT=$?
 assert_exit_code "$EXIT" 1 "归档目录已存在应 exit 1"
 assert_contains "$OUTPUT" "归档目录已存在" "应提示归档目录已存在"

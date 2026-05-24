@@ -9,10 +9,10 @@ if [ -z "$MODE" ]; then
   echo "用法：bash mode.sh <full|quick|fast|mvp>"
   echo ""
   echo "模式说明："
-  echo "  full  — PRD → SPEC → TASK → DEV → TEST → DONE"
-  echo "  quick — SPEC → TASK → DEV → TEST → DONE"
-  echo "  fast  — TASK → DEV → TEST → DONE"
-  echo "  mvp   — SPEC → TASK → DEV → DONE"
+  echo "  full  — PRD → SPEC → TASK → DEV → TEST → ITERATE"
+  echo "  quick — SPEC → TASK → DEV → TEST → ITERATE"
+  echo "  fast  — TASK → DEV → TEST → ITERATE"
+  echo "  mvp   — SPEC → TASK → DEV → ITERATE"
   exit 1
 fi
 
@@ -40,7 +40,6 @@ if [ ! -f "$STATUS_FILE" ]; then
 name: $(basename "$(pwd)")
 phase: $(case "$MODE" in full) echo "PRD";; quick|mvp) echo "SPEC";; fast) echo "TASK";; esac)
 mode: $MODE
-iteration: 1
 updated: $NOW
 started: $NOW
 EOF
@@ -56,8 +55,8 @@ fi
 
 # 输出模式对应的阶段流程
 case "$MODE" in
-  full) echo "流程：PRD → SPEC → TASK → DEV → TEST → DONE" ;;
-  quick) echo "流程：SPEC → TASK → DEV → TEST → DONE" ;;
-  fast) echo "流程：TASK → DEV → TEST → DONE" ;;
-  mvp) echo "流程：SPEC → TASK → DEV → DONE" ;;
+  full) echo "流程：PRD → SPEC → TASK → DEV → TEST → ITERATE" ;;
+  quick) echo "流程：SPEC → TASK → DEV → TEST → ITERATE" ;;
+  fast) echo "流程：TASK → DEV → TEST → ITERATE" ;;
+  mvp) echo "流程：SPEC → TASK → DEV → ITERATE" ;;
 esac

@@ -22,7 +22,7 @@ done
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ -f "$STATUS_FILE" ]; then
   # 检查必需字段
-  for field in name phase mode iteration updated started; do
+  for field in name phase mode updated started; do
     if ! grep -q "^${field}:" "$STATUS_FILE"; then
       WARNINGS+=("status_missing_field:$field")
     fi

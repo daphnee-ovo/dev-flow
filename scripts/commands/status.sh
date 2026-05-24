@@ -22,7 +22,6 @@ fi
 NAME=$(grep "^name:" "$STATUS_FILE" | sed 's/^name: *//')
 PHASE=$(grep "^phase:" "$STATUS_FILE" | sed 's/^phase: *//')
 MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
-ITERATION=$(grep "^iteration:" "$STATUS_FILE" | sed 's/^iteration: *//')
 UPDATED=$(grep "^updated:" "$STATUS_FILE" | sed 's/^updated: *//')
 
 # task/ 统计
@@ -77,7 +76,7 @@ case "$PHASE" in
     elif [ "$DONE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then NEXT="/test"
     else NEXT="继续开发"
     fi ;;
-  TEST) NEXT="/done" ;;
+  TEST) NEXT="/iterate" ;;
   DONE) NEXT="/iterate" ;;
 esac
 
@@ -87,7 +86,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━"
 echo "项目名称：${NAME:-未设置}"
 echo "当前阶段：$PHASE"
 echo "开发模式：${MODE:-未设置}"
-echo "迭代版本：v${ITERATION:-1}"
+# 版本号从 VERSION 文件读取
+if [ -f "VERSION" ]; then
+  VER=$(cat VERSION | tr -d '[:space:]')
+  TAG_STATUS="未同步"
+  if git tag -l "v$VER" 2>/dev/null | grep -q "v$VER"; then
+    TAG_STATUS="已同步"
+  fi
+  echo "当前版本：v${VER}（git tag: ${TAG_STATUS}）"
+else
+  echo "当前版本：未设置（缺少 VERSION 文件）"
+fi
 echo "更新时间：${UPDATED:-未知}"
 echo ""
 echo "任务进度：$PROGRESS"
