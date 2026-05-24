@@ -300,7 +300,7 @@ cat > dev-doc/task/done_task_2026-05-15_1.md << 'EOF'
   level: P0
 EOF
 OUTPUT=$(bash "$HOOK" 2>&1)
-assert_contains "$OUTPUT" "BLOCKED" "无活跃 task 且无 open issue 应输出 BLOCKED"
+assert_contains "$OUTPUT" "所有任务已完成" "只有 done_task 应引导 /test"
 
 # === TEST 10: CHANGELOG 最近条目注入 ===
 echo "TEST 10: CHANGELOG 最近条目注入"

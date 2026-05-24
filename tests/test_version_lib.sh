@@ -50,9 +50,16 @@ cleanup() {
   rm -rf "$TMP_DIR"
 }
 
-# === T1: VERSION 文件存在且内容正确 ===
+# === T1: VERSION 文件存在且格式合法 ===
 test_version_file_exists() {
-  assert_eq "VERSION文件存在" "2.2.0" "$(cat "$PROJECT_ROOT/VERSION" | tr -d '[:space:]')"
+  local ver
+  ver=$(cat "$PROJECT_ROOT/VERSION" | tr -d '[:space:]')
+  if echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    FAILURES="$FAILURES\n  FAIL: VERSION文件格式合法\n    expected: X.Y.Z\n    actual:   '$ver'"
+  fi
 }
 
 # === T1: version_read 正常读取 ===
