@@ -25,6 +25,7 @@ if [ -z "$PHASE" ]; then
 fi
 
 MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
+EXEC_MODE=$(grep "^exec_mode:" "$STATUS_FILE" 2>/dev/null | sed 's/^exec_mode: *//')
 
 # === 从 task/ 目录统计任务 ===
 TOTAL=0; DONE=0; P0_TOTAL=0; P1_TOTAL=0; P2_TOTAL=0
@@ -64,12 +65,17 @@ if [ -d "$DOC_ROOT/issue" ]; then
 fi
 
 # === 基础状态输出（含版本号） ===
+PHASE_DISPLAY="$PHASE"
+if [ "$PHASE" = "DEV" ] && [ "$EXEC_MODE" = "continuous" ]; then
+  PHASE_DISPLAY="DEV[continuous]"
+fi
+
 if [ -f "VERSION" ]; then
   VER=$(cat VERSION | tr -d '[:space:]')
   TAG_EXISTS=$(git tag -l "v$VER" 2>/dev/null | grep -q "v$VER" && echo "synced" || echo "no-tag")
-  echo "[dev-flow ${MODE:-?}] v${VER}(${TAG_EXISTS}) | STAGE: $PHASE | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
+  echo "[dev-flow ${MODE:-?}] v${VER}(${TAG_EXISTS}) | STAGE: $PHASE_DISPLAY | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
 else
-  echo "[dev-flow ${MODE:-?}] STAGE: $PHASE | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
+  echo "[dev-flow ${MODE:-?}] STAGE: $PHASE_DISPLAY | TASK: $DONE/$TOTAL | ISSUE: $OPEN_ISSUES"
 fi
 
 # === 阶段 HINTS ===

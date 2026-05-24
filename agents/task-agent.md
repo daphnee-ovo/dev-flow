@@ -54,12 +54,14 @@ nums: <任务总数>
 
 - [ ] T1：<任务名称>
   - level: P0
+  - model: cheap | standard | capable
   - details：具体做什么（端到端）
   - depends on：无 / T2
   - Done when：验收标准（客观可验证）
 
 - [ ] T2：<任务名称>
   - level: P1
+  - model: standard
   - details：具体做什么
   - depends on：T1
   - Done when：验收标准
@@ -72,6 +74,18 @@ nums: <任务总数>
 - **P2**：可选优化，所有 P0/P1 完成后有余力再做
 
 判断标准：如果这个任务不做，其他任务能否继续？能 → P1/P2；不能 → P0。
+
+## Model 字段（模型分级建议）
+
+为每个 task 评估实现复杂度，填写 `model:` 字段：
+
+| 值 | 含义 | 判断标准 |
+|------|------|----------|
+| `cheap` | 机械性实现 | 影响 <=2 文件，有明确模板/规范可循 |
+| `standard` | 需要集成判断 | 影响 3-5 文件或需要理解模块交互 |
+| `capable` | 需要设计决策 | 涉及架构调整或 SPEC 中未明确的权衡 |
+
+此字段为建议性，controller 可根据实际复杂度覆盖。不填时默认按 `standard` 处理。
 
 ## Done when 规范
 

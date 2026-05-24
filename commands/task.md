@@ -54,6 +54,7 @@ nums: <任务总数>
 
 - [ ] T1：<标题>
   - level: P0
+  - model: cheap | standard | capable
   - details：<描述>
   - depends on：无
   - Done when：<完成标准>

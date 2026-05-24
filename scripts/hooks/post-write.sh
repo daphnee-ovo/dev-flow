@@ -97,6 +97,7 @@ if [ "$PHASE" = "DEV" ]; then
       echo "[dev-flow] 所有任务已完成（$DONE/$TOTAL）。"
       echo "→ 立即执行 /test 进行全量验证。"
     else
+      EXEC_MODE=$(grep "^exec_mode:" "$STATUS_FILE" 2>/dev/null | sed 's/^exec_mode: *//')
       for f in "$DOC_ROOT/task/task_"*.md; do
         [ -f "$f" ] || continue
         LAST_CHECKED=$(grep -n "^- \[x\]" "$f" | tail -1 | cut -d: -f1)
@@ -104,7 +105,11 @@ if [ "$PHASE" = "DEV" ]; then
           TASK_NAME=$(sed -n "${LAST_CHECKED}p" "$f" | sed 's/^- \[x\] //' | sed 's/（.*//;s/(.*$//')
           if [ -n "$TASK_NAME" ]; then
             echo "[dev-flow] 任务完成（$DONE/$TOTAL）：$TASK_NAME"
-            echo "→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。"
+            if [ "$EXEC_MODE" = "continuous" ]; then
+              echo "→ [continuous] 自动推进：执行 /devtest 并在通过后继续下一个任务。"
+            else
+              echo "→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。"
+            fi
             break
           fi
         fi
