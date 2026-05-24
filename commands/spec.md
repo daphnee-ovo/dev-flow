@@ -5,10 +5,21 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 # SPEC — 技术规范设计
 
-## 前置检查（阻断）
+## 前置检查（模式感知）
 
-1. 检查 `<DOC_ROOT>/PRD.md` 是否存在
-2. 如果不存在 → **停止，告知用户先执行 /prd**，不继续
+1. 读取 STATUS.yaml 中的 mode
+2. 按模式决定输入源：
+   - **full 模式**：检查 `<DOC_ROOT>/PRD.md` 是否存在，不存在 → 停止，告知用户先执行 /prd
+   - **quick/mvp 模式**：PRD.md 不要求存在。输入源降级为 BRAINSTORM.md（如有）或用户描述
+3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+
+## 输入组装（模式感知）
+
+| 模式 | 需求输入 | 项目上下文 |
+|------|----------|-----------|
+| full | PRD.md（必须存在） | 始终传入 |
+| quick | BRAINSTORM.md（如有）或用户描述 | 始终传入 |
+| mvp | BRAINSTORM.md（如有）或用户描述 | 始终传入 |
 
 ## Agent 调度（隔离模板）
 
@@ -20,7 +31,11 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 
 ## 输入文档
 
-<仅传入 PRD.md 的完整内容，原样粘贴，不做任何摘要或改写>
+### 需求来源
+<按模式传入：PRD.md 完整内容 / BRAINSTORM.md 内容 / 用户描述>
+
+### 项目上下文
+<执行 scripts/lib/context.sh 的输出，原样粘贴>
 
 ## 输出路径
 
@@ -29,7 +44,7 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 ## 禁止
 
 - 不要阅读无关的历史文件
-- 不要参考 PRD 的讨论过程（你看不到，也不需要）
+- 不要参考 PRD/BRAINSTORM 的讨论过程（你看不到，也不需要）
 - 不要拆解任务（那是 TASK 阶段的事）
 - 不要开始写代码`
 ```
@@ -38,15 +53,14 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 
 | 允许传入 | 禁止传入 |
 |----------|----------|
-| agents/spec-agent.md 内容 | PRD 阶段的对话讨论过程 |
-| PRD.md 完整内容（原文） | 用户与 PRD agent 的交互历史 |
-| DOC_ROOT 路径 | 任何代码文件内容 |
-| | TASK.md / TEST.md |
-| | 无关历史记录 |
+| agents/spec-agent.md 内容 | PRD/BRAINSTORM 阶段的对话讨论过程 |
+| PRD.md / BRAINSTORM.md 内容（按模式） | 用户与 agent 的交互历史 |
+| 项目上下文（context.sh 输出） | TASK.md / TEST.md |
+| DOC_ROOT 路径 | 无关历史记录 |
 
-## 为什么严格隔离
+## 隔离边界说明
 
-SPEC agent 只看"最终需求是什么"，不看"需求是怎么讨论出来的"。PRD 讨论中被否决的方案、犹豫过的功能，如果 SPEC agent 看到了，会干扰它做出纯粹的架构判断。
+隔离的是**讨论过程**，不是**项目现状**。SPEC agent 需要了解项目当前结构（目录、技术栈、已有模块）才能做出合理的架构决策，但不应看到需求讨论中被否决的方案。
 
 ## 完成后
 

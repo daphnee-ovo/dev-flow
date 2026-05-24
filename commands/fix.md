@@ -32,9 +32,11 @@ find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/dev/nul
 
 2. 逐一读取每个 issue 文件内容
 
-3. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
+3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
 
-4. 修复完成后验证并关闭 issue
+4. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
+
+5. 修复完成后验证并关闭 issue
 
 ## Agent 调度（隔离模板）
 
@@ -51,6 +53,10 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 ## 相关规范
 
 <从 SPEC.md 中摘取与该 issue 相关的部分>
+
+## 项目上下文
+
+<执行 scripts/lib/context.sh 的输出，原样粘贴>
 
 ## 修复要求
 
@@ -83,7 +89,7 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 | 该 issue 的完整内容 | 其他 issue 的内容 |
 | SPEC.md 中相关部分 | 开发过程对话历史 |
 | task/ 中相关任务描述 | 无关历史记录 |
-| | PRD.md |
+| 项目上下文（context.sh 输出） | PRD.md |
 
 ## 结果处理
 

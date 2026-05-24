@@ -15,6 +15,12 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 **在启动 agent 之前**，立即更新 STATUS.yaml 为 TEST。
 
+## 输入组装
+
+1. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+2. 收集所有 task 文件内容（含 done_task_*）作为验证范围
+3. 读取 SPEC.md 作为验证标准
+
 ## Agent 调度（隔离模板）
 
 **启动全新独立 TEST agent（完整版），绝对不复用开发上下文。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
@@ -29,13 +35,16 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 <SPEC.md 完整内容，原样粘贴>
 
 ### Task 文件（验证范围）
-<task/ 目录下所有未完成 task 文件的内容，原样粘贴>
+<task/ 目录下所有 task 文件的内容（含 done_task_*），原样粘贴>
+
+### 项目上下文
+<执行 scripts/lib/context.sh 的输出，原样粘贴>
 
 ## 输出路径
 
-- 测试代码：tests/（按模块分目录，test_<功能>.py）
+- 测试代码：tests/（test_<功能>.<ext>）
 - 测试报告：<DOC_ROOT>/TEST.md
-- Issue 文件：<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md（每个问题单独一个文件）
+- Issue 文件：<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md
 
 ## 禁止
 
@@ -52,15 +61,15 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 |----------|----------|
 | agents/test-agent.md 内容 | PRD.md |
 | SPEC.md 完整内容（原文） | 开发阶段的任何对话历史 |
-| task/ 目录下所有 task 文件内容 | git log / commit messages |
-| DOC_ROOT 路径 | 例行 TEST 的结果历史 |
+| task/ 目录下所有 task 文件内容（含 done_task_*） | git log / commit messages |
+| 项目上下文（context.sh 输出） | 例行 TEST 的结果历史 |
 | 当前日期（用于 issue 文件名） | |
 
 ## 为什么严格隔离
 
 TEST agent 必须**完全独立于开发 agent**。开发者会无意识地避开自己代码的薄弱点。只有全新视角、只看文档不看过程的独立测试，才能发现真正的盲区。
 
-这不是形式主义——这是流程中最关键的质量保证。
+项目上下文帮助 TEST agent 快速了解如何运行项目和已有测试结构，不需要花费大量 token 探索。
 
 ## 结果处理
 

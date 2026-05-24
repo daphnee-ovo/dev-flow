@@ -5,11 +5,20 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 # TASK — 任务拆解
 
-## 前置检查（阻断）
+## 前置检查（模式感知）
 
 1. 读取 STATUS.yaml 中的开发模式
-2. 如果模式为 `full` 或 `quick`：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
-3. 如果模式为 `fast`：不要求 SPEC.md，直接进入任务拆解（基于用户描述或已有代码）
+2. 按模式决定输入源：
+   - **full/quick 模式**：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
+   - **fast 模式**：不要求 SPEC.md，使用用户描述 + 项目上下文作为输入
+3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+
+## 输入组装（模式感知）
+
+| 模式 | 方案输入 | 项目上下文 |
+|------|----------|-----------|
+| full/quick | SPEC.md（必须存在） | 始终传入 |
+| fast | 用户描述（无需 SPEC.md） | 始终传入 |
 
 ## Agent 调度（隔离模板）
 
@@ -21,7 +30,11 @@ prompt: `<读取 agents/task-agent.md 的完整内容>
 
 ## 输入文档
 
-<仅传入 SPEC.md 的完整内容，原样粘贴，不做任何摘要或改写>
+### 技术方案
+<按模式传入：SPEC.md 完整内容 / 用户描述>
+
+### 项目上下文
+<执行 scripts/lib/context.sh 的输出，原样粘贴>
 
 ## 输出路径
 
@@ -58,12 +71,13 @@ nums: <任务总数>
 | 允许传入 | 禁止传入 |
 |----------|----------|
 | agents/task-agent.md 内容 | PRD.md |
-| SPEC.md 完整内容（原文） | PRD/SPEC 阶段的对话历史 |
-| DOC_ROOT 路径 | 任何代码文件内容 |
+| SPEC.md 完整内容（按模式） | PRD/SPEC 阶段的对话历史 |
+| 项目上下文（context.sh 输出） | 无关历史记录 |
+| DOC_ROOT 路径 | |
 
-## 为什么严格隔离
+## 隔离边界说明
 
-TASK agent 只看"技术方案是什么"，基于此独立判断如何拆分。如果看到了 PRD 或之前的讨论，会不自觉地按讨论顺序而非开发顺序来组织任务。
+隔离的是**讨论过程**，不是**项目现状**。TASK agent 需要了解项目目录结构和已有模块才能合理评估任务粒度，但不应看到 SPEC 是如何讨论出来的。
 
 ## 完成后
 

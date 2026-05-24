@@ -9,6 +9,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 1. 确认 STATUS 为 DEV
 2. 确认 `task/` 目录中有已勾选 `[x]` 的任务
+3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
 
 ## 触发时机
 
@@ -31,6 +32,10 @@ Done when：<该任务的 Done when 标准，原文>
 ## 相关规范
 
 <仅从 SPEC.md 中摘取与该任务相关的部分，如接口定义、数据模型>
+
+## 项目上下文
+
+<执行 scripts/lib/context.sh 的输出，原样粘贴>
 
 ## 验证要求
 
@@ -80,7 +85,7 @@ nums: <问题数量>
 |----------|----------|
 | 该任务的描述和 Done when | 其他任务的信息 |
 | SPEC.md 中相关部分（非全文） | 开发过程对话历史 |
-| | 无关历史记录 |
+| 项目上下文（context.sh 输出） | 无关历史记录 |
 | | PRD.md |
 
 ## 结果处理

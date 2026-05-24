@@ -1,6 +1,6 @@
 {
   "name": "daphnee-ovo",
-  "description": "项目全流程管理插件：从需求到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE）",
+  "description": "项目全流程管理插件：从需求到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → ITERATE）",
   "owner": {
     "name": "daphnee-ovo"
   },
