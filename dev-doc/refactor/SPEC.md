@@ -25,8 +25,9 @@
 - 反向批判外部项目，避免照搬复杂度。
 - 审计当前 dev-doc、commands、hooks、tests、task、SPEC、issue 闭环。
 - 用本分支核心理念反查 dev-flow 自身，标记 keep / improve / add / prune。
-- 设计目标流程蓝图、artifact 数据模型、追踪 ID、`/check` 与 `/status` 门禁。
-- 设计 SPEC/TASK 生成机制、`/devtest` controller、测试升级路线、迁移方案。
+- 设计轻量目标流程、最小追踪 ID、`/check` 与 `/status` 门禁。
+- 设计 SPEC/TASK 生成机制、最小 `/devtest` 闭环、测试升级路线、迁移方案。
+- 按审阅意见剪掉不必要复杂度：默认不引入 artifact-index、大型 controller、并发 waves、task model 字段、单独 Change Delta。
 
 ### Non-goals
 
@@ -34,6 +35,7 @@
 - 本轮不直接引入复杂 GUI 工作流。
 - 本轮不强制所有模式采用 TDD。
 - 本轮不把 dev-flow 变成大而全项目管理平台。
+- 本轮不把调研结果扩展成新复杂系统。
 
 ## 4. 外部吸收规则
 
@@ -61,6 +63,6 @@
 - 风险：外部项目复杂度被照搬，破坏轻量目标。
   - 缓解：每条吸收建议必须经过目标必要性和模式适配检查。
 - 风险：dev-doc 与真实项目状态再次漂移。
-  - 缓解：优先设计 `/check`、`/status` 和追踪 ID 门禁。
+  - 缓解：优先设计 `/check`、`/status`、branch doc-root 和轻量追踪 ID。
 - 风险：审计任务过大导致迟迟不落地。
-  - 缓解：先做证据索引和评分框架，再分阶段实现。
+  - 缓解：先修已暴露的脚本失败，再做模板升级。
