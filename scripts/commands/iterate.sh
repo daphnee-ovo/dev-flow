@@ -95,6 +95,10 @@ for f in "$DOC_ROOT/task/done_task_"*.md; do
   [ -f "$f" ] || continue
   ARCHIVED+=("$(basename "$f")")
 done
+for f in "$DOC_ROOT/task/task_"*.md; do
+  [ -f "$f" ] || continue
+  ARCHIVED+=("$(basename "$f")")
+done
 for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   [ -f "$f" ] || continue
   ARCHIVED+=("$(basename "$f")")
@@ -130,6 +134,10 @@ fi
 mkdir -p "$ARCHIVE_DIR/issue"
 
 for f in "$DOC_ROOT/task/done_task_"*.md; do
+  [ -f "$f" ] || continue
+  mv "$f" "$ARCHIVE_DIR/"
+done
+for f in "$DOC_ROOT/task/task_"*.md; do
   [ -f "$f" ] || continue
   mv "$f" "$ARCHIVE_DIR/"
 done
