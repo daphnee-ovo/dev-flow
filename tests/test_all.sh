@@ -2,6 +2,7 @@
 # 运行所有 QA 测试
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="$SCRIPT_DIR/bin:$PATH"
 TOTAL_PASS=0; TOTAL_FAIL=0
 FAILED_SUITES=""
 

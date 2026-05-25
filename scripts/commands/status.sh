@@ -3,14 +3,10 @@
 # 用法：bash status.sh [DOC_ROOT]
 
 DOC_ROOT="${1:-dev-doc}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 
-# 检测多工程模式
-if find "$DOC_ROOT" -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ -n "$BRANCH" ] && [ -f "$DOC_ROOT/$BRANCH/STATUS.yaml" ]; then
-    DOC_ROOT="$DOC_ROOT/$BRANCH"
-  fi
-fi
+DOC_ROOT=$(devflow_resolve_doc_root "$DOC_ROOT")
 
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ ! -f "$STATUS_FILE" ]; then
@@ -19,10 +15,10 @@ if [ ! -f "$STATUS_FILE" ]; then
 fi
 
 # 读取字段
-NAME=$(grep "^name:" "$STATUS_FILE" | sed 's/^name: *//')
-PHASE=$(grep "^phase:" "$STATUS_FILE" | sed 's/^phase: *//')
-MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
-UPDATED=$(grep "^updated:" "$STATUS_FILE" | sed 's/^updated: *//')
+NAME=$(devflow_yaml_get "$STATUS_FILE" name)
+PHASE=$(devflow_yaml_get "$STATUS_FILE" phase)
+MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
+UPDATED=$(devflow_yaml_get "$STATUS_FILE" updated)
 
 # task/ 统计
 TOTAL=0; DONE=0
@@ -67,6 +63,13 @@ fi
 
 # 建议下一步
 NEXT=""
+HAS_TEST_REPORT=false
+TEST_HAS_FAILURE=false
+[ -f "$DOC_ROOT/TEST.md" ] && HAS_TEST_REPORT=true
+if [ -f "$DOC_ROOT/TEST.md" ] && grep -qE "FAILED SUITES:|FAIL: [1-9][0-9]*|失败: [1-9][0-9]*|失败：[1-9][0-9]*|未通过：[1-9][0-9]*|未通过: [1-9][0-9]*" "$DOC_ROOT/TEST.md"; then
+  TEST_HAS_FAILURE=true
+fi
+
 case "$PHASE" in
   PRD)  NEXT="/spec" ;;
   SPEC) NEXT="/task" ;;
@@ -76,7 +79,11 @@ case "$PHASE" in
     elif [ "$DONE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then NEXT="/test"
     else NEXT="继续开发"
     fi ;;
-  TEST) NEXT="/iterate" ;;
+  TEST)
+    if [ "$OPEN_ISSUES" -gt 0 ]; then NEXT="/fix"
+    elif [ "$HAS_TEST_REPORT" = false ] || [ "$TEST_HAS_FAILURE" = true ]; then NEXT="/test"
+    else NEXT="/iterate"
+    fi ;;
   DONE) NEXT="/iterate" ;;
 esac
 
@@ -84,6 +91,7 @@ esac
 echo "[dev-flow] 项目状态报告"
 echo "━━━━━━━━━━━━━━━━━━━━━━"
 echo "项目名称：${NAME:-未设置}"
+echo "文档根：$DOC_ROOT"
 echo "当前阶段：$PHASE"
 echo "开发模式：${MODE:-未设置}"
 # 版本号从 VERSION 文件读取

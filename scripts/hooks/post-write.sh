@@ -7,15 +7,13 @@ if [ ! -d "dev-doc" ]; then
   exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
 CHANGED_FILE="${TOOL_INPUT_FILE_PATH:-$1}"
 
 # === 公共变量（只计算一次） ===
-BRANCH=$(git branch --show-current 2>/dev/null)
-if [ -n "$BRANCH" ] && [ -f "dev-doc/$BRANCH/STATUS.yaml" ]; then
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
+DOC_ROOT=$(devflow_resolve_doc_root "dev-doc")
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 
 # === 1. update-status：更新时间戳 ===
@@ -31,7 +29,7 @@ if [[ "$CHANGED_FILE" == dev-doc/* ]] && [ -f "$STATUS_FILE" ]; then
 
   if [[ "$CHANGED_FILE" != "$STATUS_FILE" ]] && [[ "$FILE_IN_PROJECT" != "CHANGELOG.md" ]]; then
     DATE=$(date "+%Y-%m-%d %H:%M")
-    sed -i "s/^updated:.*/updated: $DATE/" "$STATUS_FILE"
+    devflow_yaml_set "$STATUS_FILE" updated "$DATE"
   fi
 fi
 
@@ -40,7 +38,7 @@ if [ ! -f "$STATUS_FILE" ]; then
   exit 0
 fi
 
-PHASE=$(grep "^phase:" "$STATUS_FILE" | sed 's/^phase: *//')
+PHASE=$(devflow_yaml_get "$STATUS_FILE" phase)
 
 # === 2. check-task-completion：任务完成度检测（仅 DEV 阶段） ===
 if [ "$PHASE" = "DEV" ]; then
@@ -94,7 +92,7 @@ if [ "$PHASE" = "DEV" ]; then
 
     UNDONE=$((TOTAL - DONE))
     if [ "$UNDONE" -eq 0 ]; then
-      echo "[dev-flow] 所有任务已完成（$DONE/$TOTAL）。"
+      echo "[dev-flow] 所有任务已完成（${DONE}/${TOTAL}）。"
       echo "→ 立即执行 /test 进行全量验证。"
     else
       EXEC_MODE=$(grep "^exec_mode:" "$STATUS_FILE" 2>/dev/null | sed 's/^exec_mode: *//')
@@ -104,7 +102,7 @@ if [ "$PHASE" = "DEV" ]; then
         if [ -n "$LAST_CHECKED" ]; then
           TASK_NAME=$(sed -n "${LAST_CHECKED}p" "$f" | sed 's/^- \[x\] //' | sed 's/（.*//;s/(.*$//')
           if [ -n "$TASK_NAME" ]; then
-            echo "[dev-flow] 任务完成（$DONE/$TOTAL）：$TASK_NAME"
+            echo "[dev-flow] 任务完成（${DONE}/${TOTAL}）：$TASK_NAME"
             if [ "$EXEC_MODE" = "continuous" ]; then
               echo "→ [continuous] 自动推进：执行 /devtest 并在通过后继续下一个任务。"
             else

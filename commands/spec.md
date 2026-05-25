@@ -67,3 +67,10 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 1. 确认 SPEC.md 已写入
 2. 更新 STATUS.yaml：当前阶段 → SPEC
 3. 提示用户：确认 SPEC 后执行 `/task` 推进
+
+## 输出约束
+
+- SPEC 保持轻量，默认包含 Goal、Scope、Requirements Trace、Design、Acceptance、Risks、Test Plan、Self Check。
+- quick/fast/mvp 按模式降级，不为了模板完整性补无用章节。
+- Change 直接写在 Requirements Trace 的 Notes 里，不单独创建 Change Delta。
+- 不要开始写代码，不要拆 task。

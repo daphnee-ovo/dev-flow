@@ -4,7 +4,11 @@
 # 白名单：dev-doc/*, CLAUDE.md, AGENTS.md, .claude/*, tests/*, tmp/*
 # exit 2 = 阻断工具执行, exit 0 = 放行
 
-STATUS_FILE="dev-doc/STATUS.yaml"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+DOC_ROOT=$(devflow_resolve_doc_root "dev-doc")
+STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 
 # 如果 STATUS.yaml 不存在，放行（项目未初始化）
 if [ ! -f "$STATUS_FILE" ]; then
@@ -12,7 +16,7 @@ if [ ! -f "$STATUS_FILE" ]; then
 fi
 
 # 读取当前 phase
-PHASE=$(grep -oP '^phase:\s*\K\S+' "$STATUS_FILE" 2>/dev/null)
+PHASE=$(devflow_yaml_get "$STATUS_FILE" phase)
 
 # 如果是 DEV 阶段，放行
 if [ "$PHASE" = "DEV" ]; then
@@ -25,7 +29,7 @@ if [ -z "$TOOL_INPUT" ] && [ ! -t 0 ]; then
   TOOL_INPUT="$(cat)"
 fi
 
-FILE_PATH=$(echo "$TOOL_INPUT" | grep -oP '"file_path"\s*:\s*"\K[^"]*' | head -1)
+FILE_PATH=$(printf '%s\n' "$TOOL_INPUT" | devflow_json_field "file_path" | head -1)
 
 # 如果无法提取路径，放行
 if [ -z "$FILE_PATH" ]; then

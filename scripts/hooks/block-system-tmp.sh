@@ -5,6 +5,8 @@
 # exit 2 = 阻断工具执行
 
 TOOL_INPUT="${CLAUDE_TOOL_INPUT:-${CODEX_TOOL_INPUT:-}}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 if [ -z "$TOOL_INPUT" ] && [ ! -t 0 ]; then
   TOOL_INPUT="$(cat)"
 fi
@@ -14,10 +16,10 @@ TOOL_NAME="${CLAUDE_TOOL_NAME:-${CODEX_TOOL_NAME:-}}"
 CHECK_TEXT=""
 case "$TOOL_NAME" in
   Bash)
-    CHECK_TEXT=$(echo "$TOOL_INPUT" | grep -oP '"command"\s*:\s*"\K[^"]*' | head -1)
+    CHECK_TEXT=$(printf '%s\n' "$TOOL_INPUT" | devflow_json_field "command" | head -1)
     ;;
   Write|Edit)
-    CHECK_TEXT=$(echo "$TOOL_INPUT" | grep -oP '"file_path"\s*:\s*"\K[^"]*' | head -1)
+    CHECK_TEXT=$(printf '%s\n' "$TOOL_INPUT" | devflow_json_field "file_path" | head -1)
     ;;
   *)
     exit 0

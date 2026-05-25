@@ -4,6 +4,7 @@
 # bump_type: minor（默认）| major | patch
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 source "$SCRIPT_DIR/../lib/version.sh"
 
 TOPIC="$1"
@@ -17,11 +18,7 @@ if [ -z "$TOPIC" ]; then
   exit 1
 fi
 
-# 检测多工程模式（分支 ↔ 文档路径一致性）
-BRANCH=$(git branch --show-current 2>/dev/null)
-if [ -n "$BRANCH" ] && [ -f "$DOC_ROOT/$BRANCH/STATUS.yaml" ]; then
-  DOC_ROOT="$DOC_ROOT/$BRANCH"
-fi
+DOC_ROOT=$(devflow_resolve_doc_root "$DOC_ROOT")
 
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ ! -f "$STATUS_FILE" ]; then
@@ -29,7 +26,7 @@ if [ ! -f "$STATUS_FILE" ]; then
   exit 1
 fi
 
-MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
+MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
 
 # ===== 阶段 1：交付检查（阻断） =====
 TASK_TOTAL=0; TASK_DONE=0
@@ -40,7 +37,7 @@ for f in "$DOC_ROOT/task/task_"*.md "$DOC_ROOT/task/done_task_"*.md; do
 done
 
 if [ "$TASK_TOTAL" -gt 0 ] && [ "$TASK_DONE" -lt "$TASK_TOTAL" ]; then
-  echo "[dev-flow] ERROR: 任务未全部完成（$TASK_DONE/$TASK_TOTAL）"
+  echo "[dev-flow] ERROR: 任务未全部完成（${TASK_DONE}/${TASK_TOTAL}）"
   echo "→ 请完成所有任务后再执行 /iterate"
   exit 1
 fi
@@ -171,9 +168,9 @@ case "$MODE" in
 esac
 
 NOW=$(date "+%Y-%m-%d %H:%M")
-sed -i "s/^phase: .*/phase: $NEW_PHASE/" "$STATUS_FILE"
-sed -i "s/^updated: .*/updated: $NOW/" "$STATUS_FILE"
-sed -i "s/^started: .*/started: $NOW/" "$STATUS_FILE"
+devflow_yaml_set "$STATUS_FILE" phase "$NEW_PHASE"
+devflow_yaml_set "$STATUS_FILE" updated "$NOW"
+devflow_yaml_set "$STATUS_FILE" started "$NOW"
 
 git add VERSION "$STATUS_FILE"
 git commit -m "Start v${NEW_VERSION} iteration"

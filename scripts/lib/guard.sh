@@ -59,7 +59,7 @@ guard_check_batch() {
     if command -v git &>/dev/null && git rev-parse --git-dir &>/dev/null 2>&1; then
       local NEWLY_DONE=$(git diff -- "$f" 2>/dev/null | grep -c "^+- \[x\]" || true)
       if [ "${NEWLY_DONE:-0}" -gt 2 ]; then
-        echo "[guard] ⚠ $f：单次变更标记了 $NEWLY_DONE 个任务完成"
+        echo "[guard] ⚠ ${f}：单次变更标记了 $NEWLY_DONE 个任务完成"
         WARNINGS=$((WARNINGS + 1))
       fi
     fi

@@ -38,6 +38,7 @@ setup_env() {
 
   mkdir -p dev-doc/task dev-doc/issue scripts/lib scripts/commands
   cp "$PROJECT_ROOT/scripts/lib/version.sh" scripts/lib/
+  cp "$PROJECT_ROOT/scripts/lib/common.sh" scripts/lib/
   cp "$PROJECT_ROOT/scripts/commands/iterate.sh" scripts/commands/
 
   echo "2.2.0" > VERSION
