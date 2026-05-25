@@ -10,13 +10,31 @@
 [![GitHub stars](https://img.shields.io/github/stars/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/network)
 
-**Claude Code & Codex CLI 全流程项目管理插件**
+**Claude Code & Codex CLI 的轻量工程管理插件**
 
-从头脑风暴到交付 — 结构化阶段、角色隔离、自动化 hooks。
+小而美，不追求大而全。先想清楚再动手，用轻量文档、规范阶段和硬约束，让 agent 按工程管理流程工作。
 
 </div>
 
 ---
+
+## 项目理念
+
+dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持轻量的前提下，帮助 agent 先理清想法、再进入实现，并形成足够强的工程约束。
+
+关键词：
+
+- **先想清楚再做** — 有想法先梳理目标、边界、方案和验收标准，再进入实现，避免上来就改代码。
+- **轻量** — 文档和命令只保留能推动交付的部分，避免为了流程而流程。
+- **规范** — PRD、SPEC、TASK、TEST、issue、archive 都有稳定结构，便于追踪和复用。
+- **约束** — 通过阶段、hooks、检查和任务闭环，阻止 agent 跳过需求、规范、验证和交付门禁。
+- **目标必要性** — 每个能力都要回答“它是否服务于当前目标”。必要的约束必须保留；不必要的仪式不能引入。
+- **同步性** — 流程文档必须和真实项目状态同步，包括代码、任务、版本、测试和迭代。管理文档一旦脱离实际进度，就会从帮助变成噪音。
+- **模式适配** — 快速验证和长期工程不是同一种流程。MVP 可以先跑通、测明显问题；标准开发可以再提高测试、review 和发布门禁。
+
+向 Superpowers、OpenSpec、GSD、Kiro、Spec Kit、BMad、Task Master 等项目学习时，也遵循这条原则：只吸收对 dev-flow 目标必要、能帮助 agent 先想清楚、并增强轻量约束的做法，不照搬复杂度。
+
+例如，流程管理离不开真实项目同步，因此 `/iterate`、版本、任务和测试状态必须能对齐；否则 dev-doc 会和项目脱节。又例如，TDD 对标准开发很有价值，但对快速验证型 MVP 可能太重。此时流程应允许先把功能跑通、完成基本验证，再在项目进入更规范阶段时提高测试门槛。
 
 ## 快速开始
 
@@ -83,9 +101,9 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 
 | 模式 | 流程 | 适用场景 |
 |------|------|----------|
-| `full` | brainstorm → prd → spec → task → dev → test → done | 全新项目、需求模糊 |
-| `quick` | spec → task → dev → test → done | 需求明确的功能开发 |
-| `fast` | task → dev → test → done | 小改动、技术方案已知 |
+| `full` | brainstorm → prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
+| `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
+| `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
 | `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
 
 ---
