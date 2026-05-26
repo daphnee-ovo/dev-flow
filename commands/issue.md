@@ -44,24 +44,7 @@ EXISTING=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" 2>/dev/null |
 
 ### 4. 写入格式
 
-```markdown
----
-source: other
-nums: 1
----
-
-- [ ] ISSUE-I001: <标题>
-  - severity: <P0|P1|P2>
-  - source: manual
-  - refs: TASK-T001 或 user-request
-  - location: <文件路径:行号>
-  - current: <当前行为>
-  - expected: <期望行为>
-  - reproduce: <复现方式>
-  - root_cause:
-  - fix:
-  - close_when: <关闭条件>
-```
+读取 `references/dev-doc/ISSUE.md` 获取完整格式定义。
 
 ### 5. 提示下一步
 

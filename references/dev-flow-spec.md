@@ -74,6 +74,49 @@ task/
 └── done_task_2026-05-14_1.md              # 已完成
 ```
 
+### Task 文件内容格式
+
+```markdown
+---
+title: TASK - <批次主题>
+nums: <任务总数>
+---
+
+- [ ] T1：<标题>
+  - level: P0
+  - details：<描述>
+  - depends on：无
+  - Done when：<可验证的完成标准>
+- [ ] T2：<标题>
+  - level: P1
+  - details：<描述>
+  - depends on：T1
+  - Done when：<完成标准>
+- [x] T3：<标题>（已完成）
+  - level: P0
+  - details：<描述>
+  - depends on：无
+  - Done when：<完成标准>
+```
+
+**字段说明**：
+
+| 字段 | 说明 |
+|------|------|
+| title | yaml 头，批次主题 |
+| nums | yaml 头，该文件中任务总数 |
+| level | P0=阻塞 / P1=重要 / P2=可选 |
+| details | 任务具体描述 |
+| depends on | 前置依赖（可跨文件引用：`<文件名>:T<N>`） |
+| Done when | 可验证的完成标准（必须客观具体） |
+
+**状态标记**：`- [ ]` 未完成，`- [x]` 已完成
+
+**完成规则**：
+- 文件内所有 checkbox 均为 `[x]` → hook 自动重命名为 `done_` 前缀
+- 归档时 `done_task_*.md` 移入 `archive/v<N>-<topic>/`
+- `/iterate` 时活跃 task 文件（`task_*.md`）也一并归档
+
 ### Issue 文件命名
 
 **格式**：`issue_<source>_<YYYY-MM-DD>_<seq>.md`
@@ -114,11 +157,61 @@ mv "$DOC_ROOT/issue/issue_test_2026-05-14_1.md" "$DOC_ROOT/issue/closed_issue_te
 
 **格式**：`archive/v<N>-<topic>/`
 
-- `N`：迭代版本号，从 STATUS.yaml 的 iteration 字段读取
+- `N`：当前版本号，从 VERSION 文件读取
 - `topic`：由用户在 `/iterate` 时指定，简短描述本轮主题
-- 归档内容：done_task_*、已关闭 issue、CHANGELOG.md、PRD.md、SPEC.md、TEST.md
+- 归档内容：done_task_*、task_*（活跃任务）、已关闭 issue、CHANGELOG.md、PRD.md、SPEC.md、TEST.md
 - 未关闭 issue 留在当前 `issue/` 带入下一轮
 - BRAINSTORM.md 不归档（持久参考）
+
+## 开发模式
+
+### 标准模式
+
+| 模式 | 流程 | 适用场景 |
+|------|------|----------|
+| `full` | PRD → SPEC → TASK → DEV → TEST → ITERATE | 完整需求周期 |
+| `quick` | SPEC → TASK → DEV → TEST → ITERATE | 需求已明确 |
+| `fast` | TASK → DEV → TEST → ITERATE | 方案已确定 |
+| `mvp` | SPEC → TASK → DEV → ITERATE | 快速验证，跳过 TEST |
+
+### audit 模式
+
+**格式**：`audit/<previous>`（如 `audit/quick`、`audit/full`）
+
+**触发规则**：
+- 非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，由 post-write hook 自动触发
+- 不支持手动通过 `/mode` 设置
+
+**行为**：
+- 进入 audit 模式时：保存当前 mode 至 `audit/<当前mode>`，将 phase 强制设为 DEV
+- audit 模式下 DEV 阶段提示 `issue → /fix → /iterate 恢复原模式`
+- `/iterate` 时跳过 task 完成度检查（因为 audit 模式可能没有 task）
+- `/iterate` 完成后自动恢复为 `audit/` 后的原模式（如 `audit/quick` → 恢复为 `quick`）
+- 恢复后 phase 按原模式规则重置（full→PRD, quick/mvp→SPEC, fast→TASK）
+
+## VERSION 机制
+
+### VERSION 文件
+
+项目根目录下的 `VERSION` 文件是版本号的**单一真相源**（Single Source of Truth）。
+
+- 格式：`major.minor.patch`（如 `2.6.1`）
+- 纯文本文件，仅包含版本号字符串
+
+### 版本操作（`/iterate` 时自动执行）
+
+1. 读取当前 VERSION 文件中的版本号
+2. 以当前版本号作为 Release 版本：`git commit "Release v<当前版本>: <topic>"`
+3. 创建 annotated git tag：`git tag -a "v<当前版本>" -m "Release v<当前版本>"`
+4. Bump 版本号写入 VERSION 文件（默认 minor，可指定 major/patch）
+5. 提交新版本：`git commit "Start v<新版本> iteration"`
+
+### inject-context 中的版本展示
+
+状态行格式：`[dev-flow <mode>] v<版本>(synced|no-tag) | STAGE: <phase> | TASK: <done>/<total> | ISSUE: <open>`
+
+- `synced`：git tag `v<版本>` 已存在（说明当前版本已发布）
+- `no-tag`：git tag 不存在（说明当前是开发中版本）
 
 ## 生命周期规则
 

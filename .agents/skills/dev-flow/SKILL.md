@@ -15,7 +15,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 
 ## 运行约定
 
-- 当命令要求"独立 agent"或"subagent"时，使用 `Agent({...})` 工具。
+- 当命令要求"独立 agent"或"subagent"时，使用 `spawn_agent`。这是 dev-flow 命令的显式子代理请求。
 - 当命令要求更新项目级 agent 指令时，优先更新 `AGENTS.md`；如果 `CLAUDE.md` 也存在，保持两者同步。
 
 ## 流程总览
@@ -43,8 +43,45 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 | `/test` | TEST | 严格的 QA 工程师 |
 | `/status` | 任意 | 状态报告 |
 | `/check` | 任意 | 文档同步检查 |
-| `/iterate` | DONE → 新轮次 | 归档 + 重置 |
+| `/iterate` | DONE → 新轮次 | 归档 + commit & tag + bump 版本 |
 | `/mode` | 任意 | 模式选择（full/quick/fast/mvp） |
+
+## 开发模式（/mode）
+
+| 模式 | 流程 | 说明 |
+|------|------|------|
+| `full` | PRD → SPEC → TASK → DEV → TEST → ITERATE | 完整流程 |
+| `quick` | SPEC → TASK → DEV → TEST → ITERATE | 跳过 PRD |
+| `fast` | TASK → DEV → TEST → ITERATE | 最小设计 |
+| `mvp` | SPEC → TASK → DEV → ITERATE | 跳过 TEST |
+| `audit` | （自动触发，不可手动设置） | 见下方说明 |
+
+### audit 模式
+
+audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设置**，仅由系统自动触发。
+
+**触发条件**：在非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，hook 自动将模式切换为 `audit/<原模式>`。
+
+**行为**：
+- mode 字段写为 `audit/<previous>`（如 `audit/quick`），保留原模式信息
+- phase 强制设为 DEV，直接进入修复流程
+- iterate 时跳过 task 完成度检查（因为 audit 轮只关注 issue 修复）
+- inject-context 输出 audit 专用提示：`issue → /fix → /iterate 恢复原模式`
+
+**恢复**：执行 `/iterate` 后自动恢复原模式（从 `audit/quick` 恢复为 `quick`），phase 重置为原模式的起始阶段。
+
+## VERSION 文件机制
+
+项目根目录下的 `VERSION` 文件记录当前语义化版本号（格式：`MAJOR.MINOR.PATCH`）。
+
+**iterate 流程中的版本操作**：
+1. 读取 `VERSION` 文件中的当前版本（如 `2.6.0`）
+2. 以当前版本执行 `git commit` + `git tag v2.6.0`
+3. 按 bump 类型（默认 minor）计算新版本（`2.7.0`）
+4. 写入新版本到 `VERSION` 文件
+5. 提交 `Start v2.7.0 iteration`
+
+**支持的 bump 类型**：`major`（大版本）、`minor`（功能版本，默认）、`patch`（补丁版本）
 
 ## 角色隔离
 

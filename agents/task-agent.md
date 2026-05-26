@@ -42,65 +42,9 @@
 - 没有标注依赖 → 补充
 - 存在循环依赖 → 重新组织
 
-## Task 文件结构
+## Task 文件格式
 
-文件路径：`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`
-
-```markdown
----
-title: TASK - <批次主题>
-nums: <任务总数>
----
-
-- [ ] TASK-T001: <任务名称>
-  - priority: P0
-  - refs: SPEC-AC-001 或 user-request
-  - files:
-      create: []
-      modify: ["path/to/file"]
-      test: ["tests/test_x.sh"]
-  - depends_on: []
-  - parallel: false
-  - complexity: S
-  - done_when:
-      - <客观可验证的验收标准>
-```
-
-## Priority 定义
-
-- **P0**：阻塞后续任务或项目核心功能，必须最先完成
-- **P1**：重要但不阻塞其他任务，P0 全部完成后执行
-- **P2**：可选优化，所有 P0/P1 完成后有余力再做
-
-判断标准：如果这个任务不做，其他任务能否继续？能 → P1/P2；不能 → P0。
-
-## Complexity 字段
-
-为每个 task 评估实现复杂度，填写 `complexity:` 字段：
-
-| 值 | 含义 | 判断标准 |
-|------|------|----------|
-| `S` | 小任务 | 影响 <=2 文件，有明确模板/规范可循 |
-| `M` | 中等任务 | 影响 3-5 文件或需要理解模块交互 |
-| `L` | 大任务 | 涉及架构调整或 SPEC 中未明确的权衡，必须拆分或说明原因 |
-
-不再增加 `model` 字段。复杂度已经足够表达任务难度，实际用什么模型由执行 agent 自行判断。
-
-## done_when 规范
-
-**优先使用可执行格式**：`command | expected_output` 或 `command → exit_code`
-
-优秀（可自动验证）：
-- "`bash tests/test_auth.sh` 全部 PASS"
-- "`curl -s /api/users | jq length` 输出大于 0"
-- "`source calc.sh && divide 1 0 2>&1` 输出包含 error 且退出码非 0"
-
-合格（可人工验证）：
-- "运行 `npm test` 全部通过"
-- "访问 /login 能看到表单，错误密码显示红色提示"
-
-不合格（模糊、不可验证）：
-- "完成"、"实现了"、"代码写好了"、"输出错误信息"
+遵循 `references/dev-doc/TASK-FILE.md` 定义的格式。
 
 ## 注意事项
 

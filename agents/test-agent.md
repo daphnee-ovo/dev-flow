@@ -81,46 +81,11 @@
 - api（8/8）
 ```
 
-## Issue 文件规范
+## Issue 文件格式
+
+遵循 `references/dev-doc/ISSUE.md` 定义的格式。
 
 同一次测试发现的问题写入同一个 issue 文件（按 source+date 归批）。
-
-路径：`<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md`
-
-获取序号：
-```bash
-SOURCE="test"
-DATE=$(date +%Y-%m-%d)
-NEXT_SEQ=$(find "$DOC_ROOT/issue" -name "issue_${SOURCE}_${DATE}_*.md" -o -name "closed_issue_${SOURCE}_${DATE}_*.md" 2>/dev/null | grep -oP "${SOURCE}_${DATE}_\K\d+" | sort -n | tail -1 || echo 0)
-NEXT_SEQ=$((NEXT_SEQ + 1))
-```
-
-格式：
-```markdown
----
-source: test
-nums: <issue 总数>
----
-
-- [ ] I1：<问题标题>
-  - severity: P0
-  - location：<文件路径:行号>
-  - description：<具体描述>
-  - reproduce：<复现方法>
-  - fix：<关闭时填写修复说明>
-
-- [ ] I2：<问题标题>
-  - severity: P1
-  - location：<文件路径:行号>
-  - description：<描述>
-  - reproduce：<复现方法>
-  - fix：
-```
-
-严重程度定义：
-- P0：功能完全不可用，阻塞交付
-- P1：功能异常但有绕过方案
-- P2：体验问题、细节缺陷
 
 ## 注意事项
 

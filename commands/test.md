@@ -44,7 +44,7 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 
 - 测试代码：tests/（test_<功能>.<ext>）
 - 测试报告：<DOC_ROOT>/TEST.md
-- Issue 文件：<DOC_ROOT>/issue/issue_test_<YYYY-MM-DD>_<seq>.md
+- Issue 文件格式：读取 `references/dev-doc/ISSUE.md` 获取格式定义
 
 ## 禁止
 

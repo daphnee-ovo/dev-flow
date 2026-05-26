@@ -45,25 +45,7 @@ seq 为当天该目录下的下一个序号。
 
 ## 输出格式
 
-文件使用以下格式：
-
----
-title: TASK - <批次主题>
-nums: <任务总数>
----
-
-- [ ] TASK-T001: <标题>
-  - priority: P0|P1|P2
-  - refs: SPEC-AC-001 或 user-request
-  - files:
-      create: []
-      modify: ["path/to/file"]
-      test: ["tests/test_x.sh"]
-  - depends_on: []
-  - parallel: false
-  - complexity: S|M|L
-  - done_when:
-      - <可测验收，必要 expected output 写在这里>
+读取 `references/dev-doc/TASK-FILE.md` 获取完整格式定义，将内容拼入 agent prompt。
 
 ## 禁止
 

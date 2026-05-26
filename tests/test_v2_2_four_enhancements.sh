@@ -66,10 +66,13 @@ TASK_CMD_MD=$(cat "$COMMANDS_DIR/task.md")
 DEVTEST_MD=$(cat "$COMMANDS_DIR/devtest.md")
 
 echo "--- T1: task 模型轻量化 ---"
-assert_contains "$TASK_AGENT_MD" "complexity:" "task-agent 使用 complexity"
-assert_contains "$TASK_AGENT_MD" "refs:" "task-agent 包含 refs"
-assert_contains "$TASK_AGENT_MD" "files:" "task-agent 包含 files"
-assert_contains "$TASK_AGENT_MD" "done_when" "task-agent 包含 done_when"
+# task-agent.md 引用 references/，格式定义在 references/dev-doc/TASK-FILE.md 中
+assert_contains "$TASK_AGENT_MD" "references/dev-doc/TASK-FILE.md" "task-agent 引用 references"
+TASK_FILE_REF=$(cat "$SCRIPT_DIR/references/dev-doc/TASK-FILE.md")
+assert_contains "$TASK_FILE_REF" "complexity:" "TASK-FILE 包含 complexity"
+assert_contains "$TASK_FILE_REF" "refs:" "TASK-FILE 包含 refs"
+assert_contains "$TASK_FILE_REF" "files:" "TASK-FILE 包含 files"
+assert_contains "$TASK_FILE_REF" "done_when" "TASK-FILE 包含 done_when"
 assert_not_contains "$TASK_CMD_MD" "model: cheap" "commands/task.md 不再要求 model"
 assert_contains "$TASK_CMD_MD" "不要增加 model/steps/verification/docs 字段" "commands/task.md 明确剪枝字段"
 

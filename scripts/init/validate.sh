@@ -37,28 +37,46 @@ if [ -f "$STATUS_FILE" ]; then
   if [ -n "$PHASE" ] && ! echo "$PHASE" | grep -qE '^(PRD|SPEC|TASK|DEV|TEST|DONE)$'; then
     WARNINGS+=("status_invalid_phase:$PHASE")
   fi
-  # 校验 mode 值
+  # 校验 mode 值（支持 audit/<previous> 格式）
   MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
-  if [ -n "$MODE" ] && ! echo "$MODE" | grep -qE '^(full|quick|fast|mvp)$'; then
+  if [ -n "$MODE" ] && ! echo "$MODE" | grep -qE '^(full|quick|fast|mvp|audit/(full|quick|fast|mvp))$'; then
     WARNINGS+=("status_invalid_mode:$MODE")
   fi
 fi
 
 # === 3. task/ 目录校验 ===
 if [ -d "$DOC_ROOT/task" ]; then
-  for f in "$DOC_ROOT/task/"task_*.md; do
+  for f in "$DOC_ROOT/task/"task_*.md "$DOC_ROOT/task/"done_task_*.md; do
     [ -f "$f" ] || continue
     BASENAME=$(basename "$f")
     # 检查命名规范
     if ! echo "$BASENAME" | grep -qE '^(done_)?task_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]+\.md$'; then
       NEEDS_CONFIRM+=("task_bad_name:$BASENAME")
     fi
-    # 检查 Done when
+    # 检查 done_when 字段
     TOTAL_TASKS=$(grep -c "^- \[" "$f" 2>/dev/null) || true; TOTAL_TASKS=${TOTAL_TASKS:-0}
-    TASKS_WITH_DONE_WHEN=$(grep -cE "Done when|done_when" "$f" 2>/dev/null) || true; TASKS_WITH_DONE_WHEN=${TASKS_WITH_DONE_WHEN:-0}
+    TASKS_WITH_DONE_WHEN=$(grep -c "done_when:" "$f" 2>/dev/null) || true; TASKS_WITH_DONE_WHEN=${TASKS_WITH_DONE_WHEN:-0}
     MISSING_DONE_WHEN=$((TOTAL_TASKS - TASKS_WITH_DONE_WHEN))
     if [ "$MISSING_DONE_WHEN" -gt 0 ]; then
       WARNINGS+=("task_missing_done_when:$BASENAME:$MISSING_DONE_WHEN")
+    fi
+    # 检查 priority 字段
+    TASKS_WITH_PRIORITY=$(grep -c "priority:" "$f" 2>/dev/null) || true; TASKS_WITH_PRIORITY=${TASKS_WITH_PRIORITY:-0}
+    MISSING_PRIORITY=$((TOTAL_TASKS - TASKS_WITH_PRIORITY))
+    if [ "$MISSING_PRIORITY" -gt 0 ]; then
+      WARNINGS+=("task_missing_priority:$BASENAME:$MISSING_PRIORITY")
+    fi
+    # 检查 refs 字段
+    TASKS_WITH_REFS=$(grep -c "refs:" "$f" 2>/dev/null) || true; TASKS_WITH_REFS=${TASKS_WITH_REFS:-0}
+    MISSING_REFS=$((TOTAL_TASKS - TASKS_WITH_REFS))
+    if [ "$MISSING_REFS" -gt 0 ]; then
+      WARNINGS+=("task_missing_refs:$BASENAME:$MISSING_REFS")
+    fi
+    # 检查 files 字段
+    TASKS_WITH_FILES=$(grep -c "files:" "$f" 2>/dev/null) || true; TASKS_WITH_FILES=${TASKS_WITH_FILES:-0}
+    MISSING_FILES=$((TOTAL_TASKS - TASKS_WITH_FILES))
+    if [ "$MISSING_FILES" -gt 0 ]; then
+      WARNINGS+=("task_missing_files:$BASENAME:$MISSING_FILES")
     fi
   done
 fi

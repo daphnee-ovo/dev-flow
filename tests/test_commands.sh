@@ -319,7 +319,7 @@ assert_file_exists "dev-doc/archive/v1.0.0-first-release/CHANGELOG.md" "CHANGELO
 # 原位文件检查
 assert_file_not_exists "dev-doc/task/done_task_2026-05-14_1.md" "done_task 原位应被移走"
 assert_file_not_exists "dev-doc/issue/closed_issue_test_2026-05-14_1.md" "closed_issue 原位应被移走"
-assert_file_exists "dev-doc/PRD.md" "PRD 原位应保留(copy)"
+assert_file_not_exists "dev-doc/PRD.md" "PRD 原位应被移走(mv)"
 assert_file_exists "dev-doc/CHANGELOG.md" "CHANGELOG 应重建"
 assert_file_contains "dev-doc/CHANGELOG.md" "# CHANGELOG" "新 CHANGELOG 应有头部"
 

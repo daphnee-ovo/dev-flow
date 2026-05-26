@@ -167,7 +167,7 @@ for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   mv "$f" "$ARCHIVE_DIR/issue/"
 done
 for doc in PRD.md SPEC.md TEST.md; do
-  [ -f "$DOC_ROOT/$doc" ] && cp "$DOC_ROOT/$doc" "$ARCHIVE_DIR/"
+  [ -f "$DOC_ROOT/$doc" ] && mv "$DOC_ROOT/$doc" "$ARCHIVE_DIR/"
 done
 if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
   mv "$DOC_ROOT/CHANGELOG.md" "$ARCHIVE_DIR/"

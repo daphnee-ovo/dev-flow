@@ -340,8 +340,8 @@ assert_file_exists "dev-doc/archive/v1.0.0-user-login/CHANGELOG.md" "S1: CHANGEL
 # 原位检查
 assert_file_not_exists "dev-doc/task/done_task_2026-05-24_1.md" "S1: done_task 归档后原位不应存在"
 assert_file_not_exists "dev-doc/issue/closed_issue_test_2026-05-24_1.md" "S1: closed_issue 归档后原位不应存在"
-assert_file_exists "dev-doc/PRD.md" "S1: PRD 原位应保留（copy）"
-assert_file_exists "dev-doc/SPEC.md" "S1: SPEC 原位应保留（copy）"
+assert_file_not_exists "dev-doc/PRD.md" "S1: PRD 原位应被移走（mv）"
+assert_file_not_exists "dev-doc/SPEC.md" "S1: SPEC 原位应被移走（mv）"
 
 # STATUS 重置
 assert_file_contains "dev-doc/STATUS.yaml" "phase: PRD" "S1: full 模式 iterate 后 phase 应重置为 PRD"

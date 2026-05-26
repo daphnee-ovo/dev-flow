@@ -33,48 +33,9 @@
 - 性能要求与技术方案矛盾
 - 第三方依赖没有评估稳定性
 
-## SPEC.md 结构
+## SPEC.md 格式
 
-```markdown
-# SPEC: <主题>
-
-## Goal
-<目标>
-
-## Scope
-### In
-### Out
-
-## Requirements Trace
-| Req | AC | Notes |
-| --- | --- | --- |
-| PRD-FR-001 或 user-request | SPEC-AC-001 | ADDED / MODIFIED / REMOVED 可写在这里 |
-
-## Design
-<必要方案。能短就短。>
-
-## Acceptance
-- SPEC-AC-001: <可测验收>
-
-## Risks
-- <风险和回退>
-
-## Test Plan
-- <最小验证方式>
-
-## Self Check
-- [ ] 目标清楚
-- [ ] 边界清楚
-- [ ] 验收可测
-- [ ] 与当前 mode 匹配
-```
-
-按模式降级：
-
-- full：保留完整结构。
-- quick：必须有 Goal、Scope、Design、Acceptance、Test Plan。
-- fast：必须有 Goal、Acceptance、Test Plan。
-- mvp：必须有 Goal、Out of scope、Smoke Test。
+遵循 `references/dev-doc/SPEC-FILE.md` 定义的格式（含按 mode 降级规则）。
 
 ## 注意事项
 
