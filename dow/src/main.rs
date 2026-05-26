@@ -41,7 +41,7 @@ fn main() {
         Commands::Version(args) => commands::version::run(args, human),
         Commands::Hooks { command } => match command {
             HooksCommands::Context => hooks::context::run(human),
-            HooksCommands::Guard { file } => hooks::guard::run(file),
+            HooksCommands::Guard { file } => hooks::guard::run(file.unwrap_or_default()),
             HooksCommands::PostWrite { file } => hooks::post_write::run(file),
             HooksCommands::SaveChangelog => hooks::save_changelog::run(),
         },

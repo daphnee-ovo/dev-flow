@@ -7,6 +7,7 @@ use crate::error::DowError;
 use std::path::Path;
 
 pub fn run(file: String) -> Result<i32, DowError> {
+    if file.is_empty() { return Ok(0); }
     // block-system-tmp: 阻止写入系统临时目录
     if is_system_tmp(&file) {
         println!("[dev-flow] BLOCKED: 禁止写入系统临时目录：{}", file);

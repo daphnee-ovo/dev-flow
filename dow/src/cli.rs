@@ -192,7 +192,7 @@ pub enum HooksCommands {
     /// 判断文件是否允许写入
     Guard {
         /// 文件路径
-        file: String,
+        file: Option<String>,
     },
 
     /// 文件写入后联动
