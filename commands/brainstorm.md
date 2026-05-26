@@ -75,41 +75,7 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 ## 写入设计文档
 
-确认后写入 `dev-doc/BRAINSTORM.md`：
-
-```markdown
-# 头脑风暴记录 — <主题>
-
-**日期**：<today>
-
-## 背景与目的
-<为什么要做这件事>
-
-## 关键决策
-| 决策点 | 选择 | 理由 |
-|--------|------|------|
-| ... | ... | ... |
-
-## 设计方案
-
-### 架构
-<系统整体结构>
-
-### 组件
-<各单元职责和接口>
-
-### 数据流
-<数据如何流动>
-
-### 错误处理
-<异常场景处理策略>
-
-## 约束与边界
-<明确不做什么>
-
-## 下一步
-<建议进入 /prd 还是直接 /spec>
-```
+确认后写入 `dev-doc/BRAINSTORM.md`，格式遵循 `references/dev-doc/BRAINSTORM-FILE.md` 定义。
 
 ## 设计自检
 
