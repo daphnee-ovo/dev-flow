@@ -48,8 +48,11 @@
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |
 | `dow hooks save-changelog` | hook：保存 CHANGELOG |
+| `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION |
 
-默认 JSON 输出，`-H` 切换人类友好格式。编译：`bash dow/build.sh`。
+默认 JSON 输出，`-H` 切换人类友好格式。
+
+构建：`bash dow/build.sh`（本地原生）或 `bash dow/build.sh --dist`（分发模式，输出平台二进制 + wrapper）。
 
 ## Hooks
 

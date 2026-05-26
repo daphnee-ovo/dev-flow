@@ -3,3 +3,6 @@ temp/
 *.log
 .DS_Store
 Thumbs.db
+
+# Rust 编译缓存
+dow/target/

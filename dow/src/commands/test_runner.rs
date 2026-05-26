@@ -41,12 +41,10 @@ pub fn run(args: TestArgs, human: bool) -> Result<i32, DowError> {
                 } else {
                     failed += 1;
                     let stderr = String::from_utf8_lossy(&result.stderr).trim().to_string();
-                    let msg = if stderr.is_empty() {
-                        format!("{}: exit {}", test_file, result.status.code().unwrap_or(-1))
-                    } else {
-                        format!("{}: {}", test_file, stderr.lines().next().unwrap_or(""))
-                    };
-                    failures.push(msg);
+                    let stdout_full = String::from_utf8_lossy(&result.stdout).trim().to_string();
+                    let detail = if !stderr.is_empty() { stderr } else { stdout_full };
+                    let last_line = detail.lines().last().unwrap_or("").to_string();
+                    failures.push(format!("{}: {}", test_file, last_line));
                 }
             }
             Err(e) => {
@@ -79,7 +77,7 @@ fn discover_tests() -> Result<Vec<String>, DowError> {
     if let Ok(entries) = fs::read_dir("tests") {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with("test_") && name.ends_with(".sh") {
+            if name.starts_with("test_") && name.ends_with(".sh") && name != "test_all.sh" {
                 tests.push(format!("tests/{}", name));
             }
         }
