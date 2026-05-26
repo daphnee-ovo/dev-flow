@@ -110,7 +110,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 6. git commit + tag
-    git_commit(&format!("Release v{}: {}", version, args.topic))?;
+    let changelog_entries = read_changelog_entries(&doc_root_path);
+    let commit_msg = format_commit_message(&version, &args.topic, &args.r#type, &changelog_entries);
+    git_commit(&commit_msg)?;
     git_tag(&version)?;
 
     // 7. bump VERSION + 重置 phase
@@ -312,7 +314,12 @@ fn move_archive_files(doc_root: &Path, archive_dir: &Path) -> Result<(), DowErro
 }
 
 fn git_commit(message: &str) -> Result<(), DowError> {
-    Command::new("git").args(["add", "-A"]).output().ok();
+    // 只 add 需要的内容，排除 dow/target/
+    Command::new("git").args(["add", "dev-doc/", "VERSION", "CLAUDE.md", "AGENTS.md"]).output().ok();
+    Command::new("git").args(["add", "dow/src/", "dow/Cargo.toml", "dow/Cargo.lock", "dow/build.sh"]).output().ok();
+    Command::new("git").args(["add", "scripts/", "hooks/", "tests/", ".gitignore"]).output().ok();
+    Command::new("git").args(["add", ".github/"]).output().ok();
+    Command::new("git").args(["add", "skills/", ".agents/", ".claude/"]).output().ok();
 
     let diff = Command::new("git")
         .args(["diff", "--cached", "--quiet"])
@@ -359,6 +366,33 @@ fn git_tag(version: &str) -> Result<(), DowError> {
         return Err(DowError::new(format!("git tag 失败：{}", stderr), 1));
     }
     Ok(())
+}
+
+fn read_changelog_entries(doc_root: &Path) -> Vec<String> {
+    let changelog = doc_root.join("CHANGELOG.md");
+    let mut entries = Vec::new();
+
+    if let Ok(content) = fs::read_to_string(&changelog) {
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("- ") {
+                entries.push(trimmed.to_string());
+            }
+        }
+    }
+    entries
+}
+
+fn format_commit_message(version: &str, topic: &str, commit_type: &str, changelog: &[String]) -> String {
+    let mut msg = format!("{}: Release v{} {}", commit_type, version, topic);
+    if !changelog.is_empty() {
+        msg.push_str("\n\n");
+        for entry in changelog {
+            msg.push_str(entry);
+            msg.push('\n');
+        }
+    }
+    msg
 }
 
 fn print_human_preview(result: &IterateOutput) {

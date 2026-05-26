@@ -75,9 +75,13 @@ pub struct StatusArgs {
 
 #[derive(clap::Args)]
 pub struct IterateArgs {
-    /// 归档主题（必填）
+    /// 归档主题（必填，用于归档目录命名）
     #[arg(long)]
     pub topic: String,
+
+    /// commit 类型（feat/fix/refactor/docs/perf/test/style/workflow），必须显式指定
+    #[arg(long)]
+    pub r#type: String,
 
     /// bump 类型
     #[arg(short = 'v', long, default_value = "minor")]
