@@ -9,10 +9,10 @@ allowed-tools: Bash, Read, AskUserQuestion
 
 | 模式 | 流程 | 适用场景 |
 |------|------|----------|
-| `full` | brainstorm → prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
+| `full` | prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
 | `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
 | `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
-| `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
+| `mvp` | spec → task → dev → iterate | 快速验证，跳过 TEST |
 | `audit` | （自动触发，不可手动设置） | 非 DEV 阶段创建 issue 时自动进入 |
 
 ## 执行方式
@@ -29,15 +29,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
 
 ### full
 
-**brainstorm → prd → spec → task → dev(devtest 循环) → test → iterate**
+**prd → spec → task → dev(devtest 循环) → test → iterate**
 
-全流程，不跳过任何阶段。适合全新项目或需求模糊的大功能。
+全流程，不跳过任何阶段。适合全新项目或需求模糊的大功能。brainstorm 可选前置。
 
 约束：
 - 所有任务（不分优先级）必须全部完成才能 iterate
 - 每个阶段文档必须满足 phase-completion 检查标准
 
-下一步：`/brainstorm`
+下一步：`/prd`（或先 `/brainstorm`）
 
 ### quick
 
@@ -61,16 +61,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
 
 ### mvp
 
-**brainstorm → spec → dev**
+**spec → task → dev → iterate**
 
-最小验证路径。跳过正式需求文档、任务拆解、测试、交付。目标是最快出可运行的东西验证想法。
+最小验证路径。跳过 PRD 和 TEST，直接从规范到交付。目标是最快出可运行的东西验证想法。
 
 约束：
 - 产出不直接进入生产
 - 验证后如需正式开发，切换模式重新走流程
 - 开发完成后使用 `/iterate` 进入下一轮
 
-下一步：`/brainstorm`
+下一步：`/spec`（或先 `/brainstorm`）
 
 ## 命令可用性
 
@@ -79,11 +79,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
 | `/brainstorm` | ✓ | ✓ | ✓ | ✓ |
 | `/prd` | ✓ | - | - | - |
 | `/spec` | ✓ | ✓ | - | ✓ |
-| `/task` | ✓ | ✓ | ✓ | - |
-| `/devtest` | ✓ | ✓ | ✓ | - |
-| `/fix` | ✓ | ✓ | ✓ | - |
+| `/task` | ✓ | ✓ | ✓ | ✓ |
+| `/devtest` | ✓ | ✓ | ✓ | ✓ |
+| `/fix` | ✓ | ✓ | ✓ | ✓ |
 | `/test` | ✓ | ✓ | ✓ | - |
-| `/check` | ✓ | ✓ | ✓ | - |
+| `/check` | ✓ | ✓ | ✓ | ✓ |
 | `/iterate` | ✓ | ✓ | ✓ | ✓ |
 | `/status` | ✓ | ✓ | ✓ | ✓ |
 

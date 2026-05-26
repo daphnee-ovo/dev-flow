@@ -31,7 +31,7 @@ nums: <issue 总数>
 
 | 字段 | 值 | 说明 |
 |------|-----|------|
-| source | `test` / `devtest` / `other` | 发现来源 |
+| source | `test` / `devtest` / `other` / `audit` | 发现来源 |
 | nums | 数字 | 该文件中 issue 总数 |
 | severity | `P0` / `P1` / `P2` | P0=阻塞、P1=严重、P2=轻微 |
 | location | 文件路径:行号 | 问题所在位置 |

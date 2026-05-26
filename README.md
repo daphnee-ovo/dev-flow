@@ -95,10 +95,10 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 
 | Mode | Flow | Use Case |
 |------|------|----------|
-| `full` | brainstorm → prd → spec → task → dev → test → iterate | New projects, unclear requirements |
+| `full` | prd → spec → task → dev → test → iterate | New projects, unclear requirements |
 | `quick` | spec → task → dev → test → iterate | Clear requirements, feature development |
 | `fast` | task → dev → test → iterate | Small changes, known technical approach |
-| `mvp` | brainstorm → spec → dev | Quick idea validation, prototyping |
+| `mvp` | spec → task → dev → iterate | Quick idea validation, skip TEST |
 
 > `audit` mode is triggered automatically when issues are created outside DEV phase. Format: `audit/<previous>`. Auto-restores after iterate.
 
@@ -216,10 +216,18 @@ dev-flow/
 │   │   ├── check.sh
 │   │   ├── mode.sh
 │   │   └── iterate.sh
+│   ├── lib/                    # Shared libraries
+│   │   ├── common.sh
+│   │   ├── context.sh
+│   │   ├── guard.sh
+│   │   └── version.sh
 │   └── init/                   # Init command scripts
 │       ├── scan-project.sh
 │       ├── validate.sh
 │       └── migrate.sh
+├── .agents/skills/dev-flow/
+│   └── SKILL.md               # Codex/AGENTS skill entry
+├── VERSION                     # Semantic version (single source of truth)
 ├── references/                 # Single source of truth for all format schemas
 │   ├── dev-flow-spec.md
 │   └── dev-doc/                # Document format schemas (authoritative)

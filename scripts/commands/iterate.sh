@@ -125,7 +125,7 @@ for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   ARCHIVED+=("$(basename "$f")")
 done
 for doc in PRD.md SPEC.md TEST.md; do
-  [ -f "$DOC_ROOT/$doc" ] && ARCHIVED+=("$doc (copy)")
+  [ -f "$DOC_ROOT/$doc" ] && ARCHIVED+=("$doc")
 done
 [ -f "$DOC_ROOT/CHANGELOG.md" ] && ARCHIVED+=("CHANGELOG.md")
 

@@ -76,39 +76,7 @@ task/
 
 ### Task 文件内容格式
 
-```markdown
----
-title: TASK - <批次主题>
-nums: <任务总数>
----
-
-- [ ] T1：<标题>
-  - level: P0
-  - details：<描述>
-  - depends on：无
-  - Done when：<可验证的完成标准>
-- [ ] T2：<标题>
-  - level: P1
-  - details：<描述>
-  - depends on：T1
-  - Done when：<完成标准>
-- [x] T3：<标题>（已完成）
-  - level: P0
-  - details：<描述>
-  - depends on：无
-  - Done when：<完成标准>
-```
-
-**字段说明**：
-
-| 字段 | 说明 |
-|------|------|
-| title | yaml 头，批次主题 |
-| nums | yaml 头，该文件中任务总数 |
-| level | P0=阻塞 / P1=重要 / P2=可选 |
-| details | 任务具体描述 |
-| depends on | 前置依赖（可跨文件引用：`<文件名>:T<N>`） |
-| Done when | 可验证的完成标准（必须客观具体） |
+遵循 `references/dev-doc/TASK-FILE.md` 定义的格式。
 
 **状态标记**：`- [ ]` 未完成，`- [x]` 已完成
 
@@ -121,7 +89,7 @@ nums: <任务总数>
 
 **格式**：`issue_<source>_<YYYY-MM-DD>_<seq>.md`
 
-- `source`：产出来源，固定值为 `test` / `devtest` / `other`
+- `source`：产出来源，固定值为 `test` / `devtest` / `other` / `audit`
 - `YYYY-MM-DD`：创建日期
 - `seq`：当天该来源的序号（从 1 开始，按 source+date 计数）
 
@@ -222,7 +190,7 @@ mv "$DOC_ROOT/issue/issue_test_2026-05-14_1.md" "$DOC_ROOT/issue/closed_issue_te
 | BRAINSTORM.md | `/brainstorm` | brainstorm 过程中 | **不归档**（持久参考） |
 | PRD.md | `/prd` | 用户反馈修改 | `/iterate` 时归档 |
 | SPEC.md | `/spec` | 用户反馈修改 | `/iterate` 时归档 |
-| task/*.md | `/task` | 开发中勾选、hook 自动重命名 | `/iterate` 时归档 done_task_* |
+| task/*.md | `/task` | 开发中勾选、hook 自动重命名 | `/iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
 | TEST.md | `/test` | 重新测试时覆盖 | `/iterate` 时归档 |
 | issue/*.md | `/test` `/devtest` `/issue` | `/fix` 关闭+重命名 | 已关闭的归档，未关闭的保留 |
 

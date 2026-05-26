@@ -32,8 +32,10 @@
 
 ## Hooks
 
-- `PostToolUse(Write|Edit)`: 自动更新 STATUS.yaml、检查阶段完成标准
-- `Stop`: 会话结束时保存记录
+- `UserPromptSubmit`: 注入项目状态上下文（inject-context）
+- `PreToolUse(Write|Edit|Bash)`: 阻止写入系统临时目录、非 DEV 阶段代码编辑
+- `PostToolUse(Write|Edit)`: 自动更新 STATUS.yaml、检查阶段完成标准、audit 模式自动触发
+- `Stop`: 会话结束时保存 CHANGELOG
 
 ## Codex 兼容
 

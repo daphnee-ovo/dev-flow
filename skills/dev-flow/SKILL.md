@@ -22,7 +22,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 ## 流程总览
 
 ```
-[头脑风暴(BRAINSTORM)] → 需求(PRD) → 规范(SPEC) → 任务(TASK) → 开发(DEV) → 测试(TEST) → 交付(DONE)
+[头脑风暴(BRAINSTORM)] → 需求(PRD) → 规范(SPEC) → 任务(TASK) → 开发(DEV) → 测试(TEST) → 迭代(ITERATE) → 下一轮
       可选                                                     │                ↑
                                                                └── 例行TEST ──→│
 ```
@@ -44,7 +44,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 | `/test` | TEST | 严格的 QA 工程师 |
 | `/status` | 任意 | 状态报告 |
 | `/check` | 任意 | 文档同步检查 |
-| `/iterate` | DONE → 新轮次 | 归档 + commit & tag + bump 版本 |
+| `/iterate` | 任意（满足交付条件时） | 归档 + commit & tag + bump 版本 |
 | `/mode` | 任意 | 模式选择（full/quick/fast/mvp；audit 为自动触发） |
 
 ## 开发模式（/mode）
@@ -90,12 +90,11 @@ audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设�
 
 | 阶段 | 执行方式 | 输入 |
 |------|----------|------|
-| PRD | 独立 agent | 项目基本信息 |
-| SPEC | 独立 agent | PRD.md |
-| TASK | 独立 agent | SPEC.md |
+| PRD | 独立 agent | 用户描述 + BRAINSTORM.md（如有） |
+| SPEC | 独立 agent | PRD.md（或 BRAINSTORM/描述按模式）+ 项目上下文 |
+| TASK | 独立 agent | SPEC.md（或描述按 fast 模式）+ 项目上下文 |
 | DEV | 主 agent 直接执行 | task/*.md + SPEC.md |
-| TEST | 独立 agent | SPEC.md + task/*.md |
-| DONE | 主 agent 直接执行 | 全部文档 |
+| TEST | 独立 agent | SPEC.md + task/*.md + 项目上下文 |
 
 ## DEV 阶段规则
 

@@ -97,10 +97,10 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 
 | 模式 | 流程 | 适用场景 |
 |------|------|----------|
-| `full` | brainstorm → prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
+| `full` | prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
 | `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
 | `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
-| `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
+| `mvp` | spec → task → dev → iterate | 快速验证，跳过 TEST |
 
 > `audit` 模式在非 DEV 阶段创建 issue 时自动触发。格式：`audit/<原模式>`。iterate 后自动恢复。
 
@@ -218,10 +218,18 @@ dev-flow/
 │   │   ├── check.sh
 │   │   ├── mode.sh
 │   │   └── iterate.sh
+│   ├── lib/                    # 共享库
+│   │   ├── common.sh
+│   │   ├── context.sh
+│   │   ├── guard.sh
+│   │   └── version.sh
 │   └── init/                   # Init 命令脚本
 │       ├── scan-project.sh
 │       ├── validate.sh
 │       └── migrate.sh
+├── .agents/skills/dev-flow/
+│   └── SKILL.md               # Codex/AGENTS skill 入口
+├── VERSION                     # 语义化版本号（单一真相源）
 ├── references/                 # 唯一格式 schema 层（权威定义）
 │   ├── dev-flow-spec.md
 │   └── dev-doc/                # 文档格式 schema（权威）
