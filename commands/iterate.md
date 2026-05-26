@@ -75,6 +75,15 @@ agent 在调用前：
 3. 先不带 DEVFLOW_NO_CONFIRM 运行脚本，展示阶段 4 的摘要输出
 4. 获取用户确认后设置 `DEVFLOW_NO_CONFIRM=1` 再次执行完整流程
 
+## audit 模式行为
+
+当 `mode` 为 `audit/xxx` 格式时（即通过 `/mode audit` 进入的审计模式）：
+
+1. **跳过 task 完成度检查** — audit 模式下允许在任务未全部完成时执行 iterate
+2. **P0 issue 检查仍然保留** — 即使是 audit 模式，也必须关闭所有 P0 issue 后才能 iterate
+3. **iterate 完成后自动恢复原模式** — 从 `audit/xxx` 中提取原始模式 `xxx`，写回 STATUS.yaml 的 mode 字段，并按该模式确定新迭代的起始 phase（如 `audit/quick` → 恢复为 `quick`，phase 重置为 SPEC）
+4. 如果原始模式无效或为空，默认恢复为 `quick`
+
 ## 注意
 
 - 归档是复制（主文档）+ 移动（task/done_task/closed_issue/CHANGELOG），当前目录被重置

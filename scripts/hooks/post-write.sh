@@ -39,6 +39,13 @@ if [ ! -f "$STATUS_FILE" ]; then
 fi
 
 PHASE=$(devflow_yaml_get "$STATUS_FILE" phase)
+MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
+
+# === 1.5 audit 模式自动触发：非 DEV 阶段创建 issue 文件 ===
+# 条件：文件匹配 issue_*.md + 当前非 audit 模式 + 当前非 DEV 阶段
+if [[ "$CHANGED_FILE" == */issue/issue_*.md ]] && ! is_audit_mode "$MODE" && [ "$PHASE" != "DEV" ]; then
+  enter_audit_mode "$STATUS_FILE"
+fi
 
 # === 2. check-task-completion：任务完成度检测（仅 DEV 阶段） ===
 if [ "$PHASE" = "DEV" ]; then

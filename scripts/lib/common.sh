@@ -131,3 +131,43 @@ devflow_count_open_issues() {
   fi
   echo "$open"
 }
+
+# 判断是否为 audit 模式（mode 以 "audit/" 开头）
+# 参数：$1 = mode 字符串（可选，未传则从 STATUS.yaml 读取）
+# 返回：0 = 是 audit 模式，1 = 不是
+is_audit_mode() {
+  local mode="$1"
+  if [ -z "$mode" ]; then
+    local root
+    root=$(devflow_repo_root)
+    local doc_root
+    doc_root=$(devflow_resolve_doc_root "$root/dev-doc")
+    mode=$(devflow_yaml_get "$doc_root/STATUS.yaml" "mode")
+  fi
+  case "$mode" in
+    audit/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# 将 STATUS.yaml 切换为 audit 模式
+# 参数：$1 = STATUS_FILE 路径
+# 行为：读取当前 mode，写入 audit/<当前mode>，设置 phase 为 DEV，更新 updated 时间戳
+# 如果已经是 audit 模式，不做任何操作直接返回 1
+enter_audit_mode() {
+  local status_file="$1"
+  local current_mode
+  current_mode=$(devflow_yaml_get "$status_file" "mode")
+
+  # 已经是 audit 模式，不重复切换
+  if is_audit_mode "$current_mode"; then
+    return 1
+  fi
+
+  # 写入 audit 模式
+  devflow_yaml_set "$status_file" "mode" "audit/$current_mode"
+  devflow_yaml_set "$status_file" "phase" "DEV"
+  devflow_yaml_set "$status_file" "updated" "$(date '+%Y-%m-%d %H:%M')"
+
+  echo "[dev-flow] 检测到审计 issue，自动进入 audit 模式（原模式：$current_mode）"
+}

@@ -32,10 +32,6 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 - **同步性** — 流程文档必须和真实项目状态同步，包括代码、任务、版本、测试和迭代。管理文档一旦脱离实际进度，就会从帮助变成噪音。
 - **模式适配** — 快速验证和长期工程不是同一种流程。MVP 可以先跑通、测明显问题；标准开发可以再提高测试、review 和发布门禁。
 
-向 Superpowers、OpenSpec、GSD、Kiro、Spec Kit、BMad、Task Master 等项目学习时，也遵循这条原则：只吸收对 dev-flow 目标必要、能帮助 agent 先想清楚、并增强轻量约束的做法，不照搬复杂度。
-
-例如，流程管理离不开真实项目同步，因此 `/iterate`、版本、任务和测试状态必须能对齐；否则 dev-doc 会和项目脱节。又例如，TDD 对标准开发很有价值，但对快速验证型 MVP 可能太重。此时流程应允许先把功能跑通、完成基本验证，再在项目进入更规范阶段时提高测试门槛。
-
 ## 快速开始
 
 ### Claude Code
@@ -93,7 +89,7 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 | `/status` | 查看当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |
-| `/mode` | 选择开发模式（full/quick/fast/mvp） |
+| `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
 ---
 
@@ -105,6 +101,8 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 | `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
 | `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
 | `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
+
+> `audit` 模式在非 DEV 阶段创建 issue 时自动触发。格式：`audit/<原模式>`。iterate 后自动恢复。
 
 ---
 

@@ -31,10 +31,6 @@ Core principles:
 - **Synchronized** — process documents must stay aligned with the real project state: code, tasks, versions, tests, and iterations. Once management docs drift, they become noise.
 - **Mode-aware** — rapid validation and long-term engineering need different gates. MVP work can focus on running functionality and obvious bugs; standard development can raise testing, review, and release requirements.
 
-When learning from Superpowers, OpenSpec, GSD, Kiro, Spec Kit, BMad, Task Master, or other strong projects, dev-flow should absorb only what is necessary for its goals, helps agents think before building, and strengthens lightweight constraints. Do not copy complexity for its own sake.
-
-For example, process management must stay synchronized with the actual project, so `/iterate`, versions, tasks, and test status are necessary. If dev-doc says the project is still at `1.0.0` while the real project is at `1.2.3`, the process has failed. By contrast, TDD is valuable for standard development but may be too heavy for MVP validation. In that mode, dev-flow should allow fast iteration with basic functional verification, then raise the gates when the project becomes more formal.
-
 ## Quick Start
 
 ### Claude Code
@@ -91,7 +87,7 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
-| `/mode` | Select development mode (full/quick/fast/mvp) |
+| `/mode` | Select development mode (full/quick/fast/mvp; audit is auto-triggered) |
 
 ---
 
@@ -103,6 +99,8 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 | `quick` | spec → task → dev → test → iterate | Clear requirements, feature development |
 | `fast` | task → dev → test → iterate | Small changes, known technical approach |
 | `mvp` | brainstorm → spec → dev | Quick idea validation, prototyping |
+
+> `audit` mode is triggered automatically when issues are created outside DEV phase. Format: `audit/<previous>`. Auto-restores after iterate.
 
 ---
 

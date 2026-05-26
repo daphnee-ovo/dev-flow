@@ -112,6 +112,14 @@ git commit -m "Bump to v${NEW_VER}: P0 issue fixed"
 
 判断条件：被关闭的 issue 文件中存在 `severity: P0` 的条目。非 P0 issue 关闭时不触发 bump。
 
+## audit 模式
+
+当处于 `audit/<原模式>` 时（如 `audit/quick`），/fix 行为不变，但完成后提示不同：
+
+- 所有 issue 修复后，提示用户执行 `/iterate`
+- iterate 完成后将自动恢复原模式（无需手动 `/mode`）
+- 典型流程：审计发现 issue → `/fix` 修复 → `/iterate` → 自动恢复
+
 ## 完成后
 
 汇总所有 issue 的处理结果：

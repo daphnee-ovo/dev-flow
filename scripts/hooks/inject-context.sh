@@ -84,25 +84,32 @@ case "$PHASE" in
   SPEC) echo "[SPEC HINTS] 定义接口+数据模型+错误处理 → /task" ;;
   TASK) echo "[TASK HINTS] 每任务必须有 Done when → 进入 DEV" ;;
   DEV)
-    # 阻断：DEV 阶段必须有活跃 task 或 open issue 或已完成的 task 才能推进
-    ACTIVE_TASKS=0
-    for f in "$DOC_ROOT/task/task_"*.md; do
-      [ -f "$f" ] && ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-    done
-    DONE_TASKS=0
-    for f in "$DOC_ROOT/task/done_task_"*.md; do
-      [ -f "$f" ] && DONE_TASKS=$((DONE_TASKS + 1))
-    done
-    if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -eq 0 ]; then
-      echo "[BLOCKED] DEV 阶段无活跃 task 且无 open issue，无法推进。"
-      echo "[BLOCKED] 请先执行 /task 创建任务，或 /issue 创建 issue。"
-      exit 0
-    fi
-    if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -gt 0 ]; then
-      echo "[DEV HINTS] 所有任务已完成，执行 /test 进行全量验证。"
-    else
-      echo "[DEV HINTS] task/ 任务 → 勾选[x] → /devtest → tests/ | issue → /fix"
+    # audit 模式专用提示
+    MODE_CHECK=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
+    if echo "$MODE_CHECK" | grep -q "^audit/"; then
+      echo "[DEV HINTS] issue → /fix → /iterate 恢复原模式"
       [ "$OPEN_ISSUES" -gt 0 ] && echo "[!] $OPEN_ISSUES issue open → /fix"
+    else
+      # 阻断：DEV 阶段必须有活跃 task 或 open issue 或已完成的 task 才能推进
+      ACTIVE_TASKS=0
+      for f in "$DOC_ROOT/task/task_"*.md; do
+        [ -f "$f" ] && ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
+      done
+      DONE_TASKS=0
+      for f in "$DOC_ROOT/task/done_task_"*.md; do
+        [ -f "$f" ] && DONE_TASKS=$((DONE_TASKS + 1))
+      done
+      if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -eq 0 ]; then
+        echo "[BLOCKED] DEV 阶段无活跃 task 且无 open issue，无法推进。"
+        echo "[BLOCKED] 请先执行 /task 创建任务，或 /issue 创建 issue。"
+        exit 0
+      fi
+      if [ "$ACTIVE_TASKS" -eq 0 ] && [ "$OPEN_ISSUES" -eq 0 ] && [ "$DONE_TASKS" -gt 0 ]; then
+        echo "[DEV HINTS] 所有任务已完成，执行 /test 进行全量验证。"
+      else
+        echo "[DEV HINTS] task/ 任务 → 勾选[x] → /devtest → tests/ | issue → /fix"
+        [ "$OPEN_ISSUES" -gt 0 ] && echo "[!] $OPEN_ISSUES issue open → /fix"
+      fi
     fi
     ;;
   TEST)

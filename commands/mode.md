@@ -13,6 +13,7 @@ allowed-tools: Bash, Read, AskUserQuestion
 | `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
 | `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
 | `mvp` | brainstorm → spec → dev | 快速验证想法、原型 |
+| `audit` | （自动触发，不可手动设置） | 非 DEV 阶段创建 issue 时自动进入 |
 
 ## 执行方式
 
@@ -89,6 +90,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
 `-` 表示当前模式流程中不包含此步骤，执行时提示"当前模式无需此步骤"。
 
 > 注：`/brainstorm` 是自由探索工具，不属于任何模式的必经阶段，但在所有模式下都可随时使用。
+
+## audit 模式
+
+audit 模式是自动触发的临时覆盖模式：
+- 当非 DEV 阶段创建 issue 时自动进入
+- 格式为 `audit/<原模式>`（如 `audit/quick`）
+- iterate 后自动恢复为原模式
+- 不可通过 `/mode audit` 手动设置
 
 ## 模式切换
 

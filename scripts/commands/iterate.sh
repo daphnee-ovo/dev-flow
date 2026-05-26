@@ -43,17 +43,24 @@ fi
 MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
 
 # ===== 阶段 1：交付检查（阻断） =====
-TASK_TOTAL=0; TASK_DONE=0
-for f in "$DOC_ROOT/task/task_"*.md "$DOC_ROOT/task/done_task_"*.md; do
-  [ -f "$f" ] || continue
-  CNT=$(grep -c "^- \[" "$f" 2>/dev/null) || true; TASK_TOTAL=$((TASK_TOTAL + ${CNT:-0}))
-  CNT=$(grep -c "^- \[x\]" "$f" 2>/dev/null) || true; TASK_DONE=$((TASK_DONE + ${CNT:-0}))
-done
 
-if [ "$TASK_TOTAL" -gt 0 ] && [ "$TASK_DONE" -lt "$TASK_TOTAL" ]; then
-  echo "[dev-flow] ERROR: 任务未全部完成（${TASK_DONE}/${TASK_TOTAL}）"
-  echo "→ 请完成所有任务后再执行 /iterate"
-  exit 1
+# audit 模式跳过 task 完成度检查
+MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
+EFFECTIVE_MODE=$(echo "$MODE" | cut -d'/' -f1)
+
+if [ "$EFFECTIVE_MODE" != "audit" ]; then
+  TASK_TOTAL=0; TASK_DONE=0
+  for f in "$DOC_ROOT/task/task_"*.md "$DOC_ROOT/task/done_task_"*.md; do
+    [ -f "$f" ] || continue
+    CNT=$(grep -c "^- \[" "$f" 2>/dev/null) || true; TASK_TOTAL=$((TASK_TOTAL + ${CNT:-0}))
+    CNT=$(grep -c "^- \[x\]" "$f" 2>/dev/null) || true; TASK_DONE=$((TASK_DONE + ${CNT:-0}))
+  done
+
+  if [ "$TASK_TOTAL" -gt 0 ] && [ "$TASK_DONE" -lt "$TASK_TOTAL" ]; then
+    echo "[dev-flow] ERROR: 任务未全部完成（${TASK_DONE}/${TASK_TOTAL}）"
+    echo "→ 请完成所有任务后再执行 /iterate"
+    exit 1
+  fi
 fi
 
 # 检查未关闭 P0 issue（只计算 [ ] 状态的 P0 条目）
@@ -186,12 +193,30 @@ fi
 version_write "$NEW_VERSION"
 
 # 重置 STATUS.yaml phase
-case "$MODE" in
-  full) NEW_PHASE="PRD" ;;
-  quick|mvp) NEW_PHASE="SPEC" ;;
-  fast) NEW_PHASE="TASK" ;;
-  *) NEW_PHASE="DEV" ;;
-esac
+EFFECTIVE_MODE=$(echo "$MODE" | cut -d'/' -f1)
+
+if [ "$EFFECTIVE_MODE" = "audit" ]; then
+  ORIGINAL_MODE=$(echo "$MODE" | cut -d'/' -f2)
+  # 恢复为空或无效时默认 quick
+  if ! echo "$ORIGINAL_MODE" | grep -qE '^(full|quick|fast|mvp)$'; then
+    ORIGINAL_MODE="quick"
+  fi
+  devflow_yaml_set "$STATUS_FILE" mode "$ORIGINAL_MODE"
+  case "$ORIGINAL_MODE" in
+    full) NEW_PHASE="PRD" ;;
+    quick|mvp) NEW_PHASE="SPEC" ;;
+    fast) NEW_PHASE="TASK" ;;
+    *) NEW_PHASE="DEV" ;;
+  esac
+  echo "[dev-flow] audit 模式结束，恢复为：$ORIGINAL_MODE（phase: $NEW_PHASE）"
+else
+  case "$MODE" in
+    full) NEW_PHASE="PRD" ;;
+    quick|mvp) NEW_PHASE="SPEC" ;;
+    fast) NEW_PHASE="TASK" ;;
+    *) NEW_PHASE="DEV" ;;
+  esac
+fi
 
 NOW=$(date "+%Y-%m-%d %H:%M")
 devflow_yaml_set "$STATUS_FILE" phase "$NEW_PHASE"
@@ -212,4 +237,4 @@ echo "━━━━━━━━━━━━━━━━━━━━━━"
 echo "交付版本：v$VERSION (tagged)"
 echo "新版本：v$NEW_VERSION"
 echo "阶段重置：$NEW_PHASE"
-echo "模式：$MODE"
+echo "模式：$(devflow_yaml_get "$STATUS_FILE" mode)"

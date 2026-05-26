@@ -18,7 +18,7 @@
 | `/status` | 报告当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 dev-doc |
 | `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
-| `/mode` | 选择开发模式（full/quick/fast/mvp） |
+| `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
 ## 流程
 

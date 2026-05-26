@@ -18,6 +18,12 @@ if [ -z "$MODE" ]; then
   exit 1
 fi
 
+# audit 模式为自动触发，拒绝手动设置
+if echo "$MODE" | grep -q "^audit"; then
+  echo "[dev-flow] audit 模式为自动触发，不支持手动设置"
+  exit 1
+fi
+
 # 校验合法性
 if ! echo "$MODE" | grep -qE '^(full|quick|fast|mvp)$'; then
   echo "[dev-flow] 无效模式：$MODE（可选：full/quick/fast/mvp）"
