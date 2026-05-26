@@ -1,0 +1,162 @@
+// dow/src/
+// ├── cli.rs  -- clap 子命令与参数定义
+
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "dow", about = "dev-flow 统一 CLI 调度器")]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+
+    /// 人类友好输出（默认 JSON）
+    #[arg(short = 'H', long = "human", global = true)]
+    pub human: bool,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// 读写 STATUS.yaml
+    Status(StatusArgs),
+
+    /// 文档规范检查
+    Check,
+
+    /// 迭代交付
+    Iterate(IterateArgs),
+
+    /// 项目扫描
+    Scan,
+
+    /// 校验 dev-doc 结构
+    Validate,
+
+    /// 生成文档模板
+    Doc(DocArgs),
+
+    /// 任务级测试
+    Devtest(DevtestArgs),
+
+    /// 运行全量测试
+    Test(TestArgs),
+
+    /// 读写 VERSION
+    Version(VersionArgs),
+
+    /// Hook 子命令
+    Hooks {
+        #[command(subcommand)]
+        command: HooksCommands,
+    },
+}
+
+#[derive(clap::Args)]
+pub struct StatusArgs {
+    /// 只获取某字段
+    #[arg(long)]
+    pub field: Option<String>,
+
+    /// 设置阶段
+    #[arg(long)]
+    pub phase: Option<String>,
+
+    /// 设置模式
+    #[arg(long)]
+    pub mode: Option<String>,
+
+    /// 设置执行模式
+    #[arg(long)]
+    pub exec_mode: Option<String>,
+
+    /// 设置项目名
+    #[arg(long)]
+    pub name: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct IterateArgs {
+    /// 归档主题（必填）
+    #[arg(long)]
+    pub topic: String,
+
+    /// bump 类型
+    #[arg(short = 'v', long, default_value = "minor")]
+    pub bump: String,
+
+    /// 只预览不执行
+    #[arg(long)]
+    pub view: bool,
+}
+
+#[derive(clap::Args)]
+pub struct DocArgs {
+    /// 文档类型
+    #[arg(long)]
+    pub task: bool,
+    #[arg(long)]
+    pub issue: bool,
+    #[arg(long)]
+    pub prd: bool,
+    #[arg(long)]
+    pub spec: bool,
+    #[arg(long)]
+    pub test: bool,
+    #[arg(long)]
+    pub brainstorm: bool,
+    #[arg(long)]
+    pub changelog: bool,
+
+    /// 条目数量
+    #[arg(short = 'n', long, default_value = "1")]
+    pub count: u32,
+
+    /// issue 来源
+    #[arg(long)]
+    pub source: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct DevtestArgs {
+    /// 指定任务 ID
+    #[arg(long)]
+    pub task: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct TestArgs {
+    /// 运行指定测试文件
+    #[arg(long)]
+    pub file: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct VersionArgs {
+    /// 手动设定版本号
+    #[arg(long)]
+    pub set: Option<String>,
+
+    /// 按类型 bump（major/minor/patch）
+    #[arg(long)]
+    pub bump: Option<String>,
+}
+
+#[derive(Subcommand)]
+pub enum HooksCommands {
+    /// 注入上下文
+    Context,
+
+    /// 判断文件是否允许写入
+    Guard {
+        /// 文件路径
+        file: String,
+    },
+
+    /// 文件写入后联动
+    PostWrite {
+        /// 文件路径（fallback 读 TOOL_INPUT_FILE_PATH 环境变量）
+        file: Option<String>,
+    },
+
+    /// 会话结束保存 CHANGELOG
+    SaveChangelog,
+}

@@ -30,18 +30,41 @@
                                                               └───────────────→│
 ```
 
+## dow CLI
+
+`scripts/bin/dow` 是 Rust 编写的统一调度器，所有 hook 和脚本化操作通过它执行。
+
+| 子命令 | 作用 |
+|--------|------|
+| `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--field`） |
+| `dow check` | 文档规范检查 |
+| `dow iterate --topic <t> [-v minor] [--view]` | 迭代交付 |
+| `dow scan` | 项目扫描 |
+| `dow validate` | 校验 dev-doc 结构 |
+| `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
+| `dow devtest [--task <id>]` | 任务级测试 |
+| `dow test [--file <x>]` | 全量测试 |
+| `dow hooks context` | hook：注入上下文 |
+| `dow hooks guard <file>` | hook：文件写入守护 |
+| `dow hooks post-write <file>` | hook：写后联动 |
+| `dow hooks save-changelog` | hook：保存 CHANGELOG |
+
+默认 JSON 输出，`-H` 切换人类友好格式。编译：`bash dow/build.sh`。
+
 ## Hooks
 
-- `UserPromptSubmit`: 注入项目状态上下文（inject-context）
-- `PreToolUse(Write|Edit|Bash)`: 阻止写入系统临时目录、非 DEV 阶段代码编辑
-- `PostToolUse(Write|Edit)`: 自动更新 STATUS.yaml、检查阶段完成标准、audit 模式自动触发
-- `Stop`: 会话结束时保存 CHANGELOG
+由 `dow` 统一调度（`hooks/hooks.json`）：
+
+- `UserPromptSubmit`: `dow hooks context`
+- `PreToolUse(Write|Edit|Bash)`: `dow hooks guard`
+- `PostToolUse(Write|Edit)`: `dow hooks post-write`
+- `Stop`: `dow hooks save-changelog`
 
 ## Codex 兼容
 
 - Codex 插件入口：`.codex-plugin/plugin.json`
 - Codex skill 入口：`skills/dev-flow/SKILL.md`
-- Codex hooks 入口：`hooks.json`（使用相对路径调用 `scripts/hooks/`）
+- Codex hooks 入口：`hooks.json`（调用 `scripts/bin/dow hooks ...`）
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
 

@@ -125,6 +125,27 @@ dev-doc/
     └── v1-init/
 ```
 
+## dow CLI
+
+`scripts/bin/dow` 是 Rust 编写的统一调度器，所有 hook 和脚本化操作通过它执行。
+
+| 子命令 | 作用 |
+|--------|------|
+| `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--field`） |
+| `dow check` | 文档规范检查 |
+| `dow iterate --topic <t> [-v minor] [--view]` | 迭代交付 |
+| `dow scan` | 项目扫描 |
+| `dow validate` | 校验 dev-doc 结构 |
+| `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
+| `dow devtest [--task <id>]` | 任务级测试 |
+| `dow test [--file <x>]` | 全量测试 |
+| `dow hooks context` | hook：注入上下文 |
+| `dow hooks guard <file>` | hook：文件写入守护 |
+| `dow hooks post-write <file>` | hook：写后联动 |
+| `dow hooks save-changelog` | hook：保存 CHANGELOG |
+
+默认 JSON 输出，`-H` 切换人类友好格式。编译：`bash dow/build.sh`。
+
 ## 格式 Schema 层（references/）
 
 `references/dev-doc/` 是所有文档格式的唯一权威定义。agents 和 commands 通过引用获取格式，不内嵌模板。

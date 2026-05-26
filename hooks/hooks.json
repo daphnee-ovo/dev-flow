@@ -1,5 +1,5 @@
 {
-  "description": "Dev-flow 项目流程管理 hooks — 强制保证流程执行",
+  "description": "Dev-flow 项目流程管理 hooks — 由 dow CLI 统一调度",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/inject-context.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks context",
             "timeout": 10
           }
         ]
@@ -19,12 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/block-system-tmp.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/block-non-dev-edit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
             "timeout": 5
           }
         ]
@@ -34,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/block-system-tmp.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
             "timeout": 5
           }
         ]
@@ -46,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/post-write.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
             "timeout": 10
           }
         ]
@@ -57,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/hooks/save-changelog.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks save-changelog",
             "timeout": 30
           }
         ]
