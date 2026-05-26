@@ -101,8 +101,8 @@ fn create_issue(doc_root: &Path, count: u32, source: Option<&str>) -> Result<(St
 
     for i in 1..=count {
         content.push_str(&format!(
-            "- [ ] ISSUE-I{:03}: \n  - severity: P1\n  - source: {}\n  - location: \n  - current: \n  - expected: \n  - reproduce: \n  - root_cause:\n  - fix:\n  - close_when: \n\n",
-            i, src
+            "- [ ] I{}：\n  - severity: P1\n  - location：\n  - description：\n  - reproduce：\n  - fix：\n\n",
+            i
         ));
     }
 
@@ -143,78 +143,105 @@ fn next_seq(dir: &Path, prefix: &str) -> u32 {
 }
 
 fn prd_template() -> String {
-    r#"# PRD -
+    r#"# 产品需求文档（PRD）
 
 ## 1. 背景与动机
 
 ## 2. 目标与非目标
-
 ### 目标
+### 非目标（明确不做什么）
 
-### 非目标
-
-## 3. 用户故事
+## 3. 用户画像
 
 ## 4. 功能需求
-
 ### Must Have
-
 ### Should Have
-
+### Could Have
 ### Won't Have
 
-## 5. 约束与假设
+## 5. 用户流程
 
 ## 6. 成功指标
+
+## 7. 约束与假设
+
+## 8. 开放问题
 "#.to_string()
 }
 
 fn spec_template() -> String {
-    r#"# SPEC -
+    r#"# SPEC:
 
-## 1. 概述
+## Goal
 
-## 2. 架构设计
+## Scope
+### In
+### Out
 
-## 3. 技术选型
+## Requirements Trace
+| Req | AC | Notes |
+| --- | --- | --- |
 
-| 选项 | 选择 | 理由 |
-|------|------|------|
+## Design
 
-## 4. 数据模型
+## Acceptance
+- SPEC-AC-001:
+- SPEC-AC-002:
 
-## 5. 验收契约
+## Risks
 
-| ID | 验收条件 | 验证方式 |
-|----|----------|----------|
-| SPEC-AC-001 | | |
+## Test Plan
+
+## Self Check
+- [ ] 目标清楚
+- [ ] 边界清楚
+- [ ] 验收可测
+- [ ] 与当前 mode 匹配
 "#.to_string()
 }
 
 fn test_template() -> String {
-    r#"# TEST - 测试报告
+    r#"# 测试报告
 
-## 测试环境
+- 执行时间：
+- 测试范围：全量 / 指定模块
+- 总用例数：
+- 通过：
+- 失败：
 
-## 测试用例
+## 失败用例
 
-| ID | 用例 | 预期 | 实际 | 状态 |
-|----|------|------|------|------|
+| 模块 | 用例 | 错误信息 | 关联 issue |
+|------|------|----------|-----------|
 
-## 测试结论
+## 通过模块
 "#.to_string()
 }
 
 fn brainstorm_template() -> String {
-    r#"# BRAINSTORM -
+    r#"# 头脑风暴记录 —
 
-## 核心问题
+**日期**：
 
-## 探索方向
+## 背景与目的
 
-## 约束条件
+## 关键决策
+| 决策点 | 选择 | 理由 |
+|--------|------|------|
 
-## 初步想法
+## 设计方案
+
+### 架构
+
+### 组件
+
+### 数据流
+
+### 错误处理
+
+## 约束与边界
+
+## 下一步
 "#.to_string()
 }
 

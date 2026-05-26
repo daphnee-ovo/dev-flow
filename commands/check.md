@@ -10,7 +10,7 @@ allowed-tools: Bash, Read
 直接运行脚本，展示输出：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/check.sh"
+dow check
 ```
 
 脚本自动检查 CHANGELOG、task 完成度与 phase 匹配、issue 状态、代码变更 vs 文档更新时间、阶段必要文件。Agent 只需运行并展示结果。

@@ -26,6 +26,7 @@ fn main() {
 
     let result = match cli.command {
         Commands::Status(args) => commands::status::run(args, human),
+        Commands::Init(args) => commands::init::run(args, human),
         Commands::Check => commands::check::run(human),
         Commands::Iterate(args) => commands::iterate::run(args, human),
         Commands::Scan => commands::scan::run(human),
@@ -33,6 +34,10 @@ fn main() {
         Commands::Doc(args) => commands::doc::run(args, human),
         Commands::Devtest(args) => commands::devtest::run(args, human),
         Commands::Test(args) => commands::test_runner::run(args, human),
+        Commands::Inbox { command } => match command {
+            cli::InboxCommands::Context => commands::info::context(),
+        },
+        Commands::Issue(args) => commands::issue::run(args, human),
         Commands::Version(args) => commands::version::run(args, human),
         Commands::Hooks { command } => match command {
             HooksCommands::Context => hooks::context::run(human),

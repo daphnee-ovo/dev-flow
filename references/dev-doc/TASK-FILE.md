@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`
+`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`(使用 dow doc --task 会自动创建)
 
 完成标记：hook 自动重命名为 `done_task_<YYYY-MM-DD>_<seq>.md`
 
@@ -65,7 +65,7 @@ nums: <任务总数>
 | refs | 关联的 SPEC 验收条件或需求来源 |
 | files.create | 需要新建的文件列表 |
 | files.modify | 需要修改的文件列表 |
-| files.test | 对应的测试文件列表 |
+| files.test | 对应的测试文件列表(如果存在则为对应文件，如果不存在则为应创建测试文件) |
 | depends_on | 前置依赖的任务标识（可跨文件引用：`<文件名>:TASK-T00N`） |
 | parallel | 是否可与同级任务并行执行 |
 | complexity | S=小 / M=中 / L=大（详见下方定义） |
@@ -81,11 +81,11 @@ nums: <任务总数>
 
 ## Complexity 定义
 
-| 值 | 含义 | 判断标准 |
-|------|------|----------|
-| `S` | 小任务 | 影响 <=2 文件，有明确模板/规范可循 |
-| `M` | 中等任务 | 影响 3-5 文件或需要理解模块交互 |
-| `L` | 大任务 | 涉及架构调整或 SPEC 中未明确的权衡，必须拆分或说明原因 |
+| 值 | 含义 | 判断标准 | 推荐工作模型 |
+|------|------|----------|-------------|
+| `S` | 小任务 | 影响 <=2 文件，有明确模板/规范可循 | 简单模型 |
+| `M` | 中等任务 | 影响 3-5 文件或需要理解模块交互 | 正常或高级模型 |
+| `L` | 大任务 | 涉及架构调整或 SPEC 中未明确的权衡，必须拆分或说明原因 | 高级模型 |
 
 ## done_when 规范
 
@@ -119,9 +119,4 @@ nums: <任务总数>
 ## 命名规则
 
 - `seq`：当天的序号，从 1 开始
-- 获取下一个序号：
-  ```bash
-  DATE=$(date +%Y-%m-%d)
-  NEXT_SEQ=$(find "$DOC_ROOT/task" -name "task_${DATE}_*.md" -o -name "done_task_${DATE}_*.md" 2>/dev/null | grep -oP "${DATE}_\K\d+" | sort -n | tail -1 || echo 0)
-  NEXT_SEQ=$((NEXT_SEQ + 1))
-  ```
+- 创建新 task 文件：`dow doc --task`（自动计算序号）

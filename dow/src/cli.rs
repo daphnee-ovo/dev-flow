@@ -19,6 +19,9 @@ pub enum Commands {
     /// 读写 STATUS.yaml
     Status(StatusArgs),
 
+    /// 初始化 dev-flow 工作流管理
+    Init(InitArgs),
+
     /// 文档规范检查
     Check,
 
@@ -40,6 +43,15 @@ pub enum Commands {
     /// 运行全量测试
     Test(TestArgs),
 
+    /// 内部公用库
+    Inbox {
+        #[command(subcommand)]
+        command: InboxCommands,
+    },
+
+    /// Issue 管理
+    Issue(IssueArgs),
+
     /// 读写 VERSION
     Version(VersionArgs),
 
@@ -48,6 +60,17 @@ pub enum Commands {
         #[command(subcommand)]
         command: HooksCommands,
     },
+}
+
+#[derive(clap::Args)]
+pub struct InitArgs {
+    /// 项目名称
+    #[arg(long)]
+    pub name: String,
+
+    /// 开发模式（full/quick/fast/mvp）
+    #[arg(long, default_value = "quick")]
+    pub mode: String,
 }
 
 #[derive(clap::Args)]
@@ -146,6 +169,19 @@ pub struct VersionArgs {
     /// 按类型 bump（major/minor/patch）
     #[arg(long)]
     pub bump: Option<String>,
+}
+
+#[derive(Subcommand)]
+pub enum InboxCommands {
+    /// 生成项目上下文摘要（供 agent 使用）
+    Context,
+}
+
+#[derive(clap::Args)]
+pub struct IssueArgs {
+    /// 列出未关闭的 issue
+    #[arg(long)]
+    pub list: bool,
 }
 
 #[derive(Subcommand)]

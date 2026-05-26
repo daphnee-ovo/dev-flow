@@ -13,10 +13,11 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 [dev-flow] skill 已加载 | 当前阶段：<从 STATUS.yaml 读取，不存在则显示"新项目">
 ```
 
-## 运行约定
+## Codex 运行约定
 
-- 当命令要求"独立 agent"或"subagent"时，使用 `spawn_agent`。这是 dev-flow 命令的显式子代理请求。
-- 当命令要求更新项目级 agent 指令时，优先更新 `AGENTS.md`；如果 `CLAUDE.md` 也存在，保持两者同步。
+- 当命令要求"独立 agent"或"subagent"时，在 Codex 中使用 `spawn_agent`。这是 dev-flow 命令的显式子代理请求。
+- 当命令要求更新项目级 agent 指令时，Codex 项目优先更新 `AGENTS.md`，Claude Code 项目优先更新 `CLAUDE.md`；如果两者都存在，保持两者同步。
+- Codex 文件编辑使用当前可用编辑工具完成；不要把 Claude Code 的 `Agent({...})` 示例当作必须逐字执行的 API。
 
 ## 流程总览
 
@@ -60,13 +61,13 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 
 audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设置**，仅由系统自动触发。
 
-**触发条件**：在非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，hook 自动将模式切换为 `audit/<原模式>`。
+**触发条件**：在非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，`dow hooks post-write` 自动将模式切换为 `audit/<原模式>`。
 
 **行为**：
 - mode 字段写为 `audit/<previous>`（如 `audit/quick`），保留原模式信息
 - phase 强制设为 DEV，直接进入修复流程
 - iterate 时跳过 task 完成度检查（因为 audit 轮只关注 issue 修复）
-- inject-context 输出 audit 专用提示：`issue → /fix → /iterate 恢复原模式`
+- `dow hooks context` 输出 audit 专用提示：`issue → /fix → /iterate 恢复原模式`
 
 **恢复**：执行 `/iterate` 后自动恢复原模式（从 `audit/quick` 恢复为 `quick`），phase 重置为原模式的起始阶段。
 
@@ -74,12 +75,7 @@ audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设�
 
 项目根目录下的 `VERSION` 文件记录当前语义化版本号（格式：`MAJOR.MINOR.PATCH`）。
 
-**iterate 流程中的版本操作**：
-1. 读取 `VERSION` 文件中的当前版本（如 `2.6.0`）
-2. 以当前版本执行 `git commit` + `git tag v2.6.0`
-3. 按 bump 类型（默认 minor）计算新版本（`2.7.0`）
-4. 写入新版本到 `VERSION` 文件
-5. 提交 `Start v2.7.0 iteration`
+**iterate 流程中的版本操作**：由 `dow iterate` 自动完成——归档、bump VERSION、commit、tag，一次 commit 包含所有变更。
 
 **支持的 bump 类型**：`major`（大版本）、`minor`（功能版本，默认）、`patch`（补丁版本）
 
@@ -132,7 +128,8 @@ dev-doc/
 |--------|------|
 | `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--field`） |
 | `dow check` | 文档规范检查 |
-| `dow iterate --topic <t> [-v minor] [--view]` | 迭代交付 |
+| `dow issue --list` | 列出未关闭的 issue |
+| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 dev-doc 结构 |
 | `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
@@ -142,6 +139,9 @@ dev-doc/
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |
 | `dow hooks save-changelog` | hook：保存 CHANGELOG |
+| `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION |
+| `dow init --name <名称> --mode <模式>` | 初始化 dev-flow 工作流管理 |
+| `dow inbox context` | 内部公用库：生成项目上下文 |
 
 默认 JSON 输出，`-H` 切换人类友好格式。编译：`bash dow/build.sh`。
 

@@ -20,7 +20,7 @@ allowed-tools: Bash, Read, AskUserQuestion
 如果用户指定了模式（如 `/mode quick`），直接运行脚本：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/mode.sh" <mode>
+dow status --mode <mode>
 ```
 
 如果未指定模式，先询问用户选择，再运行脚本。
@@ -105,16 +105,3 @@ audit 模式是自动触发的临时覆盖模式：
 - 已有文档保留不删除
 - 从低→高（如 fast → full）：提示用户补充缺失文档
 - 从高→低（如 full → fast）：跳过后续不需要的阶段
-
-## hooks 联动
-
-`inject-context.sh` 读取 STATUS.yaml 中的模式字段，输出中体现：
-
-```
-[dev-flow quick] STAGE: DEV | TASK: 2/5 | ISSUE: 0
-```
-
-如果用户在当前模式下执行不可用的命令，提示：
-```
-[dev-flow] 当前模式为 fast，无需执行 /spec。如需完整流程请先 /mode full。
-```

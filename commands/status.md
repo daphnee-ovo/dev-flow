@@ -10,7 +10,7 @@ allowed-tools: Bash, Read
 直接运行脚本，展示输出：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/status.sh"
+dow status -H
 ```
 
 脚本自动处理多工程检测、统计、格式化输出。Agent 只需运行并展示结果。

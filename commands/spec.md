@@ -11,7 +11,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 2. 按模式决定输入源：
    - **full 模式**：检查 `<DOC_ROOT>/PRD.md` 是否存在，不存在 → 停止，告知用户先执行 /prd
    - **quick/mvp 模式**：PRD.md 不要求存在。输入源降级为 BRAINSTORM.md（如有）或用户描述
-3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+3. 生成项目上下文：`dow inbox context`
 
 ## 输入组装（模式感知）
 
@@ -35,7 +35,7 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 <按模式传入：PRD.md 完整内容 / BRAINSTORM.md 内容 / 用户描述>
 
 ### 项目上下文
-<执行 scripts/lib/context.sh 的输出，原样粘贴>
+<执行 dow inbox context 的输出，原样粘贴>
 
 ## 输出路径
 

@@ -11,7 +11,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 2. 按模式决定输入源：
    - **full/quick 模式**：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
    - **fast 模式**：不要求 SPEC.md，使用用户描述 + 项目上下文作为输入
-3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+3. 生成项目上下文：`dow inbox context`
 
 ## 输入组装（模式感知）
 
@@ -34,7 +34,7 @@ prompt: `<读取 agents/task-agent.md 的完整内容>
 <按模式传入：SPEC.md 完整内容 / 用户描述>
 
 ### 项目上下文
-<执行 scripts/lib/context.sh 的输出，原样粘贴>
+<执行 dow inbox context 的输出，原样粘贴>
 
 ## 输出路径
 

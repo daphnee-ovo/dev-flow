@@ -55,11 +55,6 @@
 ## Test Plan
 - <最小验证方式>
 
-## Self Check
-- [ ] 目标清楚
-- [ ] 边界清楚
-- [ ] 验收可测
-- [ ] 与当前 mode 匹配
 ```
 
 ## Requirements Trace 格式
@@ -89,7 +84,7 @@
 
 ## Self Check 格式
 
-用 checkbox 列表，供 SPEC 作者在完成后自检：
+用 checkbox 列表，供 SPEC 作者在完成后自检(只供自检，非spec应写入内容)：
 
 ```markdown
 ## Self Check

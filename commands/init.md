@@ -17,13 +17,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 ### 阶段 1：环境探测 + 项目扫描
 
-运行脚本获取项目信息：
+运行扫描获取项目信息：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/scan-project.sh"
+dow scan
 ```
 
-脚本输出项目名、技术栈、命令、目录结构、git 状态、已有 dev-doc 等。
+输出项目名、技术栈、命令、目录结构、git 状态、已有 dev-doc 等。
 
 根据输出判断路径：
 - 输出中 `dev_doc: none` → 路径 A（全新项目）
@@ -33,22 +33,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/scan-project.sh"
 
 ### 阶段 2A：全新项目初始化
 
-1. 询问项目名称和开发模式（如脚本输出已有明确信息可跳过询问）
-2. 创建目录结构 + STATUS.yaml：
+1. 询问项目名称和开发模式（如扫描输出已有明确信息可跳过询问）
+2. 执行初始化：
    ```bash
-   mkdir -p dev-doc/{issue,task,archive} tests tmp
+   dow init --name <项目名> --mode <mode>
    ```
-   如果项目已经使用 `temp` 且没有 `tmp`，沿用 `temp`；新项目默认 `tmp`。
-3. 写入 STATUS.yaml：
-   ```yaml
-   name: <项目名>
-   phase: <按模式确定初始阶段>
-   mode: <mode>
-   iteration: 1
-   updated: <当前时间>
-   started: <当前时间>
-   ```
-4. 跳到阶段 4
+   自动创建目录结构（dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和 VERSION。
+   如果项目已有 `temp` 目录则沿用，不创建 `tmp`。
+3. 跳到阶段 4
 
 ---
 
@@ -89,7 +81,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/scan-project.sh"
 运行迁移检测脚本：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/migrate.sh" "$DOC_ROOT"
+dow validate
 ```
 
 脚本自动检测并迁移：
@@ -106,7 +98,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/migrate.sh" "$DOC_ROOT"
 运行校验脚本：
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
+dow validate
 ```
 
 脚本自动完成：
@@ -130,7 +122,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
   - `issue_invalid_severity` → 修正为合法值 P0/P1/P2
 - `auto_fixed` → 仅在最终报告中告知用户
 
-**规范对照**：处理 `warnings` 时，agent 必须读取 `${CLAUDE_PLUGIN_ROOT}/references/dev-doc/` 下的对应规范文档（如修复 issue 格式问题则读 ISSUE.md，修复 task 格式问题则读 TASK.md），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
+**规范对照**：处理 `warnings` 时，agent 必须读取 `references/dev-doc/` 下的对应规范文档（如修复 issue 格式问题则读 ISSUE.md，修复 task 格式问题则读 TASK.md），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
 
 ---
 
@@ -185,7 +177,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
 ### 阶段 5：输出确认
 
 ```
-[dev-flow] 初始化完成 ✓
+[dev-flow] 初始化完成
 ━━━━━━━━━━━━━━━━━━━━━━
 项目名称：<name>
 开发模式：<mode>
@@ -193,7 +185,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/validate.sh" "$DOC_ROOT"
 迭代版本：v<N>
 自动修复：<N> 项
 需确认项：<N> 项（已处理）
-agent 指令：已更新 ✓
+agent 指令：已更新
 
 下一步：<对应命令>
 ```

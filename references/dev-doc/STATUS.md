@@ -45,7 +45,6 @@ audit 模式示例：`audit/full`、`audit/quick`
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| iteration | integer | 迭代版本号，从 1 开始递增 |
 | exec_mode | enum | 执行模式：`step`（逐步确认）/ `continuous`（连续执行） |
 
 ## 示例
@@ -54,7 +53,6 @@ audit 模式示例：`audit/full`、`audit/quick`
 name: my-project
 phase: DEV
 mode: full
-iteration: 1
 updated: 2026-05-26 10:30
 started: 2026-05-26 09:00
 ```
@@ -65,7 +63,6 @@ started: 2026-05-26 09:00
 name: my-project
 phase: TEST
 mode: audit/quick
-iteration: 3
 exec_mode: continuous
 updated: 2026-05-26 14:00
 started: 2026-05-20 09:00

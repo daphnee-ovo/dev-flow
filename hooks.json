@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/inject-context.sh",
+            "command": "./scripts/bin/dow hooks context",
             "timeout": 10
           }
         ]
@@ -19,12 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/block-system-tmp.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "./scripts/hooks/block-non-dev-edit.sh",
+            "command": "./scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
             "timeout": 5
           }
         ]
@@ -34,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/block-system-tmp.sh",
+            "command": "./scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
             "timeout": 5
           }
         ]
@@ -46,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/post-write.sh",
+            "command": "./scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
             "timeout": 10
           }
         ]
@@ -57,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/hooks/save-changelog.sh",
+            "command": "./scripts/bin/dow hooks save-changelog",
             "timeout": 30
           }
         ]

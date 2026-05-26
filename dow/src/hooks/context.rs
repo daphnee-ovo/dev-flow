@@ -304,17 +304,34 @@ fn get_current_tasks(doc_root: &Path) -> Option<CurrentItems> {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let mut in_undone = false;
                     let mut title = String::new();
+                    let mut matched = false;
+                    let mut task_complexity: Option<String> = None;
                     for line in content.lines() {
                         if line.starts_with("- [ ]") {
+                            if matched {
+                                items.push(format_task_item(&title, &task_complexity));
+                            }
                             in_undone = true;
+                            matched = false;
+                            task_complexity = None;
                             title = line.trim_start_matches("- [ ] ").to_string();
                         } else if line.starts_with("- [x]") {
+                            if matched {
+                                items.push(format_task_item(&title, &task_complexity));
+                            }
                             in_undone = false;
-                        } else if in_undone && line.contains("priority:") && line.contains(priority)
-                        {
-                            items.push(title.clone());
-                            in_undone = false;
+                            matched = false;
+                            task_complexity = None;
+                        } else if in_undone {
+                            if line.contains("priority:") && line.contains(priority) {
+                                matched = true;
+                            } else if line.contains("complexity:") {
+                                task_complexity = extract_complexity(line);
+                            }
                         }
+                    }
+                    if matched {
+                        items.push(format_task_item(&title, &task_complexity));
                     }
                 }
             }
@@ -329,6 +346,33 @@ fn get_current_tasks(doc_root: &Path) -> Option<CurrentItems> {
         }
     }
     None
+}
+
+// "TASK-T002: xxx" + complexity "M" → "TASK-T002[M]: xxx"
+fn format_task_item(title: &str, complexity: &Option<String>) -> String {
+    match complexity {
+        Some(c) => {
+            if let Some(colon_pos) = title.find(':') {
+                format!("{}[{}]{}", &title[..colon_pos], c, &title[colon_pos..])
+            } else {
+                format!("{}[{}]", title, c)
+            }
+        }
+        None => title.to_string(),
+    }
+}
+
+fn extract_complexity(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if let Some(pos) = trimmed.find("complexity:") {
+        let val = trimmed[pos + 11..].trim();
+        match val {
+            "S" | "M" | "L" => Some(val.to_string()),
+            _ => None,
+        }
+    } else {
+        None
+    }
 }
 
 fn get_last_changelog(doc_root: &Path) -> Option<String> {

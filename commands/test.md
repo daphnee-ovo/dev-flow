@@ -17,7 +17,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 ## 输入组装
 
-1. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+1. 生成项目上下文：`dow inbox context`
 2. 收集所有 task 文件内容（含 done_task_*）作为验证范围
 3. 读取 SPEC.md 作为验证标准
 
@@ -38,7 +38,7 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 <task/ 目录下所有 task 文件的内容（含 done_task_*），原样粘贴>
 
 ### 项目上下文
-<执行 scripts/lib/context.sh 的输出，原样粘贴>
+<执行 dow inbox context 的输出，原样粘贴>
 
 ## 输出路径
 

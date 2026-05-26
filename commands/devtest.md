@@ -10,15 +10,11 @@ devtest 只做轻量闭环，不做大型 controller。
 ## 执行方式
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/devtest.sh"
+dow devtest
 ```
 
-模式切换：
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/devtest.sh" --continuous
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/devtest.sh" --step
-```
+模式通过 STATUS.yaml 的 exec_mode 字段控制（`dow status --exec-mode continuous` 或 `step`），
+devtest 读取后自动按对应模式执行。
 
 ## 前置检查
 
@@ -42,7 +38,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/devtest.sh" --step
 |----------|----------|
 | 当前 task 标题、refs、files、done_when | 其他无关 task |
 | SPEC 中相关验收条目 | PRD.md |
-| 项目上下文 `scripts/lib/context.sh` | 开发阶段对话历史 |
+| 项目上下文 `dow inbox context` | 开发阶段对话历史 |
 
 验证重点：
 

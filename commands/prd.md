@@ -16,21 +16,13 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 ## 模式检测
 
-```bash
-if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
-```
+`DOC_ROOT` 通过 `dow status --field doc_root` 获取。
 
 ## 新项目初始化
 
 ```bash
-mkdir -p dev-doc/{task,issue,archive} tests tmp
+dow init --name <项目名> --mode <mode>
 ```
-如果项目已经使用 `temp` 且没有 `tmp`，沿用 `temp`；新项目默认 `tmp`。
 
 ## 两种工作模式
 

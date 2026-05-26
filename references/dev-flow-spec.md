@@ -50,8 +50,8 @@ dev-doc/
 
 | 文件 | 内容 | 产出命令 |
 |------|------|----------|
-| `STATUS.yaml` | 阶段、模式、版本、时间戳 | 自动维护 |
-| `CHANGELOG.md` | 追加式会话日志 | hook（save-changelog） |
+| `STATUS.yaml` | 阶段、模式、版本、时间戳 | `dow init` 创建，`dow status` 更新 |
+| `CHANGELOG.md` | 追加式会话日志 | `dow hooks save-changelog` |
 | `BRAINSTORM.md` | 头脑风暴探索记录 | `/brainstorm` |
 | `PRD.md` | 产品需求（MoSCoW 优先级） | `/prd` |
 | `SPEC.md` | 技术规范（架构、接口、数据模型） | `/spec` |
@@ -64,7 +64,7 @@ dev-doc/
 - `YYYY-MM-DD`：创建日期
 - `seq`：当天序号（从 1 开始）
 
-**完成标记**：全部 checkbox 勾选后 hook 自动重命名为 `done_` 前缀
+**完成标记**：全部 checkbox 勾选后 `dow hooks post-write` 自动重命名为 `done_` 前缀
 
 **示例**：
 ```
@@ -80,8 +80,12 @@ task/
 
 **状态标记**：`- [ ]` 未完成，`- [x]` 已完成
 
+**Complexity 与工作模型**：
+
+`dow hooks context` 输出的 items 中嵌入 complexity 标记（如 `TASK-T002[M]: xxx`），用于指导 DEV 阶段选择执行模型：S→简单模型，M→正常或高级模型，L→高级模型。
+
 **完成规则**：
-- 文件内所有 checkbox 均为 `[x]` → hook 自动重命名为 `done_` 前缀
+- 文件内所有 checkbox 均为 `[x]` → `dow hooks post-write` 自动重命名为 `done_` 前缀
 - 归档时 `done_task_*.md` 移入 `archive/v<N>-<topic>/`
 - `/iterate` 时活跃 task 文件（`task_*.md`）也一并归档
 
@@ -106,20 +110,12 @@ issue/
 └── closed_issue_devtest_2026-05-15_1.md    # 已关闭
 ```
 
-**获取下一个序号**：
+**创建新 issue 文件**：
 ```bash
-SOURCE="test"
-DATE=$(date +%Y-%m-%d)
-NEXT_SEQ=$(find "$DOC_ROOT/issue" -name "issue_${SOURCE}_${DATE}_*.md" -o -name "closed_issue_${SOURCE}_${DATE}_*.md" 2>/dev/null | grep -oP "${SOURCE}_${DATE}_\K\d+" | sort -n | tail -1 || echo 0)
-NEXT_SEQ=$((NEXT_SEQ + 1))
-FILENAME="issue_${SOURCE}_${DATE}_${NEXT_SEQ}.md"
+dow doc --issue --source <source>
 ```
 
-**关闭 issue**：
-```bash
-# issue_test_2026-05-14_1.md → closed_issue_test_2026-05-14_1.md
-mv "$DOC_ROOT/issue/issue_test_2026-05-14_1.md" "$DOC_ROOT/issue/closed_issue_test_2026-05-14_1.md"
-```
+**关闭 issue**：文件内所有 checkbox 勾选为 `[x]` 后，`dow hooks post-write` 自动重命名为 `closed_` 前缀。
 
 ### Archive 命名
 
@@ -147,7 +143,7 @@ mv "$DOC_ROOT/issue/issue_test_2026-05-14_1.md" "$DOC_ROOT/issue/closed_issue_te
 **格式**：`audit/<previous>`（如 `audit/quick`、`audit/full`）
 
 **触发规则**：
-- 非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，由 post-write hook 自动触发
+- 非 DEV 阶段创建 issue 文件（`issue/issue_*.md`）时，由 `dow hooks post-write` 自动触发
 - 不支持手动通过 `/mode` 设置
 
 **行为**：
@@ -168,39 +164,47 @@ mv "$DOC_ROOT/issue/issue_test_2026-05-14_1.md" "$DOC_ROOT/issue/closed_issue_te
 
 ### 版本操作（`/iterate` 时自动执行）
 
-1. 读取当前 VERSION 文件中的版本号
-2. 以当前版本号作为 Release 版本：`git commit "Release v<当前版本>: <topic>"`
-3. 创建 annotated git tag：`git tag -a "v<当前版本>" -m "Release v<当前版本>"`
-4. Bump 版本号写入 VERSION 文件（默认 minor，可指定 major/patch）
-5. 提交新版本：`git commit "Start v<新版本> iteration"`
+由 `dow iterate` 自动完成：归档、bump VERSION、commit、tag。
 
-### inject-context 中的版本展示
+### dow hooks context 输出
 
-状态行格式：`[dev-flow <mode>] v<版本>(synced|no-tag) | STAGE: <phase> | TASK: <done>/<total> | ISSUE: <open>`
+JSON 格式，包含以下字段：
 
-- `synced`：git tag `v<版本>` 已存在（说明当前版本已发布）
-- `no-tag`：git tag 不存在（说明当前是开发中版本）
+| 字段 | 说明 |
+|------|------|
+| version | VERSION 文件中的版本号 |
+| version_tag | `synced`（git tag 已存在）/ `no-tag`（开发中） |
+| mode | 当前开发模式 |
+| phase | 当前阶段 |
+| exec_mode | 执行模式（step/continuous） |
+| doc_root | 文档根目录路径 |
+| tasks | `{total, done, by_priority}` |
+| issues | 未关闭 issue 数 |
+| current_items | 当前最高优先级的 task 或 issue 列表 |
+| last_changelog | 最近一条 CHANGELOG 条目 |
+
+DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons: [...]}`。
 
 ## 生命周期规则
 
 | 文件 | 创建时机 | 更新时机 | 归档时机 |
 |------|----------|----------|----------|
-| STATUS.yaml | `/mode` 或第一个阶段命令 | 每个阶段转换、hook 自动更新 | 不归档（原地更新） |
-| CHANGELOG.md | hook（save-changelog） | 每次会话结束追加 | `/iterate` 时归档 |
+| STATUS.yaml | `dow init` 或 `/mode` | 阶段转换时 `dow status` 更新 | 不归档（原地更新） |
+| CHANGELOG.md | `dow hooks save-changelog` | 每次会话结束追加 | `dow iterate` 时归档 |
 | BRAINSTORM.md | `/brainstorm` | brainstorm 过程中 | **不归档**（持久参考） |
-| PRD.md | `/prd` | 用户反馈修改 | `/iterate` 时归档 |
-| SPEC.md | `/spec` | 用户反馈修改 | `/iterate` 时归档 |
-| task/*.md | `/task` | 开发中勾选、hook 自动重命名 | `/iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
-| TEST.md | `/test` | 重新测试时覆盖 | `/iterate` 时归档 |
-| issue/*.md | `/test` `/devtest` `/issue` | `/fix` 关闭+重命名 | 已关闭的归档，未关闭的保留 |
+| PRD.md | `/prd` | 用户反馈修改 | `dow iterate` 时归档 |
+| SPEC.md | `/spec` | 用户反馈修改 | `dow iterate` 时归档 |
+| task/*.md | `/task` | 开发中勾选、`dow hooks post-write` 自动重命名 | `dow iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
+| TEST.md | `/test` | 重新测试时覆盖 | `dow iterate` 时归档 |
+| issue/*.md | `/test` `/devtest` `/issue` | `/fix` 修复后 `dow hooks post-write` 自动重命名 | 已关闭的归档，未关闭的保留 |
 
 ## 初始化
 
-首次创建 dev-doc 时：
-
 ```bash
-mkdir -p dev-doc/{issue,task,archive}
+dow init --name <项目名> --mode <mode>
 ```
+
+自动创建 `dev-doc/{issue,task,archive}`、`STATUS.yaml`、`VERSION`、`CHANGELOG.md`。
 
 ## 临时文件
 

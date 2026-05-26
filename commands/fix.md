@@ -13,26 +13,15 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 4. 如果没有未关闭 issue，告知用户"当前没有待修复的 issue"并退出
 
 ## 模式检测
-
-```bash
-if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
-```
+doc_root 通过 `dow status --field doc_root` 获取（无需手动检测分支模式）。
 
 ## 执行步骤
 
-1. 列出所有未关闭 issue：
-```bash
-find "$DOC_ROOT/issue" -name "issue_*.md" ! -name "closed_issue_*.md" 2>/dev/null | sort
-```
+1. 列出所有未关闭 issue：`dow issue --list`
 
 2. 逐一读取每个 issue 文件内容
 
-3. 生成项目上下文：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/context.sh"`
+3. 生成项目上下文：`dow inbox context`
 
 4. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
 
@@ -56,7 +45,7 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 
 ## 项目上下文
 
-<执行 scripts/lib/context.sh 的输出，原样粘贴>
+<执行 dow inbox context 的输出，原样粘贴>
 
 ## 修复要求
 
@@ -102,12 +91,9 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 当一个包含 P0 severity 条目的 issue 文件被完全关闭时，自动执行 minor 版本 bump：
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/version.sh"
-VER=$(version_read)
-NEW_VER=$(version_bump "$VER" minor)
-version_write "$NEW_VER"
+dow version --bump minor
 git add VERSION
-git commit -m "Bump to v${NEW_VER}: P0 issue fixed"
+git commit -m "fix: Bump version for P0 issue fix"
 ```
 
 判断条件：被关闭的 issue 文件中存在 `severity: P0` 的条目。非 P0 issue 关闭时不触发 bump。

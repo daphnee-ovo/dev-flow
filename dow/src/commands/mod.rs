@@ -8,6 +8,9 @@
 pub mod check;
 pub mod devtest;
 pub mod doc;
+pub mod info;
+pub mod init;
+pub mod issue;
 pub mod iterate;
 pub mod scan;
 pub mod status;

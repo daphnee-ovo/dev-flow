@@ -7,14 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 ## 模式检测
 
-```bash
-if find dev-doc -maxdepth 2 -name "STATUS.yaml" -path "*/*/STATUS.yaml" 2>/dev/null | grep -q .; then
-  BRANCH=$(git branch --show-current 2>/dev/null)
-  DOC_ROOT="dev-doc/$BRANCH"
-else
-  DOC_ROOT="dev-doc"
-fi
-```
+`DOC_ROOT` 通过 `dow status --field doc_root` 获取。
 
 ## 执行步骤
 
@@ -31,8 +24,7 @@ fi
 检查是否已有当天 `other` 来源的 issue 文件：
 
 ```bash
-DATE=$(date +%Y-%m-%d)
-EXISTING=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" 2>/dev/null | sort | tail -1)
+dow issue --list | grep 'other'
 ```
 
 - 如果有且文件内 issue 数量合理（<10 个）→ 追加到现有文件
@@ -40,7 +32,9 @@ EXISTING=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" 2>/dev/null |
 
 ### 3. 新建文件
 
-序号从同日 `issue_other_<date>_<seq>.md` 和 `closed_issue_other_<date>_<seq>.md` 中取最大值 +1。实现时使用 `awk` 或 shell 字符串处理，不使用 `grep -P`。
+```bash
+dow doc --issue --source other
+```
 
 ### 4. 写入格式
 
@@ -64,5 +58,5 @@ EXISTING=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" 2>/dev/null |
 ## 注意
 
 - 主 agent 直接执行，不启动子 agent
-- source 固定为 `manual`（区别于 test/devtest 自动创建）
+- source 固定为 `other`（区别于 test/devtest 自动创建）
 - 创建后不自动修复，由用户决定是否 /fix

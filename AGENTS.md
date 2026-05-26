@@ -38,7 +38,8 @@
 |--------|------|
 | `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--field`） |
 | `dow check` | 文档规范检查 |
-| `dow iterate --topic <t> [-v minor] [--view]` | 迭代交付 |
+| `dow issue --list` | 列出未关闭的 issue |
+| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 dev-doc 结构 |
 | `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
