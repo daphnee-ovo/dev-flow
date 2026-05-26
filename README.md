@@ -220,14 +220,18 @@ dev-flow/
 │       ├── scan-project.sh
 │       ├── validate.sh
 │       └── migrate.sh
-├── references/                 # Internal spec references
+├── references/                 # Single source of truth for all format schemas
 │   ├── dev-flow-spec.md
-│   └── dev-doc/                # Document format templates
+│   └── dev-doc/                # Document format schemas (authoritative)
+│       ├── BRAINSTORM-FILE.md
+│       ├── CHANGELOG.md
+│       ├── ISSUE.md
+│       ├── PRD-FILE.md
+│       ├── SPEC-FILE.md
+│       ├── STATUS.md
 │       ├── STATUS.yaml
 │       ├── TASK-FILE.md
-│       ├── CHANGELOG.md
-│       ├── TEST.md
-│       └── ISSUE.md
+│       └── TEST.md
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── README.md

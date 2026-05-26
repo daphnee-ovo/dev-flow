@@ -44,7 +44,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 | `/status` | 任意 | 状态报告 |
 | `/check` | 任意 | 文档同步检查 |
 | `/iterate` | DONE → 新轮次 | 归档 + commit & tag + bump 版本 |
-| `/mode` | 任意 | 模式选择（full/quick/fast/mvp） |
+| `/mode` | 任意 | 模式选择（full/quick/fast/mvp；audit 为自动触发） |
 
 ## 开发模式（/mode）
 
@@ -124,6 +124,23 @@ dev-doc/
 └── archive/
     └── v1-init/
 ```
+
+## 格式 Schema 层（references/）
+
+`references/dev-doc/` 是所有文档格式的唯一权威定义。agents 和 commands 通过引用获取格式，不内嵌模板。
+
+| Schema 文件 | 定义内容 |
+|-------------|----------|
+| `TASK-FILE.md` | task 文件格式（priority/refs/files/done_when 等） |
+| `SPEC-FILE.md` | SPEC.md 格式（含按 mode 降级规则） |
+| `PRD-FILE.md` | PRD.md 格式（MoSCoW 优先级） |
+| `ISSUE.md` | issue 文件格式 |
+| `TEST.md` | 测试报告格式 |
+| `STATUS.md` | STATUS.yaml schema |
+| `BRAINSTORM-FILE.md` | brainstorm 文档格式 |
+| `CHANGELOG.md` | changelog 格式 |
+
+调度层（commands/*.md）负责在组装 subagent prompt 时读取 references/ 内容并拼入。
 
 ## 灵活性
 

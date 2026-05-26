@@ -222,14 +222,18 @@ dev-flow/
 │       ├── scan-project.sh
 │       ├── validate.sh
 │       └── migrate.sh
-├── references/                 # 内部参考规范
+├── references/                 # 唯一格式 schema 层（权威定义）
 │   ├── dev-flow-spec.md
-│   └── dev-doc/                # 文档格式模板
+│   └── dev-doc/                # 文档格式 schema（权威）
+│       ├── BRAINSTORM-FILE.md
+│       ├── CHANGELOG.md
+│       ├── ISSUE.md
+│       ├── PRD-FILE.md
+│       ├── SPEC-FILE.md
+│       ├── STATUS.md
 │       ├── STATUS.yaml
 │       ├── TASK-FILE.md
-│       ├── CHANGELOG.md
-│       ├── TEST.md
-│       └── ISSUE.md
+│       └── TEST.md
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── README.md
