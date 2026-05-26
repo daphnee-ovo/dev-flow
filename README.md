@@ -190,7 +190,6 @@ dev-flow/
 │   ├── devtest.md
 │   ├── fix.md
 │   ├── test.md
-│   ├── done.md
 │   ├── status.md
 │   ├── check.md
 │   ├── iterate.md
@@ -203,28 +202,17 @@ dev-flow/
 ├── hooks/
 │   └── hooks.json              # Claude Code hook registration
 ├── hooks.json                  # Codex CLI hook registration
+├── dow/                        # Rust CLI source
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── cli.rs
+│   │   ├── commands/           # Subcommand implementations
+│   │   ├── hooks/              # Hook implementations
+│   │   └── core/               # Shared libraries
+│   ├── Cargo.toml
+│   └── build.sh
 ├── scripts/
-│   ├── hooks/                  # Hook scripts
-│   │   ├── inject-context.sh
-│   │   ├── block-system-tmp.sh
-│   │   ├── block-non-dev-edit.sh
-│   │   ├── post-write.sh
-│   │   └── save-changelog.sh
-│   ├── commands/               # Scripted commands
-│   │   ├── devtest.sh
-│   │   ├── status.sh
-│   │   ├── check.sh
-│   │   ├── mode.sh
-│   │   └── iterate.sh
-│   ├── lib/                    # Shared libraries
-│   │   ├── common.sh
-│   │   ├── context.sh
-│   │   ├── guard.sh
-│   │   └── version.sh
-│   └── init/                   # Init command scripts
-│       ├── scan-project.sh
-│       ├── validate.sh
-│       └── migrate.sh
+│   └── bin/dow                 # Compiled CLI binary
 ├── .agents/skills/dev-flow/
 │   └── SKILL.md               # Codex/AGENTS skill entry
 ├── VERSION                     # Semantic version (single source of truth)

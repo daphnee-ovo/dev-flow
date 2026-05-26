@@ -192,7 +192,6 @@ dev-flow/
 │   ├── devtest.md
 │   ├── fix.md
 │   ├── test.md
-│   ├── done.md
 │   ├── status.md
 │   ├── check.md
 │   ├── iterate.md
@@ -205,28 +204,17 @@ dev-flow/
 ├── hooks/
 │   └── hooks.json              # Claude Code hook 注册
 ├── hooks.json                  # Codex CLI hook 注册
+├── dow/                        # Rust CLI 源码
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── cli.rs
+│   │   ├── commands/           # 子命令实现
+│   │   ├── hooks/              # Hook 实现
+│   │   └── core/               # 公共库
+│   ├── Cargo.toml
+│   └── build.sh
 ├── scripts/
-│   ├── hooks/                  # Hook 脚本
-│   │   ├── inject-context.sh
-│   │   ├── block-system-tmp.sh
-│   │   ├── block-non-dev-edit.sh
-│   │   ├── post-write.sh
-│   │   └── save-changelog.sh
-│   ├── commands/               # 脚本化命令
-│   │   ├── devtest.sh
-│   │   ├── status.sh
-│   │   ├── check.sh
-│   │   ├── mode.sh
-│   │   └── iterate.sh
-│   ├── lib/                    # 共享库
-│   │   ├── common.sh
-│   │   ├── context.sh
-│   │   ├── guard.sh
-│   │   └── version.sh
-│   └── init/                   # Init 命令脚本
-│       ├── scan-project.sh
-│       ├── validate.sh
-│       └── migrate.sh
+│   └── bin/dow                 # 编译后的 CLI 二进制
 ├── .agents/skills/dev-flow/
 │   └── SKILL.md               # Codex/AGENTS skill 入口
 ├── VERSION                     # 语义化版本号（单一真相源）
