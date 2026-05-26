@@ -49,7 +49,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/commands/devtest.sh" --step
 - 对照 `done_when` 和相关 SPEC 验收判断是否通过。
 - 需要测试时，优先运行 task `files.test` 中列出的测试。
 - 不引入默认 TDD，不扩展需求范围。
-- 禁止使用系统临时目录，临时文件只能放项目 `temp/` 下。
+- 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，已有目录优先，新项目默认 `tmp`。
 
 ## 输出协议
 

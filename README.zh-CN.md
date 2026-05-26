@@ -130,7 +130,7 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 - **自动 devtest** — 任务完成后自动触发例行测试
 - **文档同步检查** — 代码变更时提醒同步文档
 - **变更日志** — 会话结束时自动保存 CHANGELOG
-- **`/tmp/` 拦截** — 禁止写入系统临时目录（强制使用项目内 tmp/）
+- **系统临时目录拦截** — 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，新项目默认使用 `tmp`
 
 ### 文档驱动开发
 
@@ -190,6 +190,7 @@ dev-flow/
 │   ├── prd.md
 │   ├── spec.md
 │   ├── task.md
+│   ├── issue.md
 │   ├── devtest.md
 │   ├── fix.md
 │   ├── test.md
@@ -210,12 +211,11 @@ dev-flow/
 │   ├── hooks/                  # Hook 脚本
 │   │   ├── inject-context.sh
 │   │   ├── block-system-tmp.sh
-│   │   ├── check-task-completion.sh
-│   │   ├── check-doc-sync.sh
-│   │   ├── check-phase-completion.sh
-│   │   ├── update-status.sh
+│   │   ├── block-non-dev-edit.sh
+│   │   ├── post-write.sh
 │   │   └── save-changelog.sh
 │   ├── commands/               # 脚本化命令
+│   │   ├── devtest.sh
 │   │   ├── status.sh
 │   │   ├── check.sh
 │   │   ├── mode.sh

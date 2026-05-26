@@ -115,7 +115,7 @@ case "$RESULT" in
     exit 2
     ;;
   FAIL)
-    tmp="${TASK_FILE}.tmp.$$"
+    tmp=$(devflow_temp_file "$(basename "$TASK_FILE").devtest")
     awk -v target="$TASK_LINE" 'NR == target { sub(/^- \[x\]/, "- [ ]") } { print }' "$TASK_FILE" > "$tmp" && mv "$tmp" "$TASK_FILE"
     issue_file=$(write_issue "devtest 未通过：$TASK_TITLE" "devtest 返回 FAIL")
     echo "[dev-flow] devtest FAIL：$TASK_TITLE"

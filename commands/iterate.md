@@ -36,9 +36,10 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 ### 阶段 3：归档
 - 归档目录命名：`dev-doc/archive/v<当前版本>-<topic>/`
-- 移动：done_task_*、closed_issue_*、CHANGELOG.md
+- 移动：done_task_*、已全部完成的 task_*、closed_issue_*、CHANGELOG.md
 - 复制：PRD.md、SPEC.md、TEST.md
-- 未完成的 task 和未关闭的 issue 保留不归档
+- `/iterate` 前会阻断未完成 task；因此能执行归档时，当前 task_* 已全部完成并会进入 archive
+- 未关闭的非 P0 issue 保留在当前 issue 目录，继续跟进
 - BRAINSTORM.md 默认不归档（持久参考）
 
 ### 阶段 4：用户确认
@@ -76,7 +77,7 @@ agent 在调用前：
 
 ## 注意
 
-- 归档是复制（主文档）+ 移动（done_task/closed_issue/CHANGELOG），当前目录被重置
+- 归档是复制（主文档）+ 移动（task/done_task/closed_issue/CHANGELOG），当前目录被重置
 - 如果 archive 目录已存在同名，说明重复操作，脚本会停止并报错
 
 ## 完成后输出

@@ -128,7 +128,7 @@ No manual operations needed:
 - **Auto devtest** — triggers routine testing when a task is marked complete
 - **Doc sync check** — reminds you to sync documentation when code changes
 - **Changelog save** — automatically saves changelog on conversation end
-- **`/tmp/` blocking** — prevents writing to system temp directories (enforces project-local tmp/)
+- **System temp blocking** — prevents writing to system temp directories; project-local `tmp` and `temp` are allowed, and new projects default to `tmp`
 
 ### Document-Driven Development
 
@@ -188,6 +188,7 @@ dev-flow/
 │   ├── prd.md
 │   ├── spec.md
 │   ├── task.md
+│   ├── issue.md
 │   ├── devtest.md
 │   ├── fix.md
 │   ├── test.md
@@ -208,12 +209,11 @@ dev-flow/
 │   ├── hooks/                  # Hook scripts
 │   │   ├── inject-context.sh
 │   │   ├── block-system-tmp.sh
-│   │   ├── check-task-completion.sh
-│   │   ├── check-doc-sync.sh
-│   │   ├── check-phase-completion.sh
-│   │   ├── update-status.sh
+│   │   ├── block-non-dev-edit.sh
+│   │   ├── post-write.sh
 │   │   └── save-changelog.sh
 │   ├── commands/               # Scripted commands
+│   │   ├── devtest.sh
 │   │   ├── status.sh
 │   │   ├── check.sh
 │   │   ├── mode.sh

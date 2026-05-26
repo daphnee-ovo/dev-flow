@@ -51,7 +51,7 @@ nums: <任务总数>
 
 - 文件内所有 checkbox 均为 `[x]` → hook 自动重命名为 `done_` 前缀
 - 归档时 `done_task_*.md` 移入 `archive/v<N>-<topic>/task/`
-- 未完成的 task 文件留在当前目录带入下一轮迭代
+- `/iterate` 前会阻断未完成 task；能进入归档时，active task 文件已经全部完成并会随 done_task 一起归档
 
 ## 命名规则
 

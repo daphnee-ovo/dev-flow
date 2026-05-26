@@ -38,6 +38,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init/scan-project.sh"
    ```bash
    mkdir -p dev-doc/{issue,task,archive} tests tmp
    ```
+   如果项目已经使用 `temp` 且没有 `tmp`，沿用 `temp`；新项目默认 `tmp`。
 3. 写入 STATUS.yaml：
    ```yaml
    name: <项目名>

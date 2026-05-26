@@ -5,6 +5,25 @@ devflow_repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
+devflow_project_temp_dir() {
+  local root
+  root=$(devflow_repo_root)
+
+  if [ -d "$root/temp" ] && [ ! -d "$root/tmp" ]; then
+    echo "$root/temp"
+  else
+    echo "$root/tmp"
+  fi
+}
+
+devflow_temp_file() {
+  local prefix="${1:-devflow}"
+  local temp_dir
+  temp_dir=$(devflow_project_temp_dir)
+  mkdir -p "$temp_dir"
+  printf '%s/%s.%s.%s\n' "$temp_dir" "$prefix" "$$" "$(date +%s)"
+}
+
 devflow_resolve_doc_root() {
   local base="${1:-dev-doc}"
   local branch=""
@@ -54,7 +73,7 @@ devflow_yaml_set() {
   local tmp
 
   [ -f "$file" ] || return 1
-  tmp="${file}.tmp.$$"
+  tmp=$(devflow_temp_file "$(basename "$file").yaml")
   awk -v key="$key" -v value="$value" '
     BEGIN { done = 0 }
     $0 ~ "^" key ":" {

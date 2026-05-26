@@ -54,7 +54,7 @@ project_context() {
   # === 目录结构 ===
   OUTPUT+="\n## 目录结构\n"
   local TREE_OUT
-  TREE_OUT=$(tree "$ROOT" -L 2 --dirsfirst -I 'node_modules|.git|__pycache__|.venv|venv|dist|build|.codegraph|tmp' --noreport 2>/dev/null | head -60)
+  TREE_OUT=$(tree "$ROOT" -L 2 --dirsfirst -I 'node_modules|.git|__pycache__|.venv|venv|dist|build|.codegraph|tmp|temp' --noreport 2>/dev/null | head -60)
   if [ -n "$TREE_OUT" ]; then
     OUTPUT+="$TREE_OUT\n"
   else
@@ -63,7 +63,7 @@ project_context() {
     FIND_OUT=$(find "$ROOT" -maxdepth 2 -type d \
       ! -path '*/.git*' ! -path '*/node_modules*' ! -path '*/__pycache__*' \
       ! -path '*/.venv*' ! -path '*/venv*' ! -path '*/dist*' \
-      ! -path '*/build*' ! -path '*/.codegraph*' ! -path '*/tmp*' \
+      ! -path '*/build*' ! -path '*/.codegraph*' ! -path '*/tmp*' ! -path '*/temp*' \
       2>/dev/null | sort | head -50 | sed "s|^$ROOT/||; s|^$ROOT$|.|")
     OUTPUT+="$FIND_OUT\n"
   fi

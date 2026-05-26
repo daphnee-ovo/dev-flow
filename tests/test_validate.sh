@@ -126,18 +126,55 @@ EOF
 # 正确命名
 cat > "dev-doc/task/task_2026-05-15_1.md" << 'EOF'
 - [ ] 任务
-  Done when: pass
+  done_when: pass
   level: P0
 EOF
 # 错误命名（无日期）
 cat > "dev-doc/task/task_feature_login.md" << 'EOF'
 - [ ] 任务
-  Done when: pass
+  done_when: pass
   level: P0
 EOF
 OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
 assert_contains "$OUTPUT" "task_bad_name:task_feature_login.md" "不规范命名应报告"
 assert_not_contains "$OUTPUT" "task_bad_name:task_2026-05-15_1.md" "规范命名不应报告"
+
+echo "TEST 4b: audit issue 命名合法"
+setup
+mkdir -p dev-doc/issue
+cat > "dev-doc/issue/issue_audit_2026-05-15_1.md" << 'EOF'
+---
+source: audit
+nums: 1
+---
+- [ ] I1：审计问题
+  - severity: P1
+  - location：README.md:1
+  - description：描述
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "issue_bad_name:issue_audit_2026-05-15_1.md" "audit issue 命名应合法"
+
+echo "TEST 4c: ISSUE-I 编号和 done_when 字段合法"
+setup
+mkdir -p dev-doc/task dev-doc/issue
+cat > "dev-doc/task/task_2026-05-15_1.md" << 'EOF'
+- [ ] T1：任务
+  - done_when: pass
+EOF
+cat > "dev-doc/issue/issue_audit_2026-05-15_1.md" << 'EOF'
+---
+source: audit
+nums: 1
+---
+- [ ] ISSUE-I001: 审计问题
+  - severity: P1
+  - location: README.md:1
+  - description: 描述
+EOF
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_not_contains "$OUTPUT" "task_missing_done_when" "done_when 字段应被识别"
+assert_not_contains "$OUTPUT" "issue_bad_item_format" "ISSUE-I 编号应被识别"
 
 # === TEST 5: issue checkbox/prefix 一致性检查 ===
 echo "TEST 5: issue checkbox/prefix 一致性检查"
@@ -205,6 +242,19 @@ if grep -qF "tmp/" .gitignore; then
 else
   FAIL=$((FAIL + 1))
   ERRORS="$ERRORS\n  FAIL: .gitignore 应含 tmp/"
+fi
+
+echo "TEST 8b: 已有 temp 时沿用 temp"
+setup
+mkdir -p dev-doc temp
+OUTPUT=$(bash "$SCRIPT" "dev-doc" 2>&1)
+assert_dir_exists "temp" "应保留已有 temp 目录"
+assert_dir_not_exists "tmp" "已有 temp 且无 tmp 时不应新建 tmp"
+if grep -qF "temp/" .gitignore; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  ERRORS="$ERRORS\n  FAIL: .gitignore 应含 temp/"
 fi
 
 # === TEST 9: issue 条目格式校验 ===

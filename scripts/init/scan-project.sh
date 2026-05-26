@@ -58,11 +58,11 @@ echo "style:"
 # 目录结构
 echo ""
 echo "structure:"
-find . -maxdepth 1 -type d ! -name '.' ! -name '.git' ! -name 'node_modules' ! -name '.next' ! -name '__pycache__' ! -name 'tmp' | sort | sed 's|^\./|  - |'
+find . -maxdepth 1 -type d ! -name '.' ! -name '.git' ! -name 'node_modules' ! -name '.next' ! -name '__pycache__' ! -name 'tmp' ! -name 'temp' | sort | sed 's|^\./|  - |'
 
 # 代码规模
 echo ""
-FILE_COUNT=$(find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tmp/*' ! -path './.next/*' | wc -l)
+FILE_COUNT=$(find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tmp/*' ! -path './temp/*' ! -path './.next/*' | wc -l)
 echo "file_count: $FILE_COUNT"
 
 # README 摘要

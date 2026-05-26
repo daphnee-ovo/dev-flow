@@ -111,6 +111,23 @@ if [ -f "$SPEC" ]; then
   fi
 fi
 
+# --- 检查8: Claude plugin manifest 包含 /issue 命令 ---
+echo ""
+echo "[8] Claude plugin manifest 含 /issue"
+
+if python3 - "$PROJ_ROOT/.claude-plugin/plugin.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+commands = set(data.get("commands", []))
+sys.exit(0 if "./commands/issue.md" in commands else 1)
+PY
+then
+  pass ".claude-plugin/plugin.json 含 /issue"
+else
+  fail ".claude-plugin/plugin.json 不含 /issue"
+fi
+
 # --- 汇总 ---
 echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="

@@ -3,9 +3,23 @@
 # 用法：bash iterate.sh <topic> [bump_type] [DOC_ROOT]
 # bump_type: minor（默认）| major | patch
 
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 source "$SCRIPT_DIR/../lib/version.sh"
+
+devflow_commit_if_needed() {
+  local message="$1"
+
+  git add -A
+  if git diff --cached --quiet; then
+    echo "[dev-flow] WARNING: 无 staged 变更，跳过 commit: $message"
+    return 0
+  fi
+
+  git commit -m "$message"
+}
 
 TOPIC="$1"
 BUMP_TYPE="${2:-minor}"
@@ -154,14 +168,18 @@ if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
 fi
 
 # ===== 阶段 6（续）：commit & tag =====
-git add -A
-git commit -m "Release v${VERSION}: ${TOPIC}"
+devflow_commit_if_needed "Release v${VERSION}: ${TOPIC}"
 
 if version_tag_exists "$VERSION"; then
   echo "[dev-flow] WARNING: tag v$VERSION 已存在，跳过创建"
 else
   version_create_tag "$VERSION"
-  echo "[dev-flow] 已创建 git tag: v$VERSION"
+  if version_tag_exists "$VERSION"; then
+    echo "[dev-flow] 已创建 git tag: v$VERSION"
+  else
+    echo "[dev-flow] ERROR: git tag v$VERSION 创建失败"
+    exit 1
+  fi
 fi
 
 # ===== 阶段 7：bump 版本号，开启新迭代 =====
@@ -181,7 +199,11 @@ devflow_yaml_set "$STATUS_FILE" updated "$NOW"
 devflow_yaml_set "$STATUS_FILE" started "$NOW"
 
 git add VERSION "$STATUS_FILE"
-git commit -m "Start v${NEW_VERSION} iteration"
+if git diff --cached --quiet; then
+  echo "[dev-flow] WARNING: 无 staged 变更，跳过 commit: Start v${NEW_VERSION} iteration"
+else
+  git commit -m "Start v${NEW_VERSION} iteration"
+fi
 
 # ===== 输出 =====
 echo ""
