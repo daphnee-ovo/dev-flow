@@ -18,6 +18,10 @@ struct IterateOutput {
     archived_files: Vec<String>,
     next_version: String,
     next_phase: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    commit_files: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
 }
 
 pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
@@ -71,15 +75,34 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     );
     let archived_files = list_archive_files(&doc_root_path);
 
-    // --view 模式：只预览
-    if args.view {
+    // --confirm 模式：验证 token 后执行
+    if args.confirm {
+        let tokens = generate_tokens_with_window();
+        let found = tokens.iter().any(|t| {
+            let env_key = format!("DOW_ITERATE_{}", t);
+            std::env::var(&env_key).is_ok()
+        });
+        if !found {
+            let hint = &tokens[0];
+            return Err(DowError::new(
+                format!("确认失败：环境变量 DOW_ITERATE_{} 不存在，请先执行 dow iterate 预览", hint),
+                1,
+            ));
+        }
+    } else {
+        // 生成 token（预览模式）
+        let token = generate_token_for_minute(0);
+        // 默认：输出预览
+        let commit_files = list_pending_changes(&args.files);
         let result = IterateOutput {
             tag: format!("v{}", &version),
             released_version: version.clone(),
-            archive_dir,
-            archived_files,
-            next_version: new_version,
+            archive_dir: archive_dir.clone(),
+            archived_files: archived_files.clone(),
+            next_version: new_version.clone(),
             next_phase: next_phase(&effective_mode, &mode),
+            commit_files,
+            token: Some(token),
         };
         if human {
             print_human_preview(&result);
@@ -89,7 +112,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    // 5. 执行归档
+    // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
+    let changelog_entries = read_changelog_entries(&doc_root_path);
+
+    // 6. 执行归档
     let archive_path = Path::new(&archive_dir);
     if archive_path.exists() {
         return Err(DowError::new(
@@ -109,17 +135,17 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 6. git commit + tag
-    let changelog_entries = read_changelog_entries(&doc_root_path);
+    // 7. git commit + tag（归档目录加入提交）
     let commit_msg = format_commit_message(&version, &args.topic, &args.r#type, &changelog_entries);
-    git_commit(&commit_msg)?;
+    let mut commit_files = args.files.clone();
+    commit_files.push(archive_dir.clone());
+    git_commit(&commit_msg, &commit_files)?;
     git_tag(&version)?;
 
-    // 7. bump VERSION + 重置 phase
+    // 8. bump VERSION + 重置 phase
     write_version(&new_version)?;
     let next_ph = next_phase(&effective_mode, &mode);
 
-    // 恢复 audit 模式
     if mode.starts_with("audit/") {
         yaml::set(&status_file, "mode", &effective_mode)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -130,6 +156,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     yaml::touch_updated(&status_file)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
+
     let result = IterateOutput {
         released_version: version.clone(),
         tag: format!("v{}", version),
@@ -137,6 +164,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         archived_files,
         next_version: new_version,
         next_phase: next_ph,
+        commit_files: vec![],
+        token: None,
     };
 
     if human {
@@ -313,13 +342,13 @@ fn move_archive_files(doc_root: &Path, archive_dir: &Path) -> Result<(), DowErro
     Ok(())
 }
 
-fn git_commit(message: &str) -> Result<(), DowError> {
-    // 只 add 需要的内容，排除 dow/target/
-    Command::new("git").args(["add", "dev-doc/", "VERSION", "CLAUDE.md", "AGENTS.md"]).output().ok();
-    Command::new("git").args(["add", "dow/src/", "dow/Cargo.toml", "dow/Cargo.lock", "dow/build.sh"]).output().ok();
-    Command::new("git").args(["add", "scripts/", "hooks/", "tests/", ".gitignore"]).output().ok();
-    Command::new("git").args(["add", ".github/"]).output().ok();
-    Command::new("git").args(["add", "skills/", ".agents/", ".claude/"]).output().ok();
+fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
+    // 已追踪文件的修改/删除
+    Command::new("git").args(["add", "-u"]).output().ok();
+    // 额外指定的新文件/目录
+    for f in extra_files {
+        Command::new("git").args(["add", f]).output().ok();
+    }
 
     let diff = Command::new("git")
         .args(["diff", "--cached", "--quiet"])
@@ -405,8 +434,80 @@ fn print_human_preview(result: &IterateOutput) {
         println!("  - {}", f);
     }
     println!();
+    if !result.commit_files.is_empty() {
+        println!("提交文件（{}个）：", result.commit_files.len());
+        for f in &result.commit_files {
+            println!("  - {}", f);
+        }
+        println!();
+    }
     println!("将要执行：");
     println!("  - git commit + tag: v{}", result.released_version);
     println!("  - bump: v{} → v{}", result.released_version, result.next_version);
     println!("  - 阶段重置：{}", result.next_phase);
+    if let Some(ref t) = result.token {
+        println!();
+        println!("确认执行：DOW_ITERATE_{}=1 dow iterate --confirm ...", t);
+    }
+}
+
+fn generate_token_for_minute(offset: i64) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let now = chrono::Local::now() + chrono::Duration::minutes(offset);
+    let minute_key = now.format("%Y-%m-%d-%H-%M").to_string();
+
+    let mut hasher = DefaultHasher::new();
+    cwd.hash(&mut hasher);
+    minute_key.hash(&mut hasher);
+    let hash = hasher.finish();
+    format!("{:016x}", hash)[..8].to_string()
+}
+
+// 返回当前分钟 + 前4分钟的 token（5分钟有效窗口）
+fn generate_tokens_with_window() -> Vec<String> {
+    (0..=4).map(|i| generate_token_for_minute(-i)).collect()
+}
+
+fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
+    let mut changes = Vec::new();
+
+    // 已追踪文件的工作区修改（git add -u 会提交的内容）
+    if let Ok(output) = Command::new("git")
+        .args(["diff", "--name-only"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if !line.is_empty() {
+                changes.push(line.to_string());
+            }
+        }
+    }
+
+    // 已 staged 的变更
+    if let Ok(output) = Command::new("git")
+        .args(["diff", "--name-only", "--cached"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if !line.is_empty() && !changes.contains(&line.to_string()) {
+                changes.push(line.to_string());
+            }
+        }
+    }
+
+    // 额外指定的文件
+    for f in extra_files {
+        if !changes.contains(f) {
+            changes.push(f.clone());
+        }
+    }
+
+    changes
 }

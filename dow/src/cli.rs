@@ -83,13 +83,17 @@ pub struct IterateArgs {
     #[arg(long)]
     pub r#type: String,
 
+    /// 要提交的文件/目录列表（空格分隔）
+    #[arg(long, num_args = 1..)]
+    pub files: Vec<String>,
+
     /// bump 类型
     #[arg(short = 'v', long, default_value = "minor")]
     pub bump: String,
 
-    /// 只预览不执行
+    /// 确认执行上次预览的迭代
     #[arg(long)]
-    pub view: bool,
+    pub confirm: bool,
 }
 
 #[derive(clap::Args)]
