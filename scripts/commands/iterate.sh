@@ -3,8 +3,23 @@
 # 用法：bash iterate.sh <topic> [bump_type] [DOC_ROOT]
 # bump_type: minor（默认）| major | patch
 
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 source "$SCRIPT_DIR/../lib/version.sh"
+
+devflow_commit_if_needed() {
+  local message="$1"
+
+  git add -A
+  if git diff --cached --quiet; then
+    echo "[dev-flow] WARNING: 无 staged 变更，跳过 commit: $message"
+    return 0
+  fi
+
+  git commit -m "$message"
+}
 
 TOPIC="$1"
 BUMP_TYPE="${2:-minor}"
@@ -17,11 +32,7 @@ if [ -z "$TOPIC" ]; then
   exit 1
 fi
 
-# 检测多工程模式（分支 ↔ 文档路径一致性）
-BRANCH=$(git branch --show-current 2>/dev/null)
-if [ -n "$BRANCH" ] && [ -f "$DOC_ROOT/$BRANCH/STATUS.yaml" ]; then
-  DOC_ROOT="$DOC_ROOT/$BRANCH"
-fi
+DOC_ROOT=$(devflow_resolve_doc_root "$DOC_ROOT")
 
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ ! -f "$STATUS_FILE" ]; then
@@ -29,7 +40,7 @@ if [ ! -f "$STATUS_FILE" ]; then
   exit 1
 fi
 
-MODE=$(grep "^mode:" "$STATUS_FILE" | sed 's/^mode: *//')
+MODE=$(devflow_yaml_get "$STATUS_FILE" mode)
 
 # ===== 阶段 1：交付检查（阻断） =====
 TASK_TOTAL=0; TASK_DONE=0
@@ -40,7 +51,7 @@ for f in "$DOC_ROOT/task/task_"*.md "$DOC_ROOT/task/done_task_"*.md; do
 done
 
 if [ "$TASK_TOTAL" -gt 0 ] && [ "$TASK_DONE" -lt "$TASK_TOTAL" ]; then
-  echo "[dev-flow] ERROR: 任务未全部完成（$TASK_DONE/$TASK_TOTAL）"
+  echo "[dev-flow] ERROR: 任务未全部完成（${TASK_DONE}/${TASK_TOTAL}）"
   echo "→ 请完成所有任务后再执行 /iterate"
   exit 1
 fi
@@ -98,6 +109,10 @@ for f in "$DOC_ROOT/task/done_task_"*.md; do
   [ -f "$f" ] || continue
   ARCHIVED+=("$(basename "$f")")
 done
+for f in "$DOC_ROOT/task/task_"*.md; do
+  [ -f "$f" ] || continue
+  ARCHIVED+=("$(basename "$f")")
+done
 for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   [ -f "$f" ] || continue
   ARCHIVED+=("$(basename "$f")")
@@ -136,6 +151,10 @@ for f in "$DOC_ROOT/task/done_task_"*.md; do
   [ -f "$f" ] || continue
   mv "$f" "$ARCHIVE_DIR/"
 done
+for f in "$DOC_ROOT/task/task_"*.md; do
+  [ -f "$f" ] || continue
+  mv "$f" "$ARCHIVE_DIR/"
+done
 for f in "$DOC_ROOT/issue/closed_issue_"*.md; do
   [ -f "$f" ] || continue
   mv "$f" "$ARCHIVE_DIR/issue/"
@@ -149,14 +168,18 @@ if [ -f "$DOC_ROOT/CHANGELOG.md" ]; then
 fi
 
 # ===== 阶段 6（续）：commit & tag =====
-git add -A
-git commit -m "Release v${VERSION}: ${TOPIC}"
+devflow_commit_if_needed "Release v${VERSION}: ${TOPIC}"
 
 if version_tag_exists "$VERSION"; then
   echo "[dev-flow] WARNING: tag v$VERSION 已存在，跳过创建"
 else
   version_create_tag "$VERSION"
-  echo "[dev-flow] 已创建 git tag: v$VERSION"
+  if version_tag_exists "$VERSION"; then
+    echo "[dev-flow] 已创建 git tag: v$VERSION"
+  else
+    echo "[dev-flow] ERROR: git tag v$VERSION 创建失败"
+    exit 1
+  fi
 fi
 
 # ===== 阶段 7：bump 版本号，开启新迭代 =====
@@ -171,12 +194,16 @@ case "$MODE" in
 esac
 
 NOW=$(date "+%Y-%m-%d %H:%M")
-sed -i "s/^phase: .*/phase: $NEW_PHASE/" "$STATUS_FILE"
-sed -i "s/^updated: .*/updated: $NOW/" "$STATUS_FILE"
-sed -i "s/^started: .*/started: $NOW/" "$STATUS_FILE"
+devflow_yaml_set "$STATUS_FILE" phase "$NEW_PHASE"
+devflow_yaml_set "$STATUS_FILE" updated "$NOW"
+devflow_yaml_set "$STATUS_FILE" started "$NOW"
 
 git add VERSION "$STATUS_FILE"
-git commit -m "Start v${NEW_VERSION} iteration"
+if git diff --cached --quiet; then
+  echo "[dev-flow] WARNING: 无 staged 变更，跳过 commit: Start v${NEW_VERSION} iteration"
+else
+  git commit -m "Start v${NEW_VERSION} iteration"
+fi
 
 # ===== 输出 =====
 echo ""

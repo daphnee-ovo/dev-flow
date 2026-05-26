@@ -10,7 +10,7 @@
 
 ```markdown
 ---
-source: test | devtest | other
+source: test | devtest | other | audit
 nums: <issue 总数>
 ---
 

@@ -4,6 +4,8 @@
 # 输出迁移报告，仅在检测到旧格式时执行
 
 DOC_ROOT="${1:-dev-doc}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
 TODAY=$(date +%Y-%m-%d)
 MIGRATED=()
 SKIPPED=()
@@ -52,9 +54,9 @@ fi
 # === 3. STATUS.yaml phase=MVP → phase=DEV ===
 STATUS_FILE="$DOC_ROOT/STATUS.yaml"
 if [ -f "$STATUS_FILE" ]; then
-  PHASE=$(grep "^phase:" "$STATUS_FILE" | sed 's/^phase: *//')
+  PHASE=$(devflow_yaml_get "$STATUS_FILE" phase)
   if [ "$PHASE" = "MVP" ]; then
-    sed -i 's/^phase: *MVP$/phase: DEV/' "$STATUS_FILE"
+    devflow_yaml_set "$STATUS_FILE" phase "DEV"
     MIGRATED+=("STATUS.yaml phase: MVP → DEV")
   fi
 fi

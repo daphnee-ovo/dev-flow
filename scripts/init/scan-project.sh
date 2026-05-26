@@ -8,11 +8,11 @@ echo "=== PROJECT SCAN ==="
 # 项目名
 NAME=""
 if [ -f "package.json" ]; then
-  NAME=$(grep -oP '"name"\s*:\s*"\K[^"]+' package.json | head -1)
+  NAME=$(awk -F\" '/"name"[[:space:]]*:/ { print $4; exit }' package.json)
 elif [ -f "pyproject.toml" ]; then
-  NAME=$(grep -oP '^name\s*=\s*"\K[^"]+' pyproject.toml | head -1)
+  NAME=$(awk -F\" '/^name[[:space:]]*=/ { print $2; exit }' pyproject.toml)
 elif [ -f "Cargo.toml" ]; then
-  NAME=$(grep -oP '^name\s*=\s*"\K[^"]+' Cargo.toml | head -1)
+  NAME=$(awk -F\" '/^name[[:space:]]*=/ { print $2; exit }' Cargo.toml)
 fi
 if [ -z "$NAME" ]; then
   NAME=$(basename "$(pwd)")
@@ -36,11 +36,11 @@ echo ""
 echo "commands:"
 if [ -f "package.json" ]; then
   echo "  package_json_scripts:"
-  grep -oP '"(build|test|dev|start|lint)"\s*:\s*"[^"]*"' package.json | sed 's/^/    /'
+  awk '/"(build|test|dev|start|lint)"[[:space:]]*:/ { gsub(/^[[:space:]]+/, ""); gsub(/,$/, ""); print "    " $0 }' package.json
 fi
 if [ -f "Makefile" ]; then
   echo "  makefile_targets:"
-  grep -oP '^[a-zA-Z_-]+:' Makefile | head -10 | sed 's/:$//' | sed 's/^/    - /'
+  awk -F: '/^[A-Za-z_-]+:/ { print "    - " $1; count++; if (count >= 10) exit }' Makefile
 fi
 if [ -f "pyproject.toml" ] && grep -q "\[tool.pytest" pyproject.toml; then
   echo "  pytest: configured"
@@ -58,11 +58,11 @@ echo "style:"
 # 目录结构
 echo ""
 echo "structure:"
-find . -maxdepth 1 -type d ! -name '.' ! -name '.git' ! -name 'node_modules' ! -name '.next' ! -name '__pycache__' ! -name 'tmp' | sort | sed 's|^\./|  - |'
+find . -maxdepth 1 -type d ! -name '.' ! -name '.git' ! -name 'node_modules' ! -name '.next' ! -name '__pycache__' ! -name 'tmp' ! -name 'temp' | sort | sed 's|^\./|  - |'
 
 # 代码规模
 echo ""
-FILE_COUNT=$(find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tmp/*' ! -path './.next/*' | wc -l)
+FILE_COUNT=$(find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tmp/*' ! -path './temp/*' ! -path './.next/*' | wc -l)
 echo "file_count: $FILE_COUNT"
 
 # README 摘要
@@ -85,17 +85,17 @@ git log --oneline -5 2>/dev/null | sed 's/^/    /'
 echo ""
 echo "dev_doc:"
 if [ -d "dev-doc" ]; then
-  find dev-doc -name "*.md" -o -name "*.yaml" 2>/dev/null | sort | sed 's/^/  - /'
+  find dev-doc \( -name "*.md" -o -name "*.yaml" \) 2>/dev/null | sort | sed 's/^/  - /'
   # task/ 目录统计
   if [ -d "dev-doc/task" ]; then
-    ACTIVE_TASKS=$(find dev-doc/task -name "task_*.md" ! -name "done_*" 2>/dev/null | wc -l)
-    DONE_TASKS=$(find dev-doc/task -name "done_task_*.md" 2>/dev/null | wc -l)
+    ACTIVE_TASKS=$(find dev-doc/task -name "task_*.md" ! -name "done_*" 2>/dev/null | wc -l | tr -d '[:space:]')
+    DONE_TASKS=$(find dev-doc/task -name "done_task_*.md" 2>/dev/null | wc -l | tr -d '[:space:]')
     echo "  task_summary: active=$ACTIVE_TASKS done=$DONE_TASKS"
   fi
   # issue/ 目录统计
   if [ -d "dev-doc/issue" ]; then
-    OPEN_ISSUES=$(find dev-doc/issue -name "issue_*.md" ! -name "closed_*" 2>/dev/null | wc -l)
-    CLOSED_ISSUES=$(find dev-doc/issue -name "closed_issue_*.md" 2>/dev/null | wc -l)
+    OPEN_ISSUES=$(find dev-doc/issue -name "issue_*.md" ! -name "closed_*" 2>/dev/null | wc -l | tr -d '[:space:]')
+    CLOSED_ISSUES=$(find dev-doc/issue -name "closed_issue_*.md" 2>/dev/null | wc -l | tr -d '[:space:]')
     echo "  issue_summary: open=$OPEN_ISSUES closed=$CLOSED_ISSUES"
   fi
 else
@@ -109,3 +109,5 @@ echo "agent_files:"
 [ -f "AGENTS.md" ] && echo "  - AGENTS.md"
 [ -f ".cursorrules" ] && echo "  - .cursorrules"
 [ -f ".windsurfrules" ] && echo "  - .windsurfrules"
+
+exit 0

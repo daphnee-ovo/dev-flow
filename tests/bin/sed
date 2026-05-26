@@ -1,0 +1,12 @@
+#!/bin/bash
+# Test-only sed wrapper: normalize `sed -i` across GNU sed and BSD sed.
+
+if [ "$1" = "-i" ]; then
+  shift
+  if /usr/bin/sed --version >/dev/null 2>&1; then
+    exec /usr/bin/sed -i "$@"
+  fi
+  exec /usr/bin/sed -i '' "$@"
+fi
+
+exec /usr/bin/sed "$@"

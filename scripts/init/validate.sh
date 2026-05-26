@@ -10,8 +10,13 @@ AUTO_FIXED=()
 NEEDS_CONFIRM=()
 WARNINGS=()
 
+PROJECT_TEMP_DIR="tmp"
+if [ -d "temp" ] && [ ! -d "tmp" ]; then
+  PROJECT_TEMP_DIR="temp"
+fi
+
 # === 1. 目录结构校验 ===
-for dir in "$DOC_ROOT/issue" "$DOC_ROOT/task" "$DOC_ROOT/archive" "tests" "tmp"; do
+for dir in "$DOC_ROOT/issue" "$DOC_ROOT/task" "$DOC_ROOT/archive" "tests" "$PROJECT_TEMP_DIR"; do
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     AUTO_FIXED+=("created_dir:$dir")
@@ -50,7 +55,7 @@ if [ -d "$DOC_ROOT/task" ]; then
     fi
     # 检查 Done when
     TOTAL_TASKS=$(grep -c "^- \[" "$f" 2>/dev/null) || true; TOTAL_TASKS=${TOTAL_TASKS:-0}
-    TASKS_WITH_DONE_WHEN=$(grep -c "Done when" "$f" 2>/dev/null) || true; TASKS_WITH_DONE_WHEN=${TASKS_WITH_DONE_WHEN:-0}
+    TASKS_WITH_DONE_WHEN=$(grep -cE "Done when|done_when" "$f" 2>/dev/null) || true; TASKS_WITH_DONE_WHEN=${TASKS_WITH_DONE_WHEN:-0}
     MISSING_DONE_WHEN=$((TOTAL_TASKS - TASKS_WITH_DONE_WHEN))
     if [ "$MISSING_DONE_WHEN" -gt 0 ]; then
       WARNINGS+=("task_missing_done_when:$BASENAME:$MISSING_DONE_WHEN")
@@ -64,7 +69,7 @@ if [ -d "$DOC_ROOT/issue" ]; then
     [ -f "$f" ] || continue
     BASENAME=$(basename "$f")
     # 检查命名规范
-    if ! echo "$BASENAME" | grep -qE '^(closed_)?issue_(test|devtest|other)_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]+\.md$'; then
+    if ! echo "$BASENAME" | grep -qE '^(closed_)?issue_(test|devtest|other|audit)_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]+\.md$'; then
       NEEDS_CONFIRM+=("issue_bad_name:$BASENAME")
     else
       # 检查 frontmatter
@@ -90,7 +95,7 @@ if [ -d "$DOC_ROOT/issue" ]; then
           WARNINGS+=("issue_nums_mismatch:$BASENAME:nums=$NUMS_VAL,actual=$TOTAL")
         fi
         # 校验条目格式：- [ ] I<N>：<标题>
-        BAD_FORMAT=$(grep "^- \[" "$f" | grep -cvE '^\- \[[ x]\] I[0-9]+：' 2>/dev/null) || true
+        BAD_FORMAT=$(grep "^- \[" "$f" | grep -cvE '^\- \[[ x]\] (I[0-9]+：|ISSUE-I[0-9]+:)' 2>/dev/null) || true
         BAD_FORMAT=${BAD_FORMAT:-0}
         if [ "$BAD_FORMAT" -gt 0 ]; then
           WARNINGS+=("issue_bad_item_format:$BASENAME:$BAD_FORMAT")
@@ -148,13 +153,14 @@ else
 fi
 
 # === 6. .gitignore 检查 ===
+GITIGNORE_ENTRY="${PROJECT_TEMP_DIR}/"
 if [ -f ".gitignore" ]; then
-  if ! grep -q "^tmp/" ".gitignore"; then
-    echo "tmp/" >> ".gitignore"
-    AUTO_FIXED+=("gitignore_added_tmp")
+  if ! grep -q "^${GITIGNORE_ENTRY}$" ".gitignore"; then
+    printf "%s\n" "$GITIGNORE_ENTRY" >> ".gitignore"
+    AUTO_FIXED+=("gitignore_added_project_temp")
   fi
 else
-  echo "tmp/" > ".gitignore"
+  printf "%s\n" "$GITIGNORE_ENTRY" > ".gitignore"
   AUTO_FIXED+=("gitignore_created")
 fi
 

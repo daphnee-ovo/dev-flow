@@ -40,11 +40,7 @@ EXISTING=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" 2>/dev/null |
 
 ### 3. 新建文件
 
-```bash
-NEXT_SEQ=$(find "$DOC_ROOT/issue" -name "issue_other_${DATE}_*.md" -o -name "closed_issue_other_${DATE}_*.md" 2>/dev/null | grep -oP "other_${DATE}_\K\d+" | sort -n | tail -1 || echo 0)
-NEXT_SEQ=$((NEXT_SEQ + 1))
-FILENAME="issue_other_${DATE}_${NEXT_SEQ}.md"
-```
+序号从同日 `issue_other_<date>_<seq>.md` 和 `closed_issue_other_<date>_<seq>.md` 中取最大值 +1。实现时使用 `awk` 或 shell 字符串处理，不使用 `grep -P`。
 
 ### 4. 写入格式
 
@@ -54,12 +50,17 @@ source: other
 nums: 1
 ---
 
-- [ ] I1：<标题>
+- [ ] ISSUE-I001: <标题>
   - severity: <P0|P1|P2>
-  - location：<文件路径:行号>
-  - description：<描述>
-  - reproduce：<可选>
-  - fix：
+  - source: manual
+  - refs: TASK-T001 或 user-request
+  - location: <文件路径:行号>
+  - current: <当前行为>
+  - expected: <期望行为>
+  - reproduce: <复现方式>
+  - root_cause:
+  - fix:
+  - close_when: <关闭条件>
 ```
 
 ### 5. 提示下一步
@@ -80,5 +81,5 @@ nums: 1
 ## 注意
 
 - 主 agent 直接执行，不启动子 agent
-- source 固定为 `other`（区别于 test/devtest 自动创建）
+- source 固定为 `manual`（区别于 test/devtest 自动创建）
 - 创建后不自动修复，由用户决定是否 /fix

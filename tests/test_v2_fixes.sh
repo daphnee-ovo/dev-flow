@@ -5,6 +5,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VALIDATE="$SCRIPT_DIR/scripts/init/validate.sh"
 BLOCK_HOOK="$SCRIPT_DIR/scripts/hooks/block-non-dev-edit.sh"
+TEMP_HOOK="$SCRIPT_DIR/scripts/hooks/block-system-tmp.sh"
 SAVE_HOOK="$SCRIPT_DIR/scripts/hooks/save-changelog.sh"
 INJECT_HOOK="$SCRIPT_DIR/scripts/hooks/inject-context.sh"
 TMP_DIR="$SCRIPT_DIR/tmp/test_v2_fixes_$$"
@@ -75,6 +76,12 @@ assert_file_contains() {
     [ -f "$path" ] && content=$(head -20 "$path")
     ERRORS="$ERRORS\n  FAIL: $msg\n    file: $path\n    expected to contain: $expected\n    content: $content"
   fi
+}
+
+run_temp_hook() {
+  local tool_name="$1"
+  local payload="$2"
+  CLAUDE_TOOL_NAME="$tool_name" CLAUDE_TOOL_INPUT="$payload" bash "$TEMP_HOOK" > /dev/null 2>&1
 }
 
 echo "================================================================"
@@ -246,6 +253,36 @@ nums: 2
 EOF
 OUTPUT=$(bash "$VALIDATE" "dev-doc" 2>&1)
 assert_contains "$OUTPUT" "issue_missing_required_fields" "部分条目缺字段应报告"
+
+echo ""
+echo "================================================================"
+echo "=== 验证 Issue 2b: 系统临时目录 hook 精准阻断 ==="
+echo "================================================================"
+
+SYS_TEMP_PATH="$(printf '\057\164\155\160')"
+
+echo "TEST 2b.1: Bash 只读提及系统临时路径应放行"
+setup
+run_temp_hook "Bash" "{\"command\":\"rg -n '${SYS_TEMP_PATH}' README.md\"}"
+assert_exit_code $? 0 "只读搜索提及系统临时路径不应阻断"
+
+echo "TEST 2b.2: Bash 写入系统临时路径应阻断"
+setup
+run_temp_hook "Bash" "{\"command\":\"mkdir -p ${SYS_TEMP_PATH}/dev-flow-test\"}"
+assert_exit_code $? 2 "写入系统临时路径应阻断"
+
+echo "TEST 2b.3: Write 到系统临时路径应阻断"
+setup
+run_temp_hook "Write" "{\"file_path\":\"${SYS_TEMP_PATH}/dev-flow-test.txt\"}"
+assert_exit_code $? 2 "Write 到系统临时路径应阻断"
+
+echo "TEST 2b.4: Write 到项目 tmp/temp 应放行"
+setup
+PROJECT_TMP_PATH="$(printf 't%s' 'mp/dev-flow-test.txt')"
+run_temp_hook "Write" "{\"file_path\":\"${PROJECT_TMP_PATH}\"}"
+assert_exit_code $? 0 "项目 tmp 应放行"
+run_temp_hook "Write" '{"file_path":"temp/dev-flow-test.txt"}'
+assert_exit_code $? 0 "项目 temp 应放行"
 
 echo ""
 echo "================================================================"

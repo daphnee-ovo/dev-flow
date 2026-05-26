@@ -103,6 +103,74 @@ else
   fail "scan-project.sh 未输出 task_summary 统计"
 fi
 
+# --- 8. README hook 列表与现有聚合 hook 一致 ---
+echo ""
+echo "[8] README 不列出已删除 hook"
+for doc in README.md README.zh-CN.md; do
+  if grep -qE "check-task-completion|check-doc-sync|check-phase-completion|update-status" "$PROJECT_ROOT/$doc"; then
+    fail "$doc 仍列出已删除 hook"
+  else
+    pass "$doc 未列出已删除 hook"
+  fi
+  if grep -q "post-write.sh" "$PROJECT_ROOT/$doc"; then
+    pass "$doc 列出 post-write.sh"
+  else
+    fail "$doc 未列出 post-write.sh"
+  fi
+done
+
+# --- 9. Claude plugin manifest 命令覆盖 ---
+echo ""
+echo "[9] Claude manifest 包含 /issue"
+if python3 - "$PROJECT_ROOT/.claude-plugin/plugin.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+commands = set(data.get("commands", []))
+sys.exit(0 if "./commands/issue.md" in commands else 1)
+PY
+then
+  pass ".claude-plugin/plugin.json 包含 commands/issue.md"
+else
+  fail ".claude-plugin/plugin.json 缺少 commands/issue.md"
+fi
+
+# --- 10. Claude hook 使用插件根变量并引用路径 ---
+echo ""
+echo "[10] Claude hook 命令引用插件根"
+if python3 - "$PROJECT_ROOT/hooks/hooks.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for entries in data.get("hooks", {}).values():
+    for entry in entries:
+        for hook in entry.get("hooks", []):
+            command = hook.get("command", "")
+            if "scripts/hooks/" in command and not command.startswith('"${CLAUDE_PLUGIN_ROOT}"/'):
+                sys.exit(1)
+sys.exit(0)
+PY
+then
+  pass "hooks/hooks.json 使用带引用的 CLAUDE_PLUGIN_ROOT"
+else
+  fail "hooks/hooks.json 未使用带引用的 CLAUDE_PLUGIN_ROOT"
+fi
+
+# --- 11. Codex manifest 不声明 unsupported hooks 字段 ---
+echo ""
+echo "[11] Codex manifest 不含 unsupported hooks 字段"
+if python3 - "$PROJECT_ROOT/.codex-plugin/plugin.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+sys.exit(1 if "hooks" in data else 0)
+PY
+then
+  pass ".codex-plugin/plugin.json 未声明 hooks 字段"
+else
+  fail ".codex-plugin/plugin.json 不应声明 hooks 字段"
+fi
+
 # === 总结 ===
 echo ""
 echo "=== 结果 ==="

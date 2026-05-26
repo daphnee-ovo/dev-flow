@@ -52,19 +52,26 @@ title: TASK - <批次主题>
 nums: <任务总数>
 ---
 
-- [ ] T1：<标题>
-  - level: P0
-  - model: cheap | standard | capable
-  - details：<描述>
-  - depends on：无
-  - Done when：<完成标准>
+- [ ] TASK-T001: <标题>
+  - priority: P0|P1|P2
+  - refs: SPEC-AC-001 或 user-request
+  - files:
+      create: []
+      modify: ["path/to/file"]
+      test: ["tests/test_x.sh"]
+  - depends_on: []
+  - parallel: false
+  - complexity: S|M|L
+  - done_when:
+      - <可测验收，必要 expected output 写在这里>
 
 ## 禁止
 
 - 不要阅读 PRD.md（你不需要知道"为什么做"，只需要知道"怎么做"）
 - 不要参考 SPEC 的讨论过程
 - 不要开始写代码
-- 不要设计新的架构方案`
+- 不要设计新的架构方案
+- 不要增加 model/steps/verification/docs 字段`
 ```
 
 ## 输入隔离规则

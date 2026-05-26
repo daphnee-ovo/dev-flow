@@ -30,6 +30,7 @@ fi
 ```bash
 mkdir -p dev-doc/{task,issue,archive} tests tmp
 ```
+如果项目已经使用 `temp` 且没有 `tmp`，沿用 `temp`；新项目默认 `tmp`。
 
 ## 两种工作模式
 

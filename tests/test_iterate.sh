@@ -4,6 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PATH="$PROJECT_ROOT/tests/bin:$PATH"
 TMP_DIR="$PROJECT_ROOT/tmp/test_iterate_$$"
 
 PASS=0; FAIL=0; ERRORS=""
@@ -50,6 +51,7 @@ setup_iterate_env() {
   # 创建基本项目结构
   mkdir -p dev-doc/task dev-doc/issue scripts/lib scripts/commands
   cp "$PROJECT_ROOT/scripts/lib/version.sh" scripts/lib/
+  cp "$PROJECT_ROOT/scripts/lib/common.sh" scripts/lib/
   cp "$PROJECT_ROOT/scripts/commands/iterate.sh" scripts/commands/
 
   # VERSION 文件

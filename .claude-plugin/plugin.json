@@ -10,6 +10,7 @@
     "./commands/prd.md",
     "./commands/spec.md",
     "./commands/task.md",
+    "./commands/issue.md",
     "./commands/devtest.md",
     "./commands/fix.md",
     "./commands/test.md",

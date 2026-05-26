@@ -122,6 +122,8 @@ test_inject_output_format() {
 test_status_version_no_tag() {
   setup_inject_env
   cp "$PROJECT_ROOT/scripts/commands/status.sh" .
+  mkdir -p ../lib
+  cp "$PROJECT_ROOT/scripts/lib/common.sh" ../lib/
   local output
   output=$(bash status.sh dev-doc 2>&1)
   assert_contains "status显示版本" "当前版本：v2.2.0" "$output"
@@ -134,6 +136,8 @@ test_status_version_with_tag() {
   setup_inject_env
   git tag -a "v2.2.0" -m "Release v2.2.0"
   cp "$PROJECT_ROOT/scripts/commands/status.sh" .
+  mkdir -p ../lib
+  cp "$PROJECT_ROOT/scripts/lib/common.sh" ../lib/
   local output
   output=$(bash status.sh dev-doc 2>&1)
   assert_contains "status有tag显示已同步" "已同步" "$output"
@@ -146,6 +150,8 @@ test_status_no_version_file() {
   rm VERSION
   git add -A && git commit -q -m "no version"
   cp "$PROJECT_ROOT/scripts/commands/status.sh" .
+  mkdir -p ../lib
+  cp "$PROJECT_ROOT/scripts/lib/common.sh" ../lib/
   local output
   output=$(bash status.sh dev-doc 2>&1)
   assert_contains "无VERSION时status提示" "缺少 VERSION" "$output"
