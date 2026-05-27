@@ -5,17 +5,28 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+fn default_branch(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
 fn setup_test_env(dir: &Path, phase: &str, mode: &str) {
-    fs::create_dir_all(dir.join("dev-doc")).unwrap();
+    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    let branch = default_branch(dir);
+    let doc = dir.join("dev-doc").join(&branch);
+    fs::create_dir_all(&doc).unwrap();
     fs::write(
-        dir.join("dev-doc/STATUS.yaml"),
+        doc.join("STATUS.yaml"),
         format!(
             "name: test-project\nphase: {}\nmode: {}\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
             phase, mode
         ),
     ).unwrap();
     fs::write(dir.join("VERSION"), "2.8.0\n").unwrap();
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
 }
 
 fn read_field(dir: &Path, field: &str) -> String {
@@ -132,7 +143,8 @@ fn test_write_updates_timestamp() {
         .unwrap();
 
     let updated = read_field(dir.path(), "updated");
-    // 时间戳应该被更新为今天的日期
-    assert!(updated.starts_with("2026-05-26"));
-    assert_ne!(updated, "2026-05-26 10:00"); // 不再是初始值
+    // 时间戳应该被更新（不再是初始值）
+    assert_ne!(updated, "2026-05-26 10:00");
+    // 应该是合法的日期时间格式
+    assert!(updated.len() >= 10, "updated should be datetime: {}", updated);
 }

@@ -5,8 +5,19 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+fn default_branch(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
 fn setup_valid_env(dir: &Path) {
-    let doc = dir.join("dev-doc");
+    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    let branch = default_branch(dir);
+    let doc = dir.join("dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
     fs::create_dir_all(doc.join("issue")).unwrap();
     fs::create_dir_all(doc.join("archive")).unwrap();
@@ -18,7 +29,6 @@ fn setup_valid_env(dir: &Path) {
     ).unwrap();
     fs::write(doc.join("CHANGELOG.md"), "# Changelog\n- entry\n").unwrap();
     fs::write(dir.join(".gitignore"), "tmp/\n").unwrap();
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
 }
 
 #[test]
@@ -41,13 +51,14 @@ fn test_validate_clean_project() {
 #[test]
 fn test_validate_creates_missing_dirs() {
     let dir = tempfile::tempdir().unwrap();
-    let doc = dir.path().join("dev-doc");
+    Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
+    let branch = default_branch(dir.path());
+    let doc = dir.path().join("dev-doc").join(&branch);
     fs::create_dir_all(&doc).unwrap();
     fs::write(
         doc.join("STATUS.yaml"),
         "name: test\nphase: DEV\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
-    Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .arg("validate")
@@ -64,16 +75,18 @@ fn test_validate_creates_missing_dirs() {
         .collect();
 
     assert!(auto_fixed.iter().any(|s| s.contains("created_dir")));
-    assert!(dir.path().join("dev-doc/task").exists());
-    assert!(dir.path().join("dev-doc/issue").exists());
+    let doc_path = format!("dev-doc/{}", branch);
+    assert!(dir.path().join(&doc_path).join("task").exists());
+    assert!(dir.path().join(&doc_path).join("issue").exists());
 }
 
 #[test]
 fn test_validate_warns_invalid_phase() {
     let dir = tempfile::tempdir().unwrap();
     setup_valid_env(dir.path());
+    let branch = default_branch(dir.path());
     fs::write(
-        dir.path().join("dev-doc/STATUS.yaml"),
+        dir.path().join("dev-doc").join(&branch).join("STATUS.yaml"),
         "name: test\nphase: INVALID\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
 

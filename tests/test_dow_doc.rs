@@ -5,15 +5,25 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+fn default_branch(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
 fn setup_env(dir: &Path) {
-    let doc = dir.join("dev-doc");
+    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    let branch = default_branch(dir);
+    let doc = dir.join("dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
     fs::create_dir_all(doc.join("issue")).unwrap();
     fs::write(
         doc.join("STATUS.yaml"),
         "name: test\nphase: DEV\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
 }
 
 #[test]
@@ -92,7 +102,8 @@ fn test_doc_seq_auto_increment() {
 fn test_doc_prd_refuses_overwrite() {
     let dir = tempfile::tempdir().unwrap();
     setup_env(dir.path());
-    fs::write(dir.path().join("dev-doc/PRD.md"), "existing").unwrap();
+    let branch = default_branch(dir.path());
+    fs::write(dir.path().join("dev-doc").join(&branch).join("PRD.md"), "existing").unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["doc", "--prd"])

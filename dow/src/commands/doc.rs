@@ -101,7 +101,7 @@ fn create_issue(doc_root: &Path, count: u32, source: Option<&str>) -> Result<(St
 
     for i in 1..=count {
         content.push_str(&format!(
-            "- [ ] I{}：\n  - severity: P1\n  - location：\n  - description：\n  - reproduce：\n  - fix：\n\n",
+            "- [ ] ISSUE-I{:03}：\n  - severity: P1\n  - location：\n  - description：\n  - reproduce：\n  - fix：\n\n",
             i
         ));
     }

@@ -11,6 +11,7 @@ use std::process::Command;
 
 #[derive(Serialize)]
 struct ContextOutput {
+    branch: String,
     version: String,
     version_tag: String,
     mode: String,
@@ -104,7 +105,10 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     // 版本信息
     let (version, version_tag) = read_version_info();
 
+    let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
+
     let output_data = ContextOutput {
+        branch,
         version,
         version_tag,
         mode,

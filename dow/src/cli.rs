@@ -201,6 +201,12 @@ pub enum HooksCommands {
         file: Option<String>,
     },
 
+    /// Bash 执行后检测分支切换
+    PostBash {
+        /// Bash 命令内容（fallback 读 TOOL_INPUT 环境变量）
+        command: Option<String>,
+    },
+
     /// 会话结束保存 CHANGELOG
     SaveChangelog,
 }

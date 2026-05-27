@@ -45,6 +45,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-bash",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [

@@ -5,19 +5,26 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-fn dow_bin() -> &'static str {
-    "./scripts/bin/dow"
+/// 获取 git init 后的默认分支名
+fn default_branch(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
 fn setup_test_env(dir: &Path) {
-    fs::create_dir_all(dir.join("dev-doc")).unwrap();
+    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    let branch = default_branch(dir);
+    let doc = dir.join("dev-doc").join(&branch);
+    fs::create_dir_all(&doc).unwrap();
     fs::write(
-        dir.join("dev-doc/STATUS.yaml"),
+        doc.join("STATUS.yaml"),
         "name: test-project\nphase: DEV\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
     fs::write(dir.join("VERSION"), "2.8.0\n").unwrap();
-    // 初始化 git 仓库以便 git tag 命令不报错
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
 }
 
 #[test]
@@ -40,7 +47,9 @@ fn test_status_json_output() {
     assert_eq!(json["mode"], "quick");
     assert_eq!(json["version"], "2.8.0");
     assert_eq!(json["version_tag"], "no-tag");
-    assert_eq!(json["doc_root"], "dev-doc");
+    // doc_root 应为 dev-doc/<branch> 格式
+    let doc_root = json["doc_root"].as_str().unwrap();
+    assert!(doc_root.starts_with("dev-doc/"), "doc_root should be branch-specific: {}", doc_root);
 }
 
 #[test]

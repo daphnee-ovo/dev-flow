@@ -7,5 +7,6 @@
 
 pub mod context;
 pub mod guard;
+pub mod post_bash;
 pub mod post_write;
 pub mod save_changelog;
