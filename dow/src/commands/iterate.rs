@@ -2,7 +2,7 @@
 // ├── iterate.rs  -- dow iterate（迭代交付：校验 → 归档 → commit + tag → bump）
 
 use crate::cli::IterateArgs;
-use crate::core::{doc_root, yaml};
+use crate::core::{archive_db, doc_root, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -14,7 +14,7 @@ use std::process::Command;
 struct IterateOutput {
     released_version: String,
     tag: String,
-    archive_dir: String,
+    archive_db: String,
     archived_files: Vec<String>,
     next_version: String,
     next_phase: String,
@@ -67,12 +67,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let new_version = bump_version(&version, &args.bump)?;
 
     // 4. 计算归档内容
-    let archive_dir = format!(
-        "{}/archive/v{}-{}",
-        doc_root_path.to_string_lossy(),
-        version,
-        args.topic
-    );
+    let archive_base = archive_db::archive_base();
+    let archive_db_path = format!("{}/archive.db", archive_base.to_string_lossy());
     let archived_files = list_archive_files(&doc_root_path);
 
     // --confirm 模式：验证 token 后执行
@@ -97,7 +93,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let result = IterateOutput {
             tag: format!("v{}", &version),
             released_version: version.clone(),
-            archive_dir: archive_dir.clone(),
+            archive_db: archive_db_path.clone(),
             archived_files: archived_files.clone(),
             next_version: new_version.clone(),
             next_phase: next_phase(&effective_mode, &mode),
@@ -115,30 +111,81 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
     let changelog_entries = read_changelog_entries(&doc_root_path);
 
-    // 6. 执行归档
-    let archive_path = Path::new(&archive_dir);
-    if archive_path.exists() {
-        return Err(DowError::new(
-            format!("归档目录已存在：{}", archive_dir),
-            1,
-        ));
+    // 6. 执行归档（写入 SQLite）
+    let conn = archive_db::open_or_create(&archive_base)?;
+    let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
+    archive_db::insert_iteration(&conn, &archive_db::IterationRecord {
+        version: version.clone(),
+        topic: args.topic.clone(),
+        commit_type: Some(args.r#type.clone()),
+        branch: "main".to_string(),
+        released_at,
+        tag: format!("v{}", version),
+        mode: Some(effective_mode.clone()),
+    })?;
+
+    // 归档 task 文件
+    let task_dir = doc_root_path.join("task");
+    if let Ok(entries) = fs::read_dir(&task_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with(".md") && (name.starts_with("done_task_") || name.starts_with("task_")) {
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    let tasks = archive_db::parse_task_file(&name, &content);
+                    for task in &tasks {
+                        archive_db::insert_task(&conn, &version, task)?;
+                    }
+                }
+                fs::remove_file(entry.path()).ok();
+            }
+        }
     }
-    fs::create_dir_all(archive_path.join("issue"))
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    move_archive_files(&doc_root_path, archive_path)?;
+    // 归档 closed issue
+    let issue_dir = doc_root_path.join("issue");
+    if let Ok(entries) = fs::read_dir(&issue_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("closed_issue_") && name.ends_with(".md") {
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    let issues = archive_db::parse_issue_file(&name, &content);
+                    for issue in &issues {
+                        archive_db::insert_issue(&conn, &version, issue)?;
+                    }
+                }
+                fs::remove_file(entry.path()).ok();
+            }
+        }
+    }
 
-    // 重置 CHANGELOG
+    // 归档文档（PRD/SPEC/TEST）
+    for doc_type in &["PRD", "SPEC", "TEST"] {
+        let src = doc_root_path.join(format!("{}.md", doc_type));
+        if src.exists() {
+            if let Ok(content) = fs::read_to_string(&src) {
+                archive_db::insert_doc(&conn, &version, doc_type, &content)?;
+            }
+            fs::remove_file(&src).ok();
+        }
+    }
+
+    // 归档 CHANGELOG
     let changelog = doc_root_path.join("CHANGELOG.md");
     if changelog.exists() {
+        if let Ok(content) = fs::read_to_string(&changelog) {
+            let cl_entries = archive_db::parse_changelog(&content);
+            for (order, (date, text)) in cl_entries.iter().enumerate() {
+                archive_db::insert_changelog(&conn, &version, date.as_deref(), text, order as i32)?;
+            }
+        }
         fs::write(&changelog, "# Changelog\n")
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 7. git commit + tag（归档目录加入提交）
+    // 7. git commit + tag（archive.db 加入提交）
     let commit_msg = format_commit_message(&version, &args.topic, &args.r#type, &changelog_entries);
     let mut commit_files = args.files.clone();
-    commit_files.push(archive_dir.clone());
+    commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
     git_tag(&version)?;
 
@@ -160,7 +207,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let result = IterateOutput {
         released_version: version.clone(),
         tag: format!("v{}", version),
-        archive_dir,
+        archive_db: archive_db_path,
         archived_files,
         next_version: new_version,
         next_phase: next_ph,
@@ -305,42 +352,6 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
     files
 }
 
-fn move_archive_files(doc_root: &Path, archive_dir: &Path) -> Result<(), DowError> {
-    let task_dir = doc_root.join("task");
-    if let Ok(entries) = fs::read_dir(&task_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(".md") && (name.starts_with("done_task_") || name.starts_with("task_")) {
-                fs::rename(entry.path(), archive_dir.join(&name)).ok();
-            }
-        }
-    }
-
-    let issue_dir = doc_root.join("issue");
-    if let Ok(entries) = fs::read_dir(&issue_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with("closed_issue_") && name.ends_with(".md") {
-                fs::rename(entry.path(), archive_dir.join("issue").join(&name)).ok();
-            }
-        }
-    }
-
-    for doc in &["PRD.md", "SPEC.md", "TEST.md"] {
-        let src = doc_root.join(doc);
-        if src.exists() {
-            fs::rename(&src, archive_dir.join(doc)).ok();
-        }
-    }
-
-    // CHANGELOG 移动后重置
-    let changelog_src = doc_root.join("CHANGELOG.md");
-    if changelog_src.exists() {
-        fs::copy(&changelog_src, archive_dir.join("CHANGELOG.md")).ok();
-    }
-
-    Ok(())
-}
 
 fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     // 已追踪文件的修改/删除
@@ -428,7 +439,7 @@ fn print_human_preview(result: &IterateOutput) {
     println!("[dev-flow] 迭代预览");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
     println!("当前版本：v{}", result.released_version);
-    println!("归档目录：{}", result.archive_dir);
+    println!("归档数据库：{}", result.archive_db);
     println!("归档文件（{}个）：", result.archived_files.len());
     for f in &result.archived_files {
         println!("  - {}", f);

@@ -1,10 +1,12 @@
 // dow/src/commands/
 // ├── mod.rs       -- 子命令入口
+// ├── archive.rs   -- SQLite 归档查询
 // ├── status.rs    -- 读写 STATUS.yaml
 // ├── validate.rs  -- 校验 dev-doc
 // ├── scan.rs      -- 项目扫描
 // ├── doc.rs       -- 文档模板生成
 
+pub mod archive;
 pub mod check;
 pub mod devtest;
 pub mod doc;

@@ -55,11 +55,58 @@ pub enum Commands {
     /// 读写 VERSION
     Version(VersionArgs),
 
+    /// 归档查询
+    Archive {
+        #[command(subcommand)]
+        command: ArchiveCommands,
+    },
+
     /// Hook 子命令
     Hooks {
         #[command(subcommand)]
         command: HooksCommands,
     },
+}
+
+#[derive(Subcommand)]
+pub enum ArchiveCommands {
+    /// 列出所有归档版本
+    List {
+        #[arg(long)]
+        branch: Option<String>,
+    },
+    /// 显示某版本归档详情
+    Show {
+        version: String,
+    },
+    /// 查询归档任务
+    Tasks {
+        #[arg(long)]
+        version: Option<String>,
+        #[arg(long)]
+        priority: Option<String>,
+    },
+    /// 查询归档 issue
+    Issues {
+        #[arg(long)]
+        version: Option<String>,
+        #[arg(long)]
+        severity: Option<String>,
+    },
+    /// 输出归档文档原文
+    Doc {
+        version: String,
+        /// 文档类型（PRD/SPEC/TEST）
+        doc_type: String,
+    },
+    /// 从目录迁移到 SQLite
+    Migrate {
+        /// 迁移后删除原始目录
+        #[arg(long)]
+        delete_originals: bool,
+    },
+    /// 归档统计
+    Stats,
 }
 
 #[derive(clap::Args)]

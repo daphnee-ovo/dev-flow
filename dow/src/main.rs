@@ -39,6 +39,7 @@ fn main() {
         },
         Commands::Issue(args) => commands::issue::run(args, human),
         Commands::Version(args) => commands::version::run(args, human),
+        Commands::Archive { command } => commands::archive::run(command, human),
         Commands::Hooks { command } => match command {
             HooksCommands::Context => hooks::context::run(human),
             HooksCommands::Guard { file } => hooks::guard::run(file.unwrap_or_default()),
