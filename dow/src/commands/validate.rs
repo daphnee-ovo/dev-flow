@@ -43,6 +43,9 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     // 6. .gitignore 检查
     check_gitignore(&mut result);
 
+    // 7. 根级残留文件检查
+    check_stale_root_files(&doc_root_path, &mut result);
+
     let has_problems = !result.needs_confirm.is_empty() || !result.warnings.is_empty();
 
     if human {
@@ -225,6 +228,38 @@ fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
     } else {
         fs::write(&changelog, "# Changelog\n").ok();
         result.auto_fixed.push("created_changelog".to_string());
+    }
+}
+
+/// doc_root 为分支子目录时，检查 dev-doc/ 根级是否残留 issue/task 文件
+fn check_stale_root_files(doc_root: &Path, result: &mut ValidateOutput) {
+    let base_path = Path::new("dev-doc");
+    if doc_root == base_path {
+        return;
+    }
+
+    for subdir in &["issue", "task"] {
+        let root_dir = base_path.join(subdir);
+        if !root_dir.is_dir() {
+            continue;
+        }
+        let entries = match fs::read_dir(&root_dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") {
+                continue;
+            }
+            result.needs_confirm.push(format!(
+                "stale_root_{}:{} → {}/{}/",
+                subdir,
+                name,
+                doc_root.display(),
+                subdir
+            ));
+        }
     }
 }
 
