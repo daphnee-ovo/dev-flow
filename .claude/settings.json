@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/xinyue/mythology/dev-flow/scripts/bin/dow hooks context | python3 -c \"import sys,json;d=json.load(sys.stdin);print(f'[dev-flow] branch:{d[\\\"branch\\\"]} phase:{d[\\\"phase\\\"]} mode:{d[\\\"mode\\\"]} v{d[\\\"version\\\"]}')\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}
