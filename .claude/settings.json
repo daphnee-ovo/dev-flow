@@ -5,8 +5,53 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/xinyue/mythology/dev-flow/scripts/bin/dow hooks context | python3 -c \"import sys,json;d=json.load(sys.stdin);print(f'[dev-flow] branch:{d[\\\"branch\\\"]} phase:{d[\\\"phase\\\"]} mode:{d[\\\"mode\\\"]} v{d[\\\"version\\\"]}')\"",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks context -H",
             "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks save-changelog",
+            "timeout": 30000
           }
         ]
       }

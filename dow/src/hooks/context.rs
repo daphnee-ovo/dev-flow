@@ -56,7 +56,7 @@ struct CurrentItems {
     items: Vec<String>,
 }
 
-pub fn run(_human: bool) -> Result<i32, DowError> {
+pub fn run(human: bool) -> Result<i32, DowError> {
     if !Path::new("dev-doc").is_dir() {
         return Ok(0);
     }
@@ -91,7 +91,11 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
                     "DEV 阶段无活跃 task 且无 open issue".to_string(),
                 ],
             };
-            output::print_json(&blocked);
+            if human {
+                println!("[dev-flow] BLOCKED: {}", blocked.reasons.join("; "));
+            } else {
+                output::print_json(&blocked);
+            }
             return Ok(1);
         }
     }
@@ -121,7 +125,11 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         last_changelog,
     };
 
-    output::print_json(&output_data);
+    if human {
+        print_human(&output_data);
+    } else {
+        output::print_json(&output_data);
+    }
     Ok(0)
 }
 
@@ -408,4 +416,43 @@ fn read_version_info() -> (String, String) {
         .unwrap_or_else(|_| "no-tag".to_string());
 
     (version, tag_status)
+}
+
+fn print_human(data: &ContextOutput) {
+    // 第一行：核心状态
+    println!(
+        "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | v{} ({})",
+        data.branch, data.phase, data.mode, data.exec_mode, data.version, data.version_tag
+    );
+    // 第二行：doc_root + task/issue 统计
+    println!(
+        "doc_root:{} | tasks:{}/{} | issues:{}",
+        data.doc_root, data.tasks.done, data.tasks.total, data.issues
+    );
+    // 优先级明细
+    if !data.tasks.by_priority.is_empty() {
+        let parts: Vec<String> = data
+            .tasks
+            .by_priority
+            .iter()
+            .map(|(k, v)| format!("{}:{}/{}", k, v.done, v.total))
+            .collect();
+        println!("priority: {}", parts.join(" | "));
+    }
+    // 当前 items
+    if let Some(ref items) = data.current_items {
+        let label = if items.item_type == "issue" {
+            format!("current issues [{}]", items.severity.as_deref().unwrap_or("?"))
+        } else {
+            format!("current tasks [{}]", items.priority.as_deref().unwrap_or("?"))
+        };
+        println!("{}:", label);
+        for item in &items.items {
+            println!("  - {}", item);
+        }
+    }
+    // 最近 changelog
+    if let Some(ref last) = data.last_changelog {
+        println!("last: {}", last);
+    }
 }

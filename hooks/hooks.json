@@ -3,12 +3,11 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks context",
-            "timeout": 10
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks context -H",
+            "timeout": 10000
           }
         ]
       }
@@ -20,7 +19,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 5
+            "timeout": 5000
           }
         ]
       },
@@ -30,7 +29,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 5
+            "timeout": 5000
           }
         ]
       }
@@ -42,7 +41,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 10
+            "timeout": 10000
           }
         ]
       },
@@ -52,7 +51,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-bash",
-            "timeout": 5
+            "timeout": 5000
           }
         ]
       }
@@ -63,7 +62,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks save-changelog",
-            "timeout": 30
+            "timeout": 30000
           }
         ]
       }
