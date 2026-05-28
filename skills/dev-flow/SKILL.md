@@ -116,8 +116,7 @@ dev-doc/
 ├── issue/
 │   ├── issue_test_2026-05-15_1.md
 │   └── closed_issue_test_2026-05-14_1.md
-└── archive/
-    └── v1-init/
+└── archive.db          ← SQLite 归档（dow archive 查询）
 ```
 
 ## dow CLI
@@ -135,6 +134,13 @@ dev-doc/
 | `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |
+| `dow archive list [--branch <b>]` | 列出所有归档版本 |
+| `dow archive show <version>` | 某版本归档详情 |
+| `dow archive tasks [--version v] [--priority P0]` | 查询归档任务 |
+| `dow archive issues [--version v] [--severity P0]` | 查询归档 issue |
+| `dow archive doc <version> <PRD\|SPEC\|TEST>` | 输出归档文档原文 |
+| `dow archive migrate [--delete-originals]` | 从目录迁移到 SQLite |
+| `dow archive stats` | 归档统计 |
 | `dow hooks context` | hook：注入上下文 |
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |

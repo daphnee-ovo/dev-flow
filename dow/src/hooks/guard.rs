@@ -16,8 +16,16 @@ pub fn run(file: String) -> Result<i32, DowError> {
     }
 
     for target in &targets {
+        // 路径穿越检测：resolve 后判断是否在项目目录内
+        let resolved = resolve_absolute(target);
+        if !is_within_project(&resolved) {
+            println!("[dev-flow] BLOCKED: 路径穿越，最终目标在项目外：{}", target);
+            println!("→ resolved: {}", resolved);
+            return Ok(1);
+        }
+
         // block-system-tmp: 阻止写入系统临时目录
-        if is_system_tmp(target) {
+        if is_system_tmp(&resolved) {
             println!("[dev-flow] BLOCKED: 禁止写入系统临时目录：{}", target);
             println!("→ 请使用项目内的 tmp/ 或 temp/ 目录。");
             return Ok(1);
@@ -140,21 +148,37 @@ fn looks_like_path(s: &str) -> bool {
     s.contains('/') || s.contains('.') || s.starts_with("dev-doc")
 }
 
-fn is_system_tmp(file: &str) -> bool {
+fn resolve_absolute(file: &str) -> String {
     let path = Path::new(file);
     let abs = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join(path)
+        std::env::current_dir().unwrap_or_default().join(path)
     };
+    let mut components: Vec<std::path::Component> = Vec::new();
+    for comp in abs.components() {
+        match comp {
+            std::path::Component::ParentDir => { components.pop(); }
+            std::path::Component::CurDir => {}
+            other => components.push(other),
+        }
+    }
+    let resolved: std::path::PathBuf = components.iter().collect();
+    resolved.to_string_lossy().to_string()
+}
 
-    let abs_str = abs.to_string_lossy();
-    abs_str.starts_with("/tmp/")
-        || abs_str.starts_with("/var/tmp/")
-        || abs_str.starts_with("/dev/shm/")
-        || abs_str.contains("/System/")
+fn is_within_project(resolved_path: &str) -> bool {
+    let project_root = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    resolved_path.starts_with(&project_root)
+}
+
+fn is_system_tmp(resolved: &str) -> bool {
+    resolved.starts_with("/tmp/")
+        || resolved.starts_with("/var/tmp/")
+        || resolved.starts_with("/dev/shm/")
+        || resolved.contains("/System/")
 }
 
 fn is_code_file(file: &str) -> bool {
