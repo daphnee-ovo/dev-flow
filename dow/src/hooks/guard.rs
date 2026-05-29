@@ -412,24 +412,34 @@ fn check_non_dev_write(file: &str) -> Option<String> {
         return None;
     }
 
-    // 白名单 2：dev-doc/<current-branch>/ 内的已存在文件（编辑）
+    // 白名单 3：任意层级 docs/ 目录（docs/、xxx/docs/、...）
+    if is_docs_path(file) {
+        return None;
+    }
+
+    // 白名单 4：dev-doc/<branch>/ 内的合法工作流文件
     if file.starts_with("dev-doc/") || file.starts_with("dev-doc\\") {
         // 已存在的文件允许编辑（新建文件已被 check_devdoc_direct_create 拦截）
         if Path::new(file).exists() {
             return None;
         }
-        // dev-doc 下的目录本身允许（mkdir 不写文件）
+        // dev-doc 下的目录本身允许
         if Path::new(file).is_dir() {
             return None;
         }
-        // 新文件（不在标准命名中的）也允许通过——标准命名新建已被前面规则拦截
-        // 剩余情况：非标准命名的新文件在 dev-doc 内（如自定义笔记）允许
-        return None;
+        // 新文件：检查是否属于 dev-flow 工作流管理范围
+        if is_valid_devdoc_file(file) {
+            return None;
+        }
+        return Some(format!(
+            "[dev-flow] dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
+            file
+        ));
     }
 
     // 其余位置：非 DEV 阶段禁止写入
     Some(format!(
-        "[dev-flow] 当前阶段为 {}，只允许写入 dev-doc/ 和 tmp/。要写入 {} 请先进入 DEV 阶段（需要有未关闭的 task 或 issue）。",
+        "[dev-flow] 当前阶段为 {}，只允许写入 dev-doc/、docs/ 和 tmp/。要写入 {} 请先进入 DEV 阶段。（探索性代码、demo 可放 tmp/ 下）",
         phase, file
     ))
 }
@@ -515,4 +525,45 @@ fn is_standard_doc_filename(rel: &str) -> bool {
     // 检查是否包含日期模式 NNNN-NN-NN
     filename.chars().filter(|c| *c == '-').count() >= 2
         && filename.contains(|c: char| c.is_ascii_digit())
+}
+
+/// 判断路径是否包含 docs/ 段（任意层级）
+fn is_docs_path(file: &str) -> bool {
+    let normalized = file.replace('\\', "/");
+    normalized.starts_with("docs/") || normalized.contains("/docs/")
+}
+
+/// 判断 dev-doc/ 内新文件是否属于 dev-flow 工作流管理范围
+fn is_valid_devdoc_file(file: &str) -> bool {
+    let normalized = file.replace('\\', "/");
+    // 提取 dev-doc/<branch>/ 之后的相对路径
+    let parts: Vec<&str> = normalized.splitn(3, '/').collect();
+    if parts.len() < 3 {
+        return false;
+    }
+    let rel = parts[2];
+
+    // 合法的顶层文档
+    let valid_singles = [
+        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
+    ];
+    if valid_singles.contains(&rel) {
+        return true;
+    }
+
+    // task/ 下：task_YYYY-MM-DD_N.md 或 done_task_YYYY-MM-DD_N.md
+    if rel.starts_with("task/") {
+        let filename = &rel[5..];
+        return (filename.starts_with("task_") || filename.starts_with("done_task_"))
+            && filename.ends_with(".md");
+    }
+
+    // issue/ 下：issue_*_YYYY-MM-DD_N.md 或 closed_issue_*_YYYY-MM-DD_N.md
+    if rel.starts_with("issue/") {
+        let filename = &rel[6..];
+        return (filename.starts_with("issue_") || filename.starts_with("closed_issue_"))
+            && filename.ends_with(".md");
+    }
+
+    false
 }

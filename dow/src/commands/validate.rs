@@ -1,19 +1,28 @@
 // dow/src/commands/
 // ├── validate.rs  -- dow validate（校验 dev-doc 目录结构与文件规范）
 
-use crate::core::{doc_root, doc_validator, yaml};
+use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[derive(Serialize, Clone)]
+struct ValidateItem {
+    r#type: String,
+    message: String,
+    files: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hint: Option<String>,
+}
+
 #[derive(Serialize)]
 struct ValidateOutput {
     doc_root: String,
     auto_fixed: Vec<String>,
-    needs_confirm: Vec<String>,
-    warnings: Vec<String>,
+    needs_confirm: Vec<ValidateItem>,
+    warnings: Vec<ValidateItem>,
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
@@ -25,28 +34,19 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         warnings: Vec::new(),
     };
 
-    // 1. 目录结构校验
+    // 1. 目录结构校验（自动创建缺失目录）
     check_directories(&doc_root_path, &mut result);
 
-    // 2. STATUS.yaml 校验
-    check_status_yaml(&doc_root_path, &mut result);
+    // 2. 统一文档校验
+    collect_validation_errors(&doc_root_path, &mut result);
 
-    // 3. task/ 目录校验
-    check_task_files(&doc_root_path, &mut result);
-
-    // 4. issue/ 目录校验
-    check_issue_files(&doc_root_path, &mut result);
-
-    // 5. SPEC.md 序号校验
-    check_spec_acs(&doc_root_path, &mut result);
-
-    // 7. CHANGELOG 校验
+    // 3. CHANGELOG 校验
     check_changelog(&doc_root_path, &mut result);
 
-    // 8. .gitignore 检查
+    // 4. .gitignore 检查
     check_gitignore(&mut result);
 
-    // 9. 根级残留文件检查
+    // 5. 根级残留文件检查
     check_stale_root_files(&doc_root_path, &mut result);
 
     let has_problems = !result.needs_confirm.is_empty() || !result.warnings.is_empty();
@@ -60,6 +60,102 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     Ok(if has_problems { 1 } else { 0 })
 }
 
+fn collect_validation_errors(doc_root: &Path, result: &mut ValidateOutput) {
+    let errors = doc_validator::validate_all(doc_root);
+    if errors.is_empty() {
+        return;
+    }
+
+    // 按 (kind, message) 归类，合并同类文件
+    use std::collections::BTreeMap;
+
+    struct Group {
+        message: String,
+        files: Vec<String>,
+        fixable: bool,
+        hint: Option<String>,
+    }
+
+    let mut groups: BTreeMap<String, Group> = BTreeMap::new();
+
+    for e in errors {
+        let (type_key, hint) = classify_error(&e);
+
+        groups
+            .entry(type_key.clone())
+            .and_modify(|g| {
+                if !g.files.contains(&e.file) {
+                    g.files.push(e.file.clone());
+                }
+            })
+            .or_insert_with(|| Group {
+                message: e.message.clone(),
+                files: vec![e.file.clone()],
+                fixable: e.fixable,
+                hint,
+            });
+    }
+
+    for (type_key, group) in groups {
+        let item = ValidateItem {
+            r#type: type_key,
+            message: group.message,
+            files: group.files,
+            hint: group.hint,
+        };
+        if group.fixable {
+            result.needs_confirm.push(item);
+        } else {
+            result.warnings.push(item);
+        }
+    }
+}
+
+fn classify_error(e: &doc_validator::ValidationError) -> (String, Option<String>) {
+    let msg = &e.message;
+
+    if msg.contains("非工作流文件") {
+        (
+            "illegal_files".into(),
+            Some("move to docs/ or remove (valid: PRD/SPEC/TEST/BRAINSTORM/CHANGELOG/STATUS.yaml)".into()),
+        )
+    } else if msg.contains("非工作流目录") {
+        (
+            "illegal_dirs".into(),
+            Some("remove if migrated to SQLite (valid: task/, issue/)".into()),
+        )
+    } else if msg.contains("只允许 task_") || msg.contains("只允许 issue_") {
+        (
+            "illegal_subdir_files".into(),
+            Some("remove or rename to valid pattern".into()),
+        )
+    } else if msg.contains("未重命名为 closed_") || msg.contains("已勾选但文件未重命名") {
+        (
+            "issue_status_mismatch".into(),
+            Some("rename to closed_ prefix".into()),
+        )
+    } else if msg.contains("closed_ 前缀但存在未勾选") {
+        (
+            "issue_closed_but_open".into(),
+            Some("reopen items or remove closed_ prefix".into()),
+        )
+    } else if msg.contains("STATUS.yaml") {
+        ("status_yaml".into(), None)
+    } else if msg.contains("SPEC-AC") {
+        ("spec_ac_sequence".into(), None)
+    } else if msg.contains("frontmatter") {
+        ("missing_frontmatter".into(), Some("run `dow fix` to auto-fix".into()))
+    } else if msg.contains("priority") || msg.contains("severity") || msg.contains("complexity") {
+        ("invalid_field_value".into(), None)
+    } else if msg.contains("缺少必填字段") || msg.contains("缺少 ") {
+        ("missing_required_field".into(), None)
+    } else if msg.contains("序号") {
+        ("sequence_error".into(), None)
+    } else {
+        ("other".into(), None)
+    }
+}
+
 fn check_directories(doc_root: &Path, result: &mut ValidateOutput) {
     let project_temp = if Path::new("temp").is_dir() && !Path::new("tmp").is_dir() {
         "temp"
@@ -70,7 +166,6 @@ fn check_directories(doc_root: &Path, result: &mut ValidateOutput) {
     let dirs = [
         doc_root.join("issue"),
         doc_root.join("task"),
-        doc_root.join("archive"),
         PathBuf::from("tests"),
         PathBuf::from(project_temp),
     ];
@@ -83,108 +178,16 @@ fn check_directories(doc_root: &Path, result: &mut ValidateOutput) {
     }
 }
 
-fn check_status_yaml(doc_root: &Path, result: &mut ValidateOutput) {
-    let status_file = doc_root.join("STATUS.yaml");
-    if !status_file.exists() {
-        return;
-    }
-
-    let map = match yaml::read(&status_file) {
-        Ok(m) => m,
-        Err(_) => return,
-    };
-
-    // 必需字段
-    for field in &["name", "phase", "mode", "updated", "started"] {
-        if !map.contains_key(*field) {
-            result.warnings.push(format!("status_missing_field:{}", field));
-        }
-    }
-
-    // 校验 phase 值
-    if let Some(phase) = map.get("phase") {
-        let valid = ["PRD", "SPEC", "TASK", "DEV", "TEST", "DONE"];
-        if !valid.contains(&phase.as_str()) {
-            result.warnings.push(format!("status_invalid_phase:{}", phase));
-        }
-    }
-
-    // 校验 mode 值
-    if let Some(mode) = map.get("mode") {
-        let valid_pattern = mode == "full"
-            || mode == "quick"
-            || mode == "fast"
-            || mode == "mvp"
-            || mode.starts_with("audit/");
-        if !valid_pattern {
-            result.warnings.push(format!("status_invalid_mode:{}", mode));
-        }
-    }
-}
-
-fn check_task_files(doc_root: &Path, result: &mut ValidateOutput) {
-    let errors = doc_validator::validate_all_tasks(doc_root);
-    for e in errors {
-        let msg = format!("task:{}:{}", e.file, e.message);
-        if e.fixable {
-            result.needs_confirm.push(msg);
-        } else {
-            result.warnings.push(msg);
-        }
-    }
-}
-
-fn check_issue_files(doc_root: &Path, result: &mut ValidateOutput) {
-    // 格式合法性校验（从 md 规范提取规则）
-    let errors = doc_validator::validate_all_issues(doc_root);
-    for e in errors {
-        let msg = format!("issue:{}:{}", e.file, e.message);
-        if e.fixable {
-            result.needs_confirm.push(msg);
-        } else {
-            result.warnings.push(msg);
-        }
-    }
-
-    // 状态一致性检查（checkbox 与 closed_ 前缀）
-    let issue_dir = doc_root.join("issue");
-    if !issue_dir.is_dir() {
-        return;
-    }
-    if let Ok(entries) = fs::read_dir(&issue_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if !name.ends_with(".md") {
-                continue;
-            }
-            let content = match fs::read_to_string(entry.path()) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-            let total: usize = content.lines().filter(|l| l.starts_with("- [")).count();
-            let done: usize = content.lines().filter(|l| l.starts_with("- [x]")).count();
-            if total > 0 && total == done && !name.starts_with("closed_") {
-                result.needs_confirm.push(format!("issue_should_be_closed:{}", name));
-            }
-            if name.starts_with("closed_") && total > 0 && done < total {
-                result.needs_confirm.push(format!("issue_closed_but_open_items:{}", name));
-            }
-        }
-    }
-}
-
-fn check_spec_acs(doc_root: &Path, result: &mut ValidateOutput) {
-    let errors = doc_validator::validate_spec(doc_root);
-    for e in errors {
-        result.warnings.push(format!("spec:{}", e.message));
-    }
-}
-
 fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
     let changelog = doc_root.join("CHANGELOG.md");
     if changelog.exists() {
         if fs::metadata(&changelog).map(|m| m.len() == 0).unwrap_or(true) {
-            result.warnings.push("changelog_empty".to_string());
+            result.warnings.push(ValidateItem {
+                r#type: "changelog_empty".into(),
+                message: "CHANGELOG.md is empty".into(),
+                files: vec!["CHANGELOG.md".into()],
+                hint: Some("add entries or remove file".into()),
+            });
         }
     } else {
         fs::write(&changelog, "# Changelog\n").ok();
@@ -192,13 +195,13 @@ fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
     }
 }
 
-/// doc_root 为分支子目录时，检查 dev-doc/ 根级是否残留 issue/task 文件
 fn check_stale_root_files(doc_root: &Path, result: &mut ValidateOutput) {
     let base_path = Path::new("dev-doc");
     if doc_root == base_path {
         return;
     }
 
+    let mut stale_files = Vec::new();
     for subdir in &["issue", "task"] {
         let root_dir = base_path.join(subdir);
         if !root_dir.is_dir() {
@@ -210,17 +213,19 @@ fn check_stale_root_files(doc_root: &Path, result: &mut ValidateOutput) {
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if !name.ends_with(".md") {
-                continue;
+            if name.ends_with(".md") {
+                stale_files.push(format!("{}/{}", subdir, name));
             }
-            result.needs_confirm.push(format!(
-                "stale_root_{}:{} → {}/{}/",
-                subdir,
-                name,
-                doc_root.display(),
-                subdir
-            ));
         }
+    }
+
+    if !stale_files.is_empty() {
+        result.needs_confirm.push(ValidateItem {
+            r#type: "stale_root_files".into(),
+            message: "files in dev-doc/ root should be in branch subdirectory".into(),
+            files: stale_files,
+            hint: Some(format!("move to {}/", doc_root.display())),
+        });
     }
 }
 
@@ -250,13 +255,13 @@ fn check_gitignore(result: &mut ValidateOutput) {
 }
 
 fn print_human(result: &ValidateOutput) {
-    println!("[dev-flow] dev-doc 校验报告");
+    println!("[dev-flow] dev-doc validation report");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
-    println!("文档根：{}", result.doc_root);
+    println!("doc_root: {}", result.doc_root);
     println!();
 
     if !result.auto_fixed.is_empty() {
-        println!("自动修复（{}项）：", result.auto_fixed.len());
+        println!("auto_fixed ({}):", result.auto_fixed.len());
         for item in &result.auto_fixed {
             println!("  - {}", item);
         }
@@ -264,22 +269,30 @@ fn print_human(result: &ValidateOutput) {
     }
 
     if !result.needs_confirm.is_empty() {
-        println!("需要确认（{}项）：", result.needs_confirm.len());
-        for item in &result.needs_confirm {
-            println!("  - {}", item);
+        println!("needs_confirm ({}):", result.needs_confirm.len());
+        for (i, item) in result.needs_confirm.iter().enumerate() {
+            println!("{}. [{}] {}", i + 1, item.r#type, item.message);
+            println!("   - files: [{}]", item.files.join(", "));
+            if let Some(ref hint) = item.hint {
+                println!("   - hint: {}", hint);
+            }
         }
         println!();
     }
 
     if !result.warnings.is_empty() {
-        println!("警告（{}项）：", result.warnings.len());
-        for item in &result.warnings {
-            println!("  - {}", item);
+        println!("warnings ({}):", result.warnings.len());
+        for (i, item) in result.warnings.iter().enumerate() {
+            println!("{}. [{}] {}", i + 1, item.r#type, item.message);
+            println!("   - files: [{}]", item.files.join(", "));
+            if let Some(ref hint) = item.hint {
+                println!("   - hint: {}", hint);
+            }
         }
         println!();
     }
 
     if result.needs_confirm.is_empty() && result.warnings.is_empty() {
-        println!("全部通过，无需操作。");
+        println!("all passed.");
     }
 }

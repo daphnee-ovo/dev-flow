@@ -679,11 +679,210 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 验证所有 dev-doc 文件（task + issue + spec），返回错误列表
+/// 验证所有 dev-doc 文件，返回错误列表
+/// 包含：STATUS.yaml 校验、task/issue 内容校验、SPEC 序号校验、issue 状态一致性、非法文件检测
 pub fn validate_all(doc_root: &Path) -> Vec<ValidationError> {
-    let mut errors = validate_all_issues(doc_root);
+    let mut errors = validate_status_yaml(doc_root);
+    errors.extend(validate_all_issues(doc_root));
     errors.extend(validate_all_tasks(doc_root));
     errors.extend(validate_spec(doc_root));
+    errors.extend(validate_issue_consistency(doc_root));
+    errors.extend(validate_no_illegal_files(doc_root));
+    errors
+}
+
+/// 校验 STATUS.yaml 必填字段和枚举值
+fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    let status_file = doc_root.join("STATUS.yaml");
+    if !status_file.exists() {
+        errors.push(ValidationError {
+            file: "STATUS.yaml".into(),
+            kind: ErrorKind::MissingRequiredField,
+            message: "STATUS.yaml 不存在".into(),
+            fixable: false,
+        });
+        return errors;
+    }
+
+    let content = match fs::read_to_string(&status_file) {
+        Ok(c) => c,
+        Err(_) => return errors,
+    };
+
+    let mut map = std::collections::BTreeMap::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(pos) = trimmed.find(':') {
+            let key = trimmed[..pos].trim().to_string();
+            let value = trimmed[pos + 1..].trim().to_string();
+            map.insert(key, value);
+        }
+    }
+
+    for field in &["name", "phase", "mode", "updated", "started"] {
+        if !map.contains_key(*field) || map[*field].is_empty() {
+            errors.push(ValidationError {
+                file: "STATUS.yaml".into(),
+                kind: ErrorKind::MissingRequiredField,
+                message: format!("缺少必填字段：{}", field),
+                fixable: false,
+            });
+        }
+    }
+
+    if let Some(phase) = map.get("phase") {
+        let valid = ["PRD", "SPEC", "TASK", "DEV", "TEST", "DONE"];
+        if !phase.is_empty() && !valid.contains(&phase.as_str()) {
+            errors.push(ValidationError {
+                file: "STATUS.yaml".into(),
+                kind: ErrorKind::InvalidFieldValue,
+                message: format!("phase '{}' 不合法（有效值：{}）", phase, valid.join("/")),
+                fixable: false,
+            });
+        }
+    }
+
+    if let Some(mode) = map.get("mode") {
+        let valid_pattern = mode == "full"
+            || mode == "quick"
+            || mode == "fast"
+            || mode == "mvp"
+            || mode.starts_with("audit/");
+        if !mode.is_empty() && !valid_pattern {
+            errors.push(ValidationError {
+                file: "STATUS.yaml".into(),
+                kind: ErrorKind::InvalidFieldValue,
+                message: format!("mode '{}' 不合法（有效值：full/quick/fast/mvp/audit/*）", mode),
+                fixable: false,
+            });
+        }
+    }
+
+    errors
+}
+
+/// 校验 issue 文件状态一致性（checkbox 与 closed_ 前缀）
+fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    let issue_dir = doc_root.join("issue");
+    if !issue_dir.is_dir() {
+        return errors;
+    }
+
+    if let Ok(entries) = fs::read_dir(&issue_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") {
+                continue;
+            }
+            let content = match fs::read_to_string(entry.path()) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let total: usize = content.lines().filter(|l| l.starts_with("- [")).count();
+            let done: usize = content.lines().filter(|l| l.starts_with("- [x]")).count();
+            if total > 0 && total == done && !name.starts_with("closed_") {
+                errors.push(ValidationError {
+                    file: name.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: "所有 issue 已勾选但文件未重命名为 closed_ 前缀".into(),
+                    fixable: true,
+                });
+            }
+            if name.starts_with("closed_") && total > 0 && done < total {
+                errors.push(ValidationError {
+                    file: name.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: "文件有 closed_ 前缀但存在未勾选的 issue item".into(),
+                    fixable: false,
+                });
+            }
+        }
+    }
+
+    errors
+}
+
+/// 检测 dev-doc/<branch>/ 下是否存在不属于工作流管理的文件
+fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+
+    let valid_top_files = [
+        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
+    ];
+    let valid_subdirs = ["task", "issue"];
+
+    if let Ok(entries) = fs::read_dir(doc_root) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let path = entry.path();
+
+            if path.is_file() {
+                if !valid_top_files.contains(&name.as_str()) {
+                    errors.push(ValidationError {
+                        file: name,
+                        kind: ErrorKind::BadFilename,
+                        message: "dev-doc 下不允许存在非工作流文件（合法：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、STATUS.yaml）".into(),
+                        fixable: false,
+                    });
+                }
+            } else if path.is_dir() {
+                if !valid_subdirs.contains(&name.as_str()) {
+                    errors.push(ValidationError {
+                        file: name,
+                        kind: ErrorKind::BadFilename,
+                        message: "dev-doc 下不允许存在非工作流目录（合法：task/、issue/）".into(),
+                        fixable: false,
+                    });
+                }
+            }
+        }
+    }
+
+    // 检查 task/ 下文件命名
+    let task_dir = doc_root.join("task");
+    if task_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&task_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if entry.path().is_file() {
+                    if !((name.starts_with("task_") || name.starts_with("done_task_")) && name.ends_with(".md")) {
+                        errors.push(ValidationError {
+                            file: format!("task/{}", name),
+                            kind: ErrorKind::BadFilename,
+                            message: "task/ 下只允许 task_*.md 或 done_task_*.md 文件".into(),
+                            fixable: false,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 检查 issue/ 下文件命名
+    let issue_dir = doc_root.join("issue");
+    if issue_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if entry.path().is_file() {
+                    if !((name.starts_with("issue_") || name.starts_with("closed_issue_")) && name.ends_with(".md")) {
+                        errors.push(ValidationError {
+                            file: format!("issue/{}", name),
+                            kind: ErrorKind::BadFilename,
+                            message: "issue/ 下只允许 issue_*.md 或 closed_issue_*.md 文件".into(),
+                            fixable: false,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     errors
 }
 

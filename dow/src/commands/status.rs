@@ -17,6 +17,10 @@ struct StatusOutput {
     mode: String,
     exec_mode: String,
     doc_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    goals_minor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    goals_major: Option<String>,
     updated: String,
     started: String,
 }
@@ -185,8 +189,11 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 设置 name
+    // 设置 name（不允许为空）
     if let Some(ref name) = args.name {
+        if name.trim().is_empty() {
+            return Err(DowError::new("name 不能为空", 1));
+        }
         yaml::set(status_file, "name", name)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
@@ -234,6 +241,8 @@ fn handle_read(
         mode: map.get("mode").cloned().unwrap_or_default(),
         exec_mode: map.get("exec_mode").cloned().unwrap_or_else(|| "step".to_string()),
         doc_root: doc_root_path.to_string_lossy().to_string(),
+        goals_minor: map.get("goals_minor").cloned().filter(|s| !s.is_empty()),
+        goals_major: map.get("goals_major").cloned().filter(|s| !s.is_empty()),
         updated: map.get("updated").cloned().unwrap_or_default(),
         started: map.get("started").cloned().unwrap_or_default(),
     };
@@ -279,6 +288,12 @@ fn print_human(status: &StatusOutput) {
     println!("开发模式：{}", status.mode);
     println!("执行模式：{}", status.exec_mode);
     println!("当前版本：({})v{} ({})", branch, status.version, status.version_tag);
+    if let Some(ref g) = status.goals_minor {
+        println!("目标(minor)：{}", g);
+    }
+    if let Some(ref g) = status.goals_major {
+        println!("目标(major)：{}", g);
+    }
     println!("更新时间：{}", status.updated);
     println!("启动时间：{}", status.started);
 }

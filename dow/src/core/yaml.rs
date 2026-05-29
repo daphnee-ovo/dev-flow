@@ -40,23 +40,29 @@ pub fn get(path: &Path, key: &str) -> std::io::Result<Option<String>> {
 }
 
 /// 设置指定 key 的值（保持文件其他行不变）
+/// 可选字段值为空时删除该行；必填字段不允许置空
 pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
     let content = fs::read_to_string(path)?;
+    let optional_fields = ["goals_minor", "goals_major", "exec_mode"];
+    let is_delete = value.is_empty() && optional_fields.contains(&key);
     let mut found = false;
     let mut lines: Vec<String> = content
         .lines()
-        .map(|line| {
+        .filter_map(|line| {
             if let Some((k, _)) = parse_line(line) {
                 if k == key {
                     found = true;
-                    return format!("{}: {}", key, value);
+                    if is_delete {
+                        return None;
+                    }
+                    return Some(format!("{}: {}", key, value));
                 }
             }
-            line.to_string()
+            Some(line.to_string())
         })
         .collect();
 
-    if !found {
+    if !found && !is_delete {
         // goals/exec_mode 等字段插入到 updated/started 之前（保持时间戳在末尾）
         let insert_pos = lines.iter().position(|l| {
             l.starts_with("updated:") || l.starts_with("started:")
