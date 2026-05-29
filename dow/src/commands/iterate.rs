@@ -2,7 +2,7 @@
 // ├── iterate.rs  -- dow iterate（迭代交付：校验 → 归档 → commit + tag → bump）
 
 use crate::cli::IterateArgs;
-use crate::core::{archive_db, doc_root, version, yaml};
+use crate::core::{archive_db, doc_root, doc_validator, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -60,6 +60,16 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             format!("有 {} 个未关闭的 P0 issue", p0_open),
             1,
         ));
+    }
+
+    // 2.5 校验：所有 dev-doc 文件合法
+    let validation_errors = doc_validator::validate_all(&doc_root_path);
+    if !validation_errors.is_empty() {
+        let msg = format!(
+            "iterate 前置检查失败：dev-doc 文件存在格式错误。\n{}",
+            doc_validator::format_errors_human(&validation_errors)
+        );
+        return Err(DowError::new(msg, 1));
     }
 
     // 3. 读取版本

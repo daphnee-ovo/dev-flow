@@ -42,6 +42,7 @@
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 dev-doc 结构 |
+| `dow fix` | 自动修复 dev-doc 文件格式问题 |
 | `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |

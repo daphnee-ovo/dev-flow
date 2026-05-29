@@ -31,6 +31,7 @@ fn main() {
         Commands::Iterate(args) => commands::iterate::run(args, human),
         Commands::Scan => commands::scan::run(human),
         Commands::Validate => commands::validate::run(human),
+        Commands::Fix => commands::fix::run(human),
         Commands::Doc(args) => commands::doc::run(args, human),
         Commands::Devtest(args) => commands::devtest::run(args, human),
         Commands::Test(args) => commands::test_runner::run(args, human),

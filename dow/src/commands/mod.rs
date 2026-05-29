@@ -3,6 +3,7 @@
 // ├── archive.rs   -- SQLite 归档查询
 // ├── status.rs    -- 读写 STATUS.yaml
 // ├── validate.rs  -- 校验 dev-doc
+// ├── fix.rs       -- 自动修复 dev-doc 格式
 // ├── scan.rs      -- 项目扫描
 // ├── doc.rs       -- 文档模板生成
 
@@ -10,6 +11,7 @@ pub mod archive;
 pub mod check;
 pub mod devtest;
 pub mod doc;
+pub mod fix;
 pub mod info;
 pub mod init;
 pub mod issue;

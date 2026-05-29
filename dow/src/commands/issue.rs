@@ -2,7 +2,7 @@
 // ├── issue.rs  -- dow issue（issue 管理）
 
 use crate::cli::IssueArgs;
-use crate::core::doc_root;
+use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -37,6 +37,13 @@ pub fn run(args: IssueArgs, human: bool) -> Result<i32, DowError> {
 fn list_issues(human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve("dev-doc");
     let issue_dir = doc_root_path.join("issue");
+
+    // 合法性校验
+    let validation_errors = doc_validator::validate_all_issues(&doc_root_path);
+    if !validation_errors.is_empty() {
+        let msg = doc_validator::format_errors_human(&validation_errors);
+        return Err(DowError::new(msg, 1));
+    }
 
     let mut entries = Vec::new();
 

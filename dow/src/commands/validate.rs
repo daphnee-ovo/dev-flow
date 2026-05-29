@@ -1,7 +1,7 @@
 // dow/src/commands/
 // ├── validate.rs  -- dow validate（校验 dev-doc 目录结构与文件规范）
 
-use crate::core::{doc_root, yaml};
+use crate::core::{doc_root, doc_validator, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -120,101 +120,52 @@ fn check_status_yaml(doc_root: &Path, result: &mut ValidateOutput) {
 }
 
 fn check_task_files(doc_root: &Path, result: &mut ValidateOutput) {
-    let task_dir = doc_root.join("task");
-    if !task_dir.is_dir() {
-        return;
-    }
-
-    let entries = match fs::read_dir(&task_dir) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !name.ends_with(".md") {
-            continue;
-        }
-
-        // 命名规范检查
-        let valid_name = name.starts_with("task_") || name.starts_with("done_task_");
-        if valid_name {
-            let date_part = if name.starts_with("done_task_") {
-                &name[10..]
-            } else {
-                &name[5..]
-            };
-            // 格式：YYYY-MM-DD_N.md
-            let re_ok = date_part.len() >= 13
-                && date_part.chars().nth(4) == Some('-')
-                && date_part.chars().nth(7) == Some('-')
-                && date_part.chars().nth(10) == Some('_');
-            if !re_ok {
-                result.needs_confirm.push(format!("task_bad_name:{}", name));
-            }
+    let errors = doc_validator::validate_all_tasks(doc_root);
+    for e in errors {
+        let msg = format!("task:{}:{}", e.file, e.message);
+        if e.fixable {
+            result.needs_confirm.push(msg);
         } else {
-            result.needs_confirm.push(format!("task_bad_name:{}", name));
-            continue;
-        }
-
-        // 内容检查
-        let content = match fs::read_to_string(entry.path()) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        let task_count = content.lines().filter(|l| l.starts_with("- [")).count();
-        let done_when_count = content.lines().filter(|l| l.contains("done_when:")).count();
-        let priority_count = content.lines().filter(|l| l.contains("priority:")).count();
-
-        if task_count > 0 && done_when_count < task_count {
-            result.warnings.push(format!(
-                "task_missing_done_when:{}:{}",
-                name,
-                task_count - done_when_count
-            ));
-        }
-        if task_count > 0 && priority_count < task_count {
-            result.warnings.push(format!(
-                "task_missing_priority:{}:{}",
-                name,
-                task_count - priority_count
-            ));
+            result.warnings.push(msg);
         }
     }
 }
 
 fn check_issue_files(doc_root: &Path, result: &mut ValidateOutput) {
+    // 格式合法性校验（从 md 规范提取规则）
+    let errors = doc_validator::validate_all_issues(doc_root);
+    for e in errors {
+        let msg = format!("issue:{}:{}", e.file, e.message);
+        if e.fixable {
+            result.needs_confirm.push(msg);
+        } else {
+            result.warnings.push(msg);
+        }
+    }
+
+    // 状态一致性检查（checkbox 与 closed_ 前缀）
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
         return;
     }
-
-    let entries = match fs::read_dir(&issue_dir) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !name.ends_with(".md") {
-            continue;
-        }
-
-        let content = match fs::read_to_string(entry.path()) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        let total: usize = content.lines().filter(|l| l.starts_with("- [")).count();
-        let done: usize = content.lines().filter(|l| l.starts_with("- [x]")).count();
-
-        // checkbox 与 prefix 一致性
-        if total > 0 && total == done && !name.starts_with("closed_") {
-            result.needs_confirm.push(format!("issue_should_be_closed:{}", name));
-        }
-        if name.starts_with("closed_") && total > 0 && done < total {
-            result.needs_confirm.push(format!("issue_closed_but_open_items:{}", name));
+    if let Ok(entries) = fs::read_dir(&issue_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") {
+                continue;
+            }
+            let content = match fs::read_to_string(entry.path()) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let total: usize = content.lines().filter(|l| l.starts_with("- [")).count();
+            let done: usize = content.lines().filter(|l| l.starts_with("- [x]")).count();
+            if total > 0 && total == done && !name.starts_with("closed_") {
+                result.needs_confirm.push(format!("issue_should_be_closed:{}", name));
+            }
+            if name.starts_with("closed_") && total > 0 && done < total {
+                result.needs_confirm.push(format!("issue_closed_but_open_items:{}", name));
+            }
         }
     }
 }

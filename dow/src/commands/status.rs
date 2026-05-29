@@ -3,7 +3,7 @@
 
 use crate::cli::StatusArgs;
 use crate::error::DowError;
-use crate::core::{doc_root, yaml};
+use crate::core::{doc_root, doc_validator, yaml};
 use crate::output;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -119,7 +119,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         validate_phase_transition(&current, &target, effective_mode)
             .map_err(|e| DowError::new(e, 1))?;
 
-        // 进入 DEV 的前提：存在未关闭的 task 或 issue
+        // 进入 DEV 的前提：存在未关闭的 task 或 issue，且文档合法
         if target == "DEV" {
             let doc_root_path = status_file.parent().unwrap();
             let has_tasks = has_open_tasks(doc_root_path);
@@ -129,6 +129,15 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
                     "无法进入 DEV：不存在未关闭的 task 或 issue。请先用 `dow doc task` 或 `dow doc issue` 创建。",
                     1,
                 ));
+            }
+            // 文档合法性校验
+            let validation_errors = doc_validator::validate_all(doc_root_path);
+            if !validation_errors.is_empty() {
+                let msg = format!(
+                    "无法进入 DEV：dev-doc 文件存在格式错误。\n{}",
+                    doc_validator::format_errors_human(&validation_errors)
+                );
+                return Err(DowError::new(msg, 1));
             }
         }
 
