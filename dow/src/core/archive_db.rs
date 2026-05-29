@@ -103,6 +103,11 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
             content TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS brainstorm_docs (
+            version TEXT PRIMARY KEY,
+            content TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS changelog_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version TEXT NOT NULL,
@@ -185,6 +190,7 @@ pub fn insert_doc(conn: &Connection, version: &str, doc_type: &str, content: &st
         "PRD" => "INSERT OR REPLACE INTO prd_docs (version, content) VALUES (?1, ?2)",
         "SPEC" => "INSERT OR REPLACE INTO spec_docs (version, content) VALUES (?1, ?2)",
         "TEST" => "INSERT OR REPLACE INTO test_docs (version, content) VALUES (?1, ?2)",
+        "BRAINSTORM" => "INSERT OR REPLACE INTO brainstorm_docs (version, content) VALUES (?1, ?2)",
         _ => return Err(DowError::new(format!("未知文档类型：{}", doc_type), 1)),
     };
     conn.execute(sql, params![version, content])
@@ -307,6 +313,7 @@ pub fn get_doc(conn: &Connection, version: &str, doc_type: &str) -> Result<Optio
         "PRD" => "SELECT content FROM prd_docs WHERE version = ?1",
         "SPEC" => "SELECT content FROM spec_docs WHERE version = ?1",
         "TEST" => "SELECT content FROM test_docs WHERE version = ?1",
+        "BRAINSTORM" => "SELECT content FROM brainstorm_docs WHERE version = ?1",
         _ => return Err(DowError::new(format!("未知文档类型：{}", doc_type), 1)),
     };
     let result = conn

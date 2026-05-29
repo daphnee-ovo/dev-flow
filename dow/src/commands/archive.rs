@@ -75,6 +75,7 @@ struct ShowOutput {
     has_prd: bool,
     has_spec: bool,
     has_test: bool,
+    has_brainstorm: bool,
 }
 
 #[derive(Serialize)]
@@ -102,6 +103,7 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
     let has_prd = archive_db::get_doc(&conn, version, "PRD")?.is_some();
     let has_spec = archive_db::get_doc(&conn, version, "SPEC")?.is_some();
     let has_test = archive_db::get_doc(&conn, version, "TEST")?.is_some();
+    let has_brainstorm = archive_db::get_doc(&conn, version, "BRAINSTORM")?.is_some();
 
     // 获取 topic
     let iterations = archive_db::list_iterations(&conn, None)?;
@@ -114,7 +116,7 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[archive] v{} — {}", version, topic);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("文档：PRD={} SPEC={} TEST={}", yn(has_prd), yn(has_spec), yn(has_test));
+        println!("文档：PRD={} SPEC={} TEST={} BRAINSTORM={}", yn(has_prd), yn(has_spec), yn(has_test), yn(has_brainstorm));
         if !tasks.is_empty() {
             println!("\n任务（{}个）：", tasks.len());
             for t in &tasks {
@@ -150,6 +152,7 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
             has_prd,
             has_spec,
             has_test,
+            has_brainstorm,
         };
         output::print_json(&out);
     }

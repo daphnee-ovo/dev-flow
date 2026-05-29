@@ -170,8 +170,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 归档文档（PRD/SPEC/TEST）
-    for doc_type in &["PRD", "SPEC", "TEST"] {
+    // 归档文档（PRD/SPEC/TEST/BRAINSTORM）
+    for doc_type in &["PRD", "SPEC", "TEST", "BRAINSTORM"] {
         let src = doc_root_path.join(format!("{}.md", doc_type));
         if src.exists() {
             if let Ok(content) = fs::read_to_string(&src) {
@@ -332,7 +332,7 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
         }
     }
 
-    for doc in &["PRD.md", "SPEC.md", "TEST.md", "CHANGELOG.md"] {
+    for doc in &["PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md"] {
         if doc_root.join(doc).exists() {
             files.push(doc.to_string());
         }

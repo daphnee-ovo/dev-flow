@@ -4,7 +4,7 @@
 
 `dev-doc/<branch>/BRAINSTORM.md`
 
-持久参考文档，不随迭代归档。
+每次迭代只有一份 BRAINSTORM；`/iterate` 时自动归档到 `dev-doc/archive.db`（SQLite），源文件删除。
 
 ## 模板
 
@@ -45,6 +45,6 @@
 ## 说明
 
 - `/brainstorm` 执行后产出，记录协作探索的结论
-- 不随 iterate 归档（持久参考）
+- `/iterate` 时自动归档到 SQLite，源文件删除（查询历史：`dow archive doc <ver> BRAINSTORM`）
 - 后续 /prd 或 /spec 可读取作为输入
 - 每次新的 brainstorm 覆盖旧内容（一个项目只有一份活跃 BRAINSTORM）
