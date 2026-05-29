@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard",
             "timeout": 5000
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks guard",
             "timeout": 5000
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
+            "command": "/home/xinyue/.claude/plugins/cache/daphnee-ovo/dev-flow/1.0.0/scripts/bin/dow hooks post-write",
             "timeout": 10000
           }
         ]

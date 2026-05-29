@@ -26,11 +26,6 @@ struct ContextOutput {
     last_changelog: Option<String>,
 }
 
-#[derive(Serialize)]
-struct BlockedOutput {
-    blocked: bool,
-    reasons: Vec<String>,
-}
 
 #[derive(Serialize)]
 struct TaskStats {
@@ -85,18 +80,17 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         let done_tasks = count_done_task_files(&doc_root_path);
 
         if active_tasks == 0 && open_issues == 0 && done_tasks == 0 {
-            let blocked = BlockedOutput {
-                blocked: true,
-                reasons: vec![
-                    "DEV 阶段无活跃 task 且无 open issue".to_string(),
-                ],
-            };
             if human {
-                println!("[dev-flow] BLOCKED: {}", blocked.reasons.join("; "));
+                println!("[dev-flow] BLOCKED: DEV 阶段无活跃 task 且无 open issue");
             } else {
-                output::print_json(&blocked);
+                // Claude Code UserPromptSubmit 阻断格式
+                let block_json = serde_json::json!({
+                    "decision": "block",
+                    "reason": "[dev-flow] DEV 阶段无活跃 task 且无 open issue。请先用 /task 创建任务或 /issue 创建 issue。"
+                });
+                println!("{}", block_json);
             }
-            return Ok(1);
+            return Ok(0);
         }
     }
 

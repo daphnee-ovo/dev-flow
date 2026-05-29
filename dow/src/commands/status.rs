@@ -119,6 +119,19 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         validate_phase_transition(&current, &target, effective_mode)
             .map_err(|e| DowError::new(e, 1))?;
 
+        // 进入 DEV 的前提：存在未关闭的 task 或 issue
+        if target == "DEV" {
+            let doc_root_path = status_file.parent().unwrap();
+            let has_tasks = has_open_tasks(doc_root_path);
+            let has_issues = has_open_issues(doc_root_path);
+            if !has_tasks && !has_issues {
+                return Err(DowError::new(
+                    "无法进入 DEV：不存在未关闭的 task 或 issue。请先用 `dow doc task` 或 `dow doc issue` 创建。",
+                    1,
+                ));
+            }
+        }
+
         yaml::set(status_file, "phase", &target)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
@@ -245,4 +258,46 @@ fn print_human(status: &StatusOutput) {
     println!("当前版本：v{}（git tag: {}）", status.version, status.version_tag);
     println!("更新时间：{}", status.updated);
     println!("启动时间：{}", status.started);
+}
+
+/// 检查是否存在未完成的 task
+fn has_open_tasks(doc_root: &std::path::Path) -> bool {
+    let task_dir = doc_root.join("task");
+    if !task_dir.is_dir() {
+        return false;
+    }
+    if let Ok(entries) = std::fs::read_dir(&task_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("task_") && name.ends_with(".md") {
+                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                    if content.lines().any(|l| l.starts_with("- [ ]")) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// 检查是否存在未关闭的 issue
+fn has_open_issues(doc_root: &std::path::Path) -> bool {
+    let issue_dir = doc_root.join("issue");
+    if !issue_dir.is_dir() {
+        return false;
+    }
+    if let Ok(entries) = std::fs::read_dir(&issue_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("issue_") && name.ends_with(".md") {
+                if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                    if content.lines().any(|l| l.starts_with("- [ ]")) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }

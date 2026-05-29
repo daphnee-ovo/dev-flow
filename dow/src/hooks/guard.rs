@@ -5,7 +5,35 @@
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
 use serde_json;
+use std::io::Read as IoRead;
 use std::path::Path;
+
+/// 输出 Claude Code PreToolUse deny JSON 并返回 exit 0
+/// Claude Code 要求 exit 0 + JSON permissionDecision:"deny" 才能阻断工具执行
+fn deny(reason: &str) -> Result<i32, DowError> {
+    let output = serde_json::json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason
+        }
+    });
+    println!("{}", output);
+    Ok(0)
+}
+
+/// 输出 ask JSON，触发用户权限确认（非危险但超出项目范围的写入）
+fn ask(reason: &str) -> Result<i32, DowError> {
+    let output = serde_json::json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": reason
+        }
+    });
+    println!("{}", output);
+    Ok(0)
+}
 
 pub fn run(file: String) -> Result<i32, DowError> {
     // 收集需要检查的文件路径列表
@@ -15,85 +43,125 @@ pub fn run(file: String) -> Result<i32, DowError> {
         return Ok(0);
     }
 
+    let project_root = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
     for target in &targets {
         // 路径穿越检测：resolve 后判断是否在项目目录内
         let resolved = resolve_absolute(target);
         if !is_within_project(&resolved) {
-            println!("[dev-flow] BLOCKED: 路径穿越，最终目标在项目外：{}", target);
-            println!("→ resolved: {}", resolved);
-            return Ok(1);
+            // 危险系统路径 → 直接 deny
+            if is_dangerous_path(&resolved) {
+                return deny(&format!(
+                    "[dev-flow] 禁止写入系统敏感路径：{}",
+                    target
+                ));
+            }
+            // 非危险项目外路径 → 触发权限确认
+            return ask(&format!(
+                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。",
+                target
+            ));
         }
 
-        // block-system-tmp: 阻止写入系统临时目录
-        if is_system_tmp(&resolved) {
-            println!("[dev-flow] BLOCKED: 禁止写入系统临时目录：{}", target);
-            println!("→ 请使用项目内的 tmp/ 或 temp/ 目录。");
-            return Ok(1);
-        }
+        // 将绝对路径转为相对路径（后续检查统一使用相对路径）
+        let rel_target = if target.starts_with(&project_root) {
+            target[project_root.len()..].trim_start_matches('/').to_string()
+        } else {
+            target.to_string()
+        };
+        let rel_target = rel_target.as_str();
 
         // block-version-direct-write: 禁止 agent 直接修改 VERSION 文件
-        if is_version_file(target) {
-            println!("[dev-flow] BLOCKED: 禁止直接修改 VERSION 文件");
-            println!("→ 请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor` 管理版本。");
-            return Ok(1);
+        if is_version_file(rel_target) {
+            return deny(
+                "[dev-flow] 禁止直接修改 VERSION 文件。请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor`。"
+            );
         }
 
         // block-status-direct-write: 禁止 agent 直接创建/修改 STATUS.yaml
-        if is_status_file(target) {
-            println!("[dev-flow] BLOCKED: 禁止直接创建或修改 STATUS.yaml");
-            println!("→ 请使用 `dow status --phase/--mode/--name` 或 `dow init` 管理状态。");
-            return Ok(1);
+        if is_status_file(rel_target) {
+            return deny(
+                "[dev-flow] 禁止直接创建或修改 STATUS.yaml。请使用 `dow status --phase/--mode/--name` 或 `dow init`。"
+            );
         }
 
         // block-devdoc-direct-create: 禁止 agent 手动创建 dev-doc 文档文件
-        if let Some(msg) = check_devdoc_direct_create(target) {
-            println!("{}", msg);
-            return Ok(1);
+        if let Some(msg) = check_devdoc_direct_create(rel_target) {
+            return deny(&msg);
         }
 
         // block-cross-branch: 拦截写入其他分支的 dev-doc 目录
-        if let Some(reason) = check_cross_branch_write(target) {
-            println!("{}", reason);
-            return Ok(1);
+        if let Some(reason) = check_cross_branch_write(rel_target) {
+            return deny(&reason);
         }
 
-        // block-non-dev-edit: 非 DEV 阶段阻止代码编辑
-        if is_code_file(target) {
-            if let Some(reason) = check_non_dev_block(target) {
-                println!("{}", reason);
-                return Ok(1);
-            }
+        // 非 DEV/TEST 阶段：只允许写入 dev-doc/<branch>/ 已存在文件和 tmp/
+        if let Some(reason) = check_non_dev_write(rel_target) {
+            return deny(&reason);
         }
     }
 
     Ok(0)
 }
 
-/// 从参数和环境变量中提取写入目标
-/// Write/Edit: file 参数直接是路径
-/// Bash: file 为空，从 TOOL_INPUT 环境变量解析命令中的写入目标
+/// 从 stdin（Claude Code hook JSON）中读取 tool_input，提取写入目标
+/// Claude Code hook 通过 stdin 传入 JSON: {"tool_name":"...", "tool_input":{...}}
 fn resolve_targets(file: &str) -> Vec<String> {
+    // 如果命令行传入了路径（兼容旧调用方式），直接使用
     if !file.is_empty() {
         return vec![file.to_string()];
     }
 
-    // Bash 场景：从 TOOL_INPUT 提取命令
-    let tool_input = std::env::var("TOOL_INPUT").unwrap_or_default();
-    if tool_input.is_empty() {
-        return vec![];
+    // 从 stdin 读取 hook JSON
+    let mut stdin_buf = String::new();
+    if std::io::stdin().read_to_string(&mut stdin_buf).is_err() || stdin_buf.is_empty() {
+        // fallback: 尝试环境变量（向后兼容测试场景）
+        let tool_input = std::env::var("TOOL_INPUT").unwrap_or_default();
+        if tool_input.is_empty() {
+            return vec![];
+        }
+        stdin_buf = tool_input;
     }
 
-    // 解析 JSON 获取 command 字段
-    let command = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&tool_input) {
-        json.get("command")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string()
-    } else {
-        return vec![];
+    let json: serde_json::Value = match serde_json::from_str(&stdin_buf) {
+        Ok(v) => v,
+        Err(_) => return vec![],
     };
 
-    extract_write_targets_from_command(&command)
+    let tool_input = json.get("tool_input").unwrap_or(&json);
+    let tool_name = json.get("tool_name").and_then(|v| v.as_str()).unwrap_or("");
+
+    match tool_name {
+        "Write" | "Edit" => {
+            // tool_input.file_path 是目标文件
+            if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+                vec![path.to_string()]
+            } else {
+                vec![]
+            }
+        }
+        "Bash" => {
+            // tool_input.command 是 bash 命令，解析写入目标
+            let command = tool_input
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            extract_write_targets_from_command(&command)
+        }
+        _ => {
+            // 未知工具或旧格式：尝试 file_path 或 command
+            if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+                vec![path.to_string()]
+            } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
+                extract_write_targets_from_command(cmd)
+            } else {
+                vec![]
+            }
+        }
+    }
 }
 
 /// 从 Bash 命令中提取可能的写入目标路径
@@ -101,14 +169,33 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
     let mut targets = Vec::new();
 
     // 匹配重定向写入：> file、>> file
-    for part in cmd.split('>') {
+    // 跳过第一个片段（> 之前的命令部分），排除 fd redirect (2>, &>)
+    let redirect_parts: Vec<&str> = cmd.split('>').collect();
+    for (i, part) in redirect_parts.iter().enumerate().skip(1) {
         if part.is_empty() {
             continue;
         }
-        // 取重定向后的第一个 token 作为目标文件
+        // 检查 > 前是否为 fd redirect（如 2>/dev/null、1>/dev/null、&>/dev/null）
+        let prev = redirect_parts[i - 1];
+        let prev_trimmed = prev.trim_end();
+        if prev_trimmed.ends_with('&') {
+            continue;
+        }
+        // fd redirect: > 前紧邻数字，且该数字前为空白或行首
+        if let Some(last_char) = prev_trimmed.chars().last() {
+            if last_char.is_ascii_digit() {
+                let before_digit = &prev_trimmed[..prev_trimmed.len() - 1];
+                if before_digit.is_empty() || before_digit.ends_with(char::is_whitespace) {
+                    continue;
+                }
+            }
+        }
         let after = part.trim_start_matches('>').trim();
         if let Some(path) = after.split_whitespace().next() {
             let clean = path.trim_matches('"').trim_matches('\'');
+            if clean == "/dev/null" {
+                continue;
+            }
             if looks_like_path(clean) {
                 targets.push(clean.to_string());
             }
@@ -116,22 +203,21 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
     }
 
     // 匹配 tee 写入：| tee file、| tee -a file
-    for segment in cmd.split("tee") {
-        if segment.ends_with("| ") || segment.ends_with("|") || segment.ends_with("| \\\n") {
-            continue;
-        }
-        // tee 后面的参数
-        let after = segment.trim_start();
-        let skip_flags: &[&str] = &["-a", "--append"];
-        let mut tokens = after.split_whitespace();
-        while let Some(token) = tokens.next() {
-            if skip_flags.contains(&token) {
-                continue;
-            }
-            let clean = token.trim_matches('"').trim_matches('\'');
-            if looks_like_path(clean) {
-                targets.push(clean.to_string());
-                break;
+    if cmd.contains("tee") {
+        let segments: Vec<&str> = cmd.split("tee").collect();
+        for segment in segments.iter().skip(1) {
+            let after = segment.trim_start();
+            let skip_flags: &[&str] = &["-a", "--append"];
+            let mut tokens = after.split_whitespace();
+            while let Some(token) = tokens.next() {
+                if skip_flags.contains(&token) {
+                    continue;
+                }
+                let clean = token.trim_matches('"').trim_matches('\'');
+                if looks_like_path(clean) {
+                    targets.push(clean.to_string());
+                    break;
+                }
             }
         }
     }
@@ -158,12 +244,48 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
+    // 匹配 sed -i / perl -i 原地修改：最后一个非 flag 参数是目标文件
+    for prefix in &["sed ", "perl "] {
+        if let Some(pos) = cmd.find(prefix) {
+            let args_str = &cmd[pos + prefix.len()..];
+            // 检查是否含 -i 标志（原地修改）
+            let tokens: Vec<&str> = args_str.split_whitespace().collect();
+            let has_inplace = tokens.iter().any(|t| *t == "-i" || t.starts_with("-i.") || t.starts_with("-i'") || *t == "-pi" || *t == "-pie");
+            if has_inplace {
+                // 最后一个非 flag、非表达式的 token 通常是文件
+                if let Some(last) = tokens.last() {
+                    let clean = last.trim_matches('"').trim_matches('\'');
+                    if looks_like_path(clean) {
+                        targets.push(clean.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // 匹配 dd of=<file>
+    if cmd.contains("dd ") || cmd.starts_with("dd ") {
+        for token in cmd.split_whitespace() {
+            if let Some(stripped) = token.strip_prefix("of=") {
+                let clean = stripped.trim_matches('"').trim_matches('\'');
+                if looks_like_path(clean) {
+                    targets.push(clean.to_string());
+                }
+            }
+        }
+    }
+
     targets
 }
 
 fn looks_like_path(s: &str) -> bool {
     if s.is_empty() || s.starts_with('-') {
         return false;
+    }
+    // 已知受保护的无扩展名文件
+    let protected_names = ["VERSION", "Makefile", "Dockerfile", "CHANGELOG"];
+    if protected_names.contains(&s) {
+        return true;
     }
     s.contains('/') || s.contains('.') || s.starts_with("dev-doc")
 }
@@ -194,19 +316,14 @@ fn is_within_project(resolved_path: &str) -> bool {
     resolved_path.starts_with(&project_root)
 }
 
-fn is_system_tmp(resolved: &str) -> bool {
-    resolved.starts_with("/tmp/")
-        || resolved.starts_with("/var/tmp/")
-        || resolved.starts_with("/dev/shm/")
-        || resolved.contains("/System/")
-}
-
-fn is_code_file(file: &str) -> bool {
-    let code_exts = [
-        ".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".java",
-        ".rb", ".php", ".vue", ".svelte", ".sh",
+/// 危险系统路径：直接 deny，不允许用户 override
+fn is_dangerous_path(resolved: &str) -> bool {
+    let prefixes = [
+        "/tmp/", "/var/tmp/", "/dev/", "/etc/", "/usr/",
+        "/bin/", "/sbin/", "/boot/", "/proc/", "/sys/",
+        "/root/", "/System/", "/Library/",
     ];
-    code_exts.iter().any(|ext| file.ends_with(ext))
+    prefixes.iter().any(|p| resolved.starts_with(p))
 }
 
 fn check_cross_branch_write(file: &str) -> Option<String> {
@@ -244,16 +361,10 @@ fn check_cross_branch_write(file: &str) -> Option<String> {
     None
 }
 
-fn check_non_dev_block(file: &str) -> Option<String> {
-    // dev-doc 内的文件始终允许
-    if file.starts_with("dev-doc/") || file.starts_with("dev-doc\\") {
-        return None;
-    }
-    // tests/ 始终允许
-    if file.starts_with("tests/") || file.starts_with("tests\\") {
-        return None;
-    }
-
+/// 非 DEV/TEST 阶段写入白名单检查
+/// 允许：dev-doc/<current-branch>/ 已存在文件、项目内 tmp/
+/// 其余位置一律 deny
+fn check_non_dev_write(file: &str) -> Option<String> {
     if !Path::new("dev-doc").is_dir() {
         return None;
     }
@@ -266,14 +377,41 @@ fn check_non_dev_block(file: &str) -> Option<String> {
 
     let phase = yaml::get(&status_file, "phase").ok().flatten().unwrap_or_default();
 
-    if phase != "DEV" && phase != "TEST" {
-        Some(format!(
-            "[dev-flow] BLOCKED: 当前阶段为 {}，禁止编辑代码文件：{}\n→ 请先完成 {} 阶段文档，进入 DEV 后再编辑代码。",
-            phase, file, phase
-        ))
-    } else {
-        None
+    // DEV/TEST 阶段不限制
+    if phase == "DEV" || phase == "TEST" {
+        return None;
     }
+
+    // 白名单 1：项目内 tmp/ 目录
+    if file.starts_with("tmp/") || file.starts_with("tmp\\") {
+        return None;
+    }
+
+    // 白名单 2：.claude/ 配置目录（settings、hooks 等）
+    if file.starts_with(".claude/") || file.starts_with(".claude\\") {
+        return None;
+    }
+
+    // 白名单 2：dev-doc/<current-branch>/ 内的已存在文件（编辑）
+    if file.starts_with("dev-doc/") || file.starts_with("dev-doc\\") {
+        // 已存在的文件允许编辑（新建文件已被 check_devdoc_direct_create 拦截）
+        if Path::new(file).exists() {
+            return None;
+        }
+        // dev-doc 下的目录本身允许（mkdir 不写文件）
+        if Path::new(file).is_dir() {
+            return None;
+        }
+        // 新文件（不在标准命名中的）也允许通过——标准命名新建已被前面规则拦截
+        // 剩余情况：非标准命名的新文件在 dev-doc 内（如自定义笔记）允许
+        return None;
+    }
+
+    // 其余位置：非 DEV 阶段禁止写入
+    Some(format!(
+        "[dev-flow] 当前阶段为 {}，只允许写入 dev-doc/ 和 tmp/。要写入 {} 请先进入 DEV 阶段（需要有未关闭的 task 或 issue）。",
+        phase, file
+    ))
 }
 
 fn is_version_file(file: &str) -> bool {

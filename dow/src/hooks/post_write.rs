@@ -4,13 +4,15 @@
 
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
+use serde_json;
 use std::fs;
+use std::io::Read as IoRead;
 use std::path::Path;
 
 pub fn run(file: Option<String>) -> Result<i32, DowError> {
-    // 从参数或环境变量获取文件路径
+    // 从命令行参数、stdin hook JSON、或环境变量获取文件路径
     let changed_file = file
-        .or_else(|| std::env::var("TOOL_INPUT_FILE_PATH").ok())
+        .or_else(|| read_file_path_from_stdin())
         .unwrap_or_default();
 
     if changed_file.is_empty() || !Path::new("dev-doc").is_dir() {
@@ -34,7 +36,7 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
                             "[dev-flow] ⚠ 写入了其他分支的文件：{}（当前分支：{}）",
                             changed_file, branch
                         );
-                        println!("→ 这可能是误操作。请确认写入目标是否正确。");
+                        println!("→ 这可能是误操作，guard 应已在 PreToolUse 阶段拦截。");
                     }
                 }
             }
@@ -199,6 +201,19 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
             }
         }
     }
+}
+
+/// 从 stdin 读取 Claude Code hook JSON，提取 tool_input.file_path
+fn read_file_path_from_stdin() -> Option<String> {
+    let mut buf = String::new();
+    if std::io::stdin().read_to_string(&mut buf).is_err() || buf.is_empty() {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_str(&buf).ok()?;
+    json.get("tool_input")
+        .and_then(|ti| ti.get("file_path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {

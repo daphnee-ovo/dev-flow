@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard",
             "timeout": 5000
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks guard",
             "timeout": 5000
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/bin/dow hooks post-write",
             "timeout": 10000
           }
         ]
