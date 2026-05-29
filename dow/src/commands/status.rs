@@ -248,9 +248,9 @@ fn handle_read(
 }
 
 fn read_version_info() -> (String, String) {
-    let version = std::fs::read_to_string("VERSION")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "0.0.0".to_string());
+    use crate::core::version;
+
+    let version = version::read_current().unwrap_or_else(|_| "0.0.0".to_string());
 
     let tag_status = std::process::Command::new("git")
         .args(["tag", "-l", &format!("v{}", version)])
@@ -260,7 +260,7 @@ fn read_version_info() -> (String, String) {
             if output.is_empty() {
                 "no-tag".to_string()
             } else {
-                "synced".to_string()
+                "tagged".to_string()
             }
         })
         .unwrap_or_else(|_| "no-tag".to_string());
@@ -269,6 +269,8 @@ fn read_version_info() -> (String, String) {
 }
 
 fn print_human(status: &StatusOutput) {
+    let branch = crate::core::doc_root::current_branch()
+        .unwrap_or_else(|| "main".to_string());
     println!("[dev-flow] 项目状态报告");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
     println!("项目名称：{}", status.name);
@@ -276,7 +278,7 @@ fn print_human(status: &StatusOutput) {
     println!("当前阶段：{}", status.phase);
     println!("开发模式：{}", status.mode);
     println!("执行模式：{}", status.exec_mode);
-    println!("当前版本：v{}（git tag: {}）", status.version, status.version_tag);
+    println!("当前版本：({})v{} ({})", branch, status.version, status.version_tag);
     println!("更新时间：{}", status.updated);
     println!("启动时间：{}", status.started);
 }

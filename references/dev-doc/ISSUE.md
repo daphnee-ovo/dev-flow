@@ -14,13 +14,13 @@ source: test | devtest | other | audit
 nums: <issue 总数>
 ---
 
-- [ ] I1：<标题>
+- [ ] ISSUE-I001：<标题>
   - severity: P0
   - location：<文件路径:行号>
   - description：<具体描述>
   - reproduce：<复现方法，可选>
   - fix：<关闭时填写修复说明>
-- [x] I2：<标题>
+- [x] ISSUE-I002：<标题>
   - severity: P1
   - location：<文件路径:行号>
   - description：<描述>

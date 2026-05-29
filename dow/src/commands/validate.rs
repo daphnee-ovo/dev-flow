@@ -37,13 +37,16 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     // 4. issue/ 目录校验
     check_issue_files(&doc_root_path, &mut result);
 
-    // 5. CHANGELOG 校验
+    // 5. SPEC.md 序号校验
+    check_spec_acs(&doc_root_path, &mut result);
+
+    // 7. CHANGELOG 校验
     check_changelog(&doc_root_path, &mut result);
 
-    // 6. .gitignore 检查
+    // 8. .gitignore 检查
     check_gitignore(&mut result);
 
-    // 7. 根级残留文件检查
+    // 9. 根级残留文件检查
     check_stale_root_files(&doc_root_path, &mut result);
 
     let has_problems = !result.needs_confirm.is_empty() || !result.warnings.is_empty();
@@ -167,6 +170,13 @@ fn check_issue_files(doc_root: &Path, result: &mut ValidateOutput) {
                 result.needs_confirm.push(format!("issue_closed_but_open_items:{}", name));
             }
         }
+    }
+}
+
+fn check_spec_acs(doc_root: &Path, result: &mut ValidateOutput) {
+    let errors = doc_validator::validate_spec(doc_root);
+    for e in errors {
+        result.warnings.push(format!("spec:{}", e.message));
     }
 }
 

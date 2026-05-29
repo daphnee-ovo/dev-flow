@@ -214,7 +214,9 @@ pub fn validate_task_file(path: &Path) -> Vec<ValidationError> {
         Err(_) => return errors,
     };
 
-    errors.extend(validate_task_content(&filename, &content, &spec));
+    // doc_root = task 文件的 parent (task/) 的 parent
+    let doc_root = path.parent().and_then(|p| p.parent());
+    errors.extend(validate_task_content(&filename, &content, &spec, doc_root));
     errors
 }
 
@@ -385,10 +387,11 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
         }
     }
 
-    // 检查每个 issue item 的 severity
+    // 检查每个 issue item 的 severity 和序号
     let mut in_item = false;
     let mut item_title = String::new();
     let mut has_severity = false;
+    let mut expected_issue_seq = 1u32;
 
     for line in content.lines() {
         if line.starts_with("- [ ]") || line.starts_with("- [x]") {
@@ -404,6 +407,11 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
             in_item = true;
             item_title = line[5..].trim().to_string();
             has_severity = false;
+            // 验证 issue 序号格式：ISSUE-I + 三位数字 + ：
+            if let Some(e) = validate_issue_item_seq(&item_title, expected_issue_seq, filename) {
+                errors.push(e);
+            }
+            expected_issue_seq += 1;
         } else if in_item && line.contains("severity:") {
             has_severity = true;
             let val = line.split("severity:").nth(1).unwrap_or("").trim();
@@ -435,7 +443,7 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
 }
 
 /// 验证 task 文件内容
-fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec) -> Vec<ValidationError> {
+fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_root: Option<&Path>) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // 检查 YAML frontmatter
@@ -466,10 +474,12 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec) -> Vec<
         }
     }
 
-    // 检查每个 task item 的必填字段
+    // 检查每个 task item 的必填字段和序号
     let mut in_item = false;
     let mut item_title = String::new();
     let mut found_fields: Vec<String> = Vec::new();
+    let mut expected_task_seq = 1u32;
+    let mut task_refs: Vec<String> = Vec::new();
 
     for line in content.lines() {
         if line.starts_with("- [ ]") || line.starts_with("- [x]") {
@@ -478,6 +488,11 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec) -> Vec<
             in_item = true;
             item_title = line[5..].trim().to_string();
             found_fields.clear();
+            // 验证 task 序号格式：TASK-T + 三位数字 + :
+            if let Some(e) = validate_task_item_seq(&item_title, expected_task_seq, filename) {
+                errors.push(e);
+            }
+            expected_task_seq += 1;
         } else if in_item {
             // 收集字段
             let trimmed = line.trim_start();
@@ -511,11 +526,40 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec) -> Vec<
                 }
             } else if trimmed.starts_with("- done_when:") {
                 found_fields.push("done_when".into());
+            } else if trimmed.starts_with("- refs:") {
+                let val = trimmed.split("refs:").nth(1).unwrap_or("").trim();
+                // 收集 SPEC-AC 引用
+                for part in val.split(',') {
+                    let r = part.trim();
+                    if r.starts_with("SPEC-AC-") {
+                        task_refs.push(r.to_string());
+                    }
+                }
             }
         }
     }
     // 最后一个 item
     check_task_item_fields(filename, &item_title, &found_fields, spec, &mut errors);
+
+    // 验证 refs 引用的 SPEC-AC 是否在 SPEC.md 中存在
+    if !task_refs.is_empty() {
+        if let Some(root) = doc_root {
+            let spec_path = root.join("SPEC.md");
+            if spec_path.exists() {
+                let spec_acs = extract_spec_acs_from_file(&spec_path);
+                for r in &task_refs {
+                    if !spec_acs.contains(r) {
+                        errors.push(ValidationError {
+                            file: filename.to_string(),
+                            kind: ErrorKind::InvalidFieldValue,
+                            message: format!("refs 引用 '{}' 在 SPEC.md 中不存在", r),
+                            fixable: false,
+                        });
+                    }
+                }
+            }
+        }
+    }
 
     errors
 }
@@ -586,10 +630,60 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
     all_errors
 }
 
-/// 验证所有 dev-doc 文件（task + issue），返回错误列表
+/// 验证 SPEC.md 的 SPEC-AC 序号递增不跳号
+pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
+    let spec_file = doc_root.join("SPEC.md");
+    if !spec_file.exists() {
+        return vec![];
+    }
+
+    let content = match fs::read_to_string(&spec_file) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+
+    let mut errors = Vec::new();
+    let mut expected_seq = 1u32;
+
+    for line in content.lines() {
+        let trimmed = line.trim_start_matches("- ").trim();
+        if let Some(rest) = trimmed.strip_prefix("SPEC-AC-") {
+            // 提取序号（取到 : 或空格前的数字部分）
+            let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if num_str.is_empty() {
+                errors.push(ValidationError {
+                    file: "SPEC.md".into(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: format!("SPEC-AC 序号格式不合法：SPEC-AC-{}", rest.chars().take(10).collect::<String>()),
+                    fixable: false,
+                });
+                continue;
+            }
+            if let Ok(actual) = num_str.parse::<u32>() {
+                if actual != expected_seq {
+                    errors.push(ValidationError {
+                        file: "SPEC.md".into(),
+                        kind: ErrorKind::InvalidFieldValue,
+                        message: format!(
+                            "SPEC-AC 序号不连续：期望 SPEC-AC-{:03}，实际 SPEC-AC-{:03}",
+                            expected_seq, actual
+                        ),
+                        fixable: false,
+                    });
+                }
+                expected_seq = actual + 1;
+            }
+        }
+    }
+
+    errors
+}
+
+/// 验证所有 dev-doc 文件（task + issue + spec），返回错误列表
 pub fn validate_all(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = validate_all_issues(doc_root);
     errors.extend(validate_all_tasks(doc_root));
+    errors.extend(validate_spec(doc_root));
     errors
 }
 
@@ -648,4 +742,97 @@ fn extract_fm_value(fm: &str, key: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// 验证 issue item 序号：ISSUE-I + 三位数字 + ：
+fn validate_issue_item_seq(title: &str, expected: u32, filename: &str) -> Option<ValidationError> {
+    let prefix = "ISSUE-I";
+    if !title.starts_with(prefix) {
+        return Some(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFieldValue,
+            message: format!(
+                "issue item 序号格式不合法（应以 ISSUE-I00N：开头）：'{}'",
+                title.chars().take(30).collect::<String>()
+            ),
+            fixable: false,
+        });
+    }
+    let rest = &title[prefix.len()..];
+    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if num_str.is_empty() {
+        return Some(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFieldValue,
+            message: format!("issue item 序号缺少数字：'{}'", title.chars().take(30).collect::<String>()),
+            fixable: false,
+        });
+    }
+    if let Ok(actual) = num_str.parse::<u32>() {
+        if actual != expected {
+            return Some(ValidationError {
+                file: filename.to_string(),
+                kind: ErrorKind::InvalidFieldValue,
+                message: format!("issue item 序号不连续：期望 ISSUE-I{:03}，实际 ISSUE-I{:03}", expected, actual),
+                fixable: false,
+            });
+        }
+    }
+    None
+}
+
+/// 验证 task item 序号：TASK-T + 三位数字 + :
+fn validate_task_item_seq(title: &str, expected: u32, filename: &str) -> Option<ValidationError> {
+    let prefix = "TASK-T";
+    if !title.starts_with(prefix) {
+        return Some(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFieldValue,
+            message: format!(
+                "task item 序号格式不合法（应以 TASK-T00N: 开头）：'{}'",
+                title.chars().take(30).collect::<String>()
+            ),
+            fixable: false,
+        });
+    }
+    let rest = &title[prefix.len()..];
+    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if num_str.is_empty() {
+        return Some(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFieldValue,
+            message: format!("task item 序号缺少数字：'{}'", title.chars().take(30).collect::<String>()),
+            fixable: false,
+        });
+    }
+    if let Ok(actual) = num_str.parse::<u32>() {
+        if actual != expected {
+            return Some(ValidationError {
+                file: filename.to_string(),
+                kind: ErrorKind::InvalidFieldValue,
+                message: format!("task item 序号不连续：期望 TASK-T{:03}，实际 TASK-T{:03}", expected, actual),
+                fixable: false,
+            });
+        }
+    }
+    None
+}
+
+/// 从 SPEC.md 文件提取所有已定义的 SPEC-AC-xxx 标识
+fn extract_spec_acs_from_file(spec_path: &Path) -> Vec<String> {
+    let content = match fs::read_to_string(spec_path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let mut acs = Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim_start_matches("- ").trim();
+        if let Some(rest) = trimmed.strip_prefix("SPEC-AC-") {
+            let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !num_str.is_empty() {
+                acs.push(format!("SPEC-AC-{}", num_str));
+            }
+        }
+    }
+    acs
 }

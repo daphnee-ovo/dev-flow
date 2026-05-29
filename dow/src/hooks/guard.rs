@@ -333,31 +333,46 @@ fn check_cross_branch_write(file: &str) -> Option<String> {
         return None;
     }
 
-    // 提取写入目标的分支目录名（dev-doc/<branch>/...）
     let rest = &normalized["dev-doc/".len()..];
-    let target_branch = rest.split('/').next().unwrap_or("");
-    if target_branch.is_empty() {
+
+    // 直接在 dev-doc/ 下的文件（如 archive.db）不属于分支目录
+    if !rest.contains('/') {
         return None;
     }
 
-    // 如果目标是文件（如 dev-doc/CHANGELOG.md）而非分支子目录，跳过
-    if !Path::new(&format!("dev-doc/{}", target_branch)).is_dir()
-        && !normalized.contains(&format!("{}/", target_branch))
-    {
+    // 获取当前分支（分支名可能含 `/`，如 refactor/tui）
+    let current = doc_root::current_branch()?;
+    let current_prefix = format!("dev-doc/{}/", current);
+
+    // 文件在当前分支目录下 → 允许
+    if normalized.starts_with(&current_prefix) {
         return None;
     }
 
-    // 获取当前分支
-    let current = doc_root::current_branch();
-    if let Some(ref branch) = current {
-        if target_branch != branch.as_str() {
+    // 不在当前分支前缀下 → 逐级检查是否属于其他已知分支目录（含 STATUS.yaml）
+    let parts: Vec<&str> = rest.split('/').collect();
+    let mut candidate = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            candidate.push('/');
+        }
+        candidate.push_str(part);
+
+        // 最后一段可能是文件名，不检查
+        if i == parts.len() - 1 {
+            break;
+        }
+
+        let branch_path = Path::new("dev-doc").join(&candidate);
+        if branch_path.join("STATUS.yaml").exists() {
             return Some(format!(
                 "[dev-flow] BLOCKED: 当前分支为 `{}`，禁止写入其他分支的文档目录：{}\n→ 请确认你已切换到正确的分支，或使用 `git checkout {}` 切换。",
-                branch, file, target_branch
+                current, file, candidate
             ));
         }
     }
 
+    // 未命中任何已知分支目录 → 允许（可能是新分支初始化等情况）
     None
 }
 

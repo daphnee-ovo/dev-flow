@@ -321,32 +321,37 @@ fn get_current_tasks(doc_root: &Path) -> Option<CurrentItems> {
                     let mut title = String::new();
                     let mut matched = false;
                     let mut task_complexity: Option<String> = None;
+                    let mut task_refs: Option<String> = None;
                     for line in content.lines() {
                         if line.starts_with("- [ ]") {
                             if matched {
-                                items.push(format_task_item(&title, &task_complexity));
+                                items.push(format_task_item(&title, &task_complexity, &task_refs));
                             }
                             in_undone = true;
                             matched = false;
                             task_complexity = None;
+                            task_refs = None;
                             title = line.trim_start_matches("- [ ] ").to_string();
                         } else if line.starts_with("- [x]") {
                             if matched {
-                                items.push(format_task_item(&title, &task_complexity));
+                                items.push(format_task_item(&title, &task_complexity, &task_refs));
                             }
                             in_undone = false;
                             matched = false;
                             task_complexity = None;
+                            task_refs = None;
                         } else if in_undone {
                             if line.contains("priority:") && line.contains(priority) {
                                 matched = true;
                             } else if line.contains("complexity:") {
                                 task_complexity = extract_complexity(line);
+                            } else if line.contains("refs:") {
+                                task_refs = extract_refs(line);
                             }
                         }
                     }
                     if matched {
-                        items.push(format_task_item(&title, &task_complexity));
+                        items.push(format_task_item(&title, &task_complexity, &task_refs));
                     }
                 }
             }
@@ -363,9 +368,9 @@ fn get_current_tasks(doc_root: &Path) -> Option<CurrentItems> {
     None
 }
 
-// "TASK-T002: xxx" + complexity "M" → "TASK-T002[M]: xxx"
-fn format_task_item(title: &str, complexity: &Option<String>) -> String {
-    match complexity {
+// "TASK-T002: xxx" + complexity "M" + refs "SPEC-A01" → "TASK-T002[M]: xxx {refs:[SPEC-A01]}"
+fn format_task_item(title: &str, complexity: &Option<String>, refs: &Option<String>) -> String {
+    let base = match complexity {
         Some(c) => {
             if let Some(colon_pos) = title.find(':') {
                 format!("{}[{}]{}", &title[..colon_pos], c, &title[colon_pos..])
@@ -374,7 +379,22 @@ fn format_task_item(title: &str, complexity: &Option<String>) -> String {
             }
         }
         None => title.to_string(),
+    };
+    match refs {
+        Some(r) => format!("{} {{refs:[{}]}}", base, r),
+        None => base,
     }
+}
+
+fn extract_refs(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if let Some(pos) = trimmed.find("refs:") {
+        let val = trimmed[pos + 5..].trim();
+        if !val.is_empty() {
+            return Some(val.to_string());
+        }
+    }
+    None
 }
 
 fn extract_complexity(line: &str) -> Option<String> {
@@ -412,7 +432,7 @@ fn read_version_info() -> (String, String) {
         .output()
         .map(|o| {
             let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if out.is_empty() { "no-tag".to_string() } else { "synced".to_string() }
+            if out.is_empty() { "no-tag".to_string() } else { "tagged".to_string() }
         })
         .unwrap_or_else(|_| "no-tag".to_string());
 

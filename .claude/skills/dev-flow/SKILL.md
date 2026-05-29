@@ -95,6 +95,7 @@ audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设�
 
 开发阶段由主 agent 执行，遵循：
 - **[BLOCKED] 阻断规则**：当 hook 输出包含 `[BLOCKED]` 时，禁止执行任何开发操作（编辑代码、运行命令），只允许执行 `/task`、`/issue`、`/iterate` 创建任务或 issue
+- **开始任务前**：先读 task 文件获取完整上下文（done_when、files、refs），如果 task 有 `refs` 字段则读取对应 SPEC 章节作为实现依据
 - 只做 task/ 中列出的任务，不多不少
 - 完成一个任务立即勾选，立即触发 `/devtest`
 - 文档实时更新，不允许"稍后再改"
