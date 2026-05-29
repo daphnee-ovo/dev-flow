@@ -38,6 +38,19 @@ pub fn run(file: String) -> Result<i32, DowError> {
             return Ok(1);
         }
 
+        // block-status-direct-write: 禁止 agent 直接创建/修改 STATUS.yaml
+        if is_status_file(target) {
+            println!("[dev-flow] BLOCKED: 禁止直接创建或修改 STATUS.yaml");
+            println!("→ 请使用 `dow status --phase/--mode/--name` 或 `dow init` 管理状态。");
+            return Ok(1);
+        }
+
+        // block-devdoc-direct-create: 禁止 agent 手动创建 dev-doc 文档文件
+        if let Some(msg) = check_devdoc_direct_create(target) {
+            println!("{}", msg);
+            return Ok(1);
+        }
+
         // block-cross-branch: 拦截写入其他分支的 dev-doc 目录
         if let Some(reason) = check_cross_branch_write(target) {
             println!("{}", reason);
@@ -265,7 +278,83 @@ fn check_non_dev_block(file: &str) -> Option<String> {
 
 fn is_version_file(file: &str) -> bool {
     let normalized = file.replace('\\', "/");
-    // 匹配根目录 VERSION 和任何路径下的 VERSION
     normalized == "VERSION"
         || normalized.ends_with("/VERSION")
+}
+
+fn is_status_file(file: &str) -> bool {
+    let normalized = file.replace('\\', "/");
+    normalized.ends_with("STATUS.yaml")
+        && (normalized.starts_with("dev-doc/") || normalized.contains("/dev-doc/"))
+}
+
+/// 禁止 agent 直接创建 dev-doc 下应通过 dow doc 创建的文件
+fn check_devdoc_direct_create(file: &str) -> Option<String> {
+    let normalized = file.replace('\\', "/");
+
+    // 只检查 dev-doc/ 内的文件
+    if !normalized.starts_with("dev-doc/") {
+        return None;
+    }
+
+    // 提取 dev-doc/<branch>/ 之后的相对路径
+    let parts: Vec<&str> = normalized.splitn(3, '/').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let rel = parts[2]; // <branch> 之后的部分
+
+    // 被保护的单文件文档（必须通过 dow doc 创建）
+    let protected_singles = [
+        ("PRD.md", "prd"),
+        ("SPEC.md", "spec"),
+        ("TEST.md", "test"),
+        ("BRAINSTORM.md", "brainstorm"),
+        ("CHANGELOG.md", "changelog"),
+    ];
+
+    for (filename, doc_type) in &protected_singles {
+        if rel == *filename {
+            let path = Path::new(file);
+            if !path.exists() {
+                return Some(format!(
+                    "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {}`",
+                    file, doc_type
+                ));
+            }
+            // 已存在的文件允许编辑（内容填充）
+            return None;
+        }
+    }
+
+    // task/ 和 issue/ 下的新文件（必须通过 dow doc 创建）
+    // 匹配标准命名：task_YYYY-MM-DD_N.md / issue_<source>_YYYY-MM-DD_N.md
+    if (rel.starts_with("task/task_") || rel.starts_with("issue/issue_"))
+        && rel.ends_with(".md")
+        && is_standard_doc_filename(rel)
+    {
+        let path = Path::new(file);
+        if !path.exists() {
+            let doc_type = if rel.starts_with("task/") { "task" } else { "issue" };
+            return Some(format!(
+                "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {} [-n N]`",
+                file, doc_type
+            ));
+        }
+    }
+
+    None
+}
+
+/// 检查是否为标准 dow doc 命名模式（含日期格式 YYYY-MM-DD）
+fn is_standard_doc_filename(rel: &str) -> bool {
+    // task_2026-05-29_1.md 或 issue_test_2026-05-29_1.md
+    let parts: Vec<&str> = rel.split('/').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let filename = parts[1];
+    // 检查是否包含日期模式 NNNN-NN-NN
+    filename.chars().filter(|c| *c == '-').count() >= 2
+        && filename.contains(|c: char| c.is_ascii_digit())
 }
