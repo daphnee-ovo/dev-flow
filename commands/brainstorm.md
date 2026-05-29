@@ -22,7 +22,7 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 3. **逐个提问澄清** — 每条消息一个问题，理解目的/约束/成功标准
 4. **提出 2-3 种方案** — 带 trade-off 和推荐
 5. **分段呈现设计** — 按复杂度分段，每段确认后再继续
-6. **写入设计文档** — 保存到 `dev-doc/BRAINSTORM.md`
+6. **写入设计文档** — 通过 `dow doc brainstorm` 创建，写入 `<DOC_ROOT>/BRAINSTORM.md`
 7. **设计自检** — 检查 placeholder、矛盾、歧义、范围
 8. **用户审阅** — 请用户审阅文档，确认后才继续
 9. **过渡到下一阶段** — 建议进入 `/prd` 或 `/spec`
@@ -75,7 +75,7 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 ## 写入设计文档
 
-确认后写入 `dev-doc/BRAINSTORM.md`，格式遵循 `references/dev-doc/BRAINSTORM-FILE.md` 定义。
+确认后通过 `dow doc brainstorm` 创建文件（自动写入 `<DOC_ROOT>/BRAINSTORM.md`），格式通过 `dow doc brainstorm --json` 获取。
 
 ## 设计自检
 
@@ -92,7 +92,7 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 自检通过后，请用户审阅：
 
-> "设计文档已写入 `dev-doc/BRAINSTORM.md`。请审阅，有需要修改的地方告诉我。确认后我们进入下一步。"
+> "设计文档已写入 `<DOC_ROOT>/BRAINSTORM.md`。请审阅，有需要修改的地方告诉我。确认后我们进入下一步。"
 
 等待用户回复。如果要求修改，改完后重新走自检。只有用户确认后才过渡。
 

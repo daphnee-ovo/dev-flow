@@ -122,7 +122,7 @@ dow validate
   - `issue_invalid_severity` → 修正为合法值 P0/P1/P2
 - `auto_fixed` → 仅在最终报告中告知用户
 
-**规范对照**：处理 `warnings` 时，agent 必须读取 `references/dev-doc/` 下的对应规范文档（如修复 issue 格式问题则读 ISSUE.md，修复 task 格式问题则读 TASK.md），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
+**规范对照**：处理 `warnings` 时，agent 必须通过 `dow doc <type> --json` 获取对应文档的格式规范（如修复 issue 格式问题则用 `dow doc issue --json`，修复 task 格式问题则用 `dow doc task --json`），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
 
 ---
 

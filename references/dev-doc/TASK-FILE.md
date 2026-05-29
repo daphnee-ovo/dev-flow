@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`(使用 dow doc --task 会自动创建)
+`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`(使用 dow doc task 会自动创建)
 
 完成标记：hook 自动重命名为 `done_task_<YYYY-MM-DD>_<seq>.md`
 
@@ -119,4 +119,4 @@ nums: <任务总数>
 ## 命名规则
 
 - `seq`：当天的序号，从 1 开始
-- 创建新 task 文件：`dow doc --task`（自动计算序号）
+- 创建新 task 文件：`dow doc task`（自动计算序号）

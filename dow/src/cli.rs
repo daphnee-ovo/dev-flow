@@ -168,21 +168,16 @@ pub struct IterateArgs {
 
 #[derive(clap::Args)]
 pub struct DocArgs {
-    /// 文档类型
+    /// 文档类型（task/issue/prd/spec/test/brainstorm/changelog）
+    pub doc_type: String,
+
+    /// 输出 markdown 格式的文档规范
     #[arg(long)]
-    pub task: bool,
+    pub md: bool,
+
+    /// 输出 JSON 格式的文档规范
     #[arg(long)]
-    pub issue: bool,
-    #[arg(long)]
-    pub prd: bool,
-    #[arg(long)]
-    pub spec: bool,
-    #[arg(long)]
-    pub test: bool,
-    #[arg(long)]
-    pub brainstorm: bool,
-    #[arg(long)]
-    pub changelog: bool,
+    pub json: bool,
 
     /// 条目数量
     #[arg(short = 'n', long, default_value = "1")]

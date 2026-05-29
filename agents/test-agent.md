@@ -42,8 +42,8 @@
 ## 输入
 
 你将收到：
-- `dev-doc/SPEC.md`：系统应该怎样工作（验证的唯一标准）
-- `dev-doc/task/` 目录下的任务文件：开发者做了什么（验证范围边界）
+- `<DOC_ROOT>/SPEC.md`：系统应该怎样工作（验证的唯一标准）
+- `<DOC_ROOT>/task/` 目录下的任务文件：开发者做了什么（验证范围边界）
 
 ## 任务
 
@@ -56,22 +56,22 @@
    - 异常路径：非法输入、网络断开、权限不足
    - 兼容性（如适用）
 5. 运行 `tests/` 下全部测试
-6. 产出 `dev-doc/TEST.md`（测试报告）
-7. 每个发现的问题 → 单独写入一个 issue 文件
+6. 通过 `dow doc test` 创建 `<DOC_ROOT>/TEST.md`（测试报告）
+7. 通过 `dow doc issue --source test` 创建 issue 文件
 
 ## TEST.md 格式（测试报告）
 
-遵循 `references/dev-doc/TEST.md` 定义的格式。
+遵循 `dow doc test --json` 输出的格式定义。
 
 ## Issue 文件格式
 
-遵循 `references/dev-doc/ISSUE.md` 定义的格式。
+遵循 `dow doc issue --json` 输出的格式定义。
 
 同一次测试发现的问题写入同一个 issue 文件（按 source+date 归批）。
 
 ## 注意事项
 
-- 不要阅读 `dev-doc/CHANGELOG.md`（与测试无关）
+- 不要阅读 `<DOC_ROOT>/CHANGELOG.md`（与测试无关）
 - 不要对开发者宽容——你的价值就是找到被忽略的问题
 - 问题描述要精确到可复现
 - 同一次测试的问题写入同一个 issue 文件（按 source+date 归批）

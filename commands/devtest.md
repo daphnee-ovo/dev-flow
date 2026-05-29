@@ -27,7 +27,7 @@ devtest 读取后自动按对应模式执行。
 | 结果 | 行为 |
 |------|------|
 | `PASS` | 保持 task 勾选；如果所有任务完成，提示 `/test` |
-| `FAIL` | 取消当前 task 勾选，写入 `issue_devtest_<date>_<seq>.md`，停止推进 |
+| `FAIL` | 取消当前 task 勾选，通过 `dow doc issue --source devtest -n <issue数>` 创建 issue 文件，停止推进 |
 | `NEEDS_CONTEXT` | 保持 task 勾选，不继续推进，要求补充信息 |
 
 ## Agent 验证要求

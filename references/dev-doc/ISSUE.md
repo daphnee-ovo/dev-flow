@@ -58,4 +58,4 @@ dow hooks context 按优先级分层：P0 全关闭才展示 P1 标题。
 
 - `source`：`test`（/test 发现）/ `devtest`（/devtest 发现）/ `other`（手动创建）/ `audit`（审计发现）
 - `seq`：当天该来源的序号，从 1 开始
-- 创建新文件：`dow doc --issue --source <source>`（自动计算序号）
+- 创建新文件：`dow doc issue --source <source>`（自动计算序号）

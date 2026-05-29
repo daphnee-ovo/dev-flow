@@ -39,7 +39,7 @@ prompt: `<读取 agents/spec-agent.md 的完整内容>
 
 ## 输出路径
 
-将 SPEC 写入：<DOC_ROOT>/SPEC.md
+通过 `dow doc spec` 创建文件，写入 `<DOC_ROOT>/SPEC.md`。格式通过 `dow doc spec --json` 获取。
 
 ## 禁止
 

@@ -48,7 +48,7 @@
 
 ## PRD 输出格式
 
-遵循 `references/dev-doc/PRD-FILE.md` 定义的格式。
+遵循 `dow doc prd --json` 输出的格式定义。
 
 写完后请用户确认，根据反馈修改直到用户满意。
 

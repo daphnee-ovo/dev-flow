@@ -131,7 +131,7 @@ dev-doc/
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 dev-doc 结构 |
-| `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
+| `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |
 | `dow archive list [--branch <b>]` | 列出所有归档版本 |
@@ -151,22 +151,21 @@ dev-doc/
 
 默认 JSON 输出，`-H` 切换人类友好格式。编译：`bash dow/build.sh`。
 
-## 格式 Schema 层（references/）
+## 格式规范查询
 
-`references/dev-doc/` 是所有文档格式的唯一权威定义。agents 和 commands 通过引用获取格式，不内嵌模板。
+通过 `dow doc <type>` 命令查询文档格式规范，格式定义编译时嵌入二进制：
 
-| Schema 文件 | 定义内容 |
-|-------------|----------|
-| `TASK-FILE.md` | task 文件格式（priority/refs/files/done_when 等） |
-| `SPEC-FILE.md` | SPEC.md 格式（含按 mode 降级规则） |
-| `PRD-FILE.md` | PRD.md 格式（MoSCoW 优先级） |
-| `ISSUE.md` | issue 文件格式 |
-| `TEST.md` | 测试报告格式 |
-| `STATUS.md` | STATUS.yaml schema |
-| `BRAINSTORM-FILE.md` | brainstorm 文档格式 |
-| `CHANGELOG.md` | changelog 格式 |
+| 命令 | 定义内容 |
+|------|----------|
+| `dow doc task --md/--json` | task 文件格式（priority/refs/files/done_when 等） |
+| `dow doc spec --md/--json` | SPEC.md 格式（含按 mode 降级规则） |
+| `dow doc prd --md/--json` | PRD.md 格式（MoSCoW 优先级） |
+| `dow doc issue --md/--json` | issue 文件格式 |
+| `dow doc test --md/--json` | 测试报告格式 |
+| `dow doc brainstorm --md/--json` | brainstorm 文档格式 |
+| `dow doc changelog --md/--json` | changelog 格式 |
 
-调度层（commands/*.md）负责在组装 subagent prompt 时读取 references/ 内容并拼入。
+调度层（commands/*.md）在组装 subagent prompt 时通过 `dow doc <type> --json` 获取结构化格式定义。
 
 ## 灵活性
 

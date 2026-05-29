@@ -11,7 +11,7 @@
 
 ## 输入
 
-你将收到 `dev-doc/SPEC.md` 的内容。基于这份技术规范拆解任务。
+你将收到 `<DOC_ROOT>/SPEC.md` 的内容。基于这份技术规范拆解任务。
 
 ## 任务
 
@@ -19,7 +19,7 @@
 2. 按垂直切片拆解任务（不是水平分层）
 3. 定义每个任务的 Done when（必须客观可验证）
 4. 评估优先级和依赖关系
-5. 产出 `dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`
+5. 通过 `dow doc task` 创建 `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`
 
 ## 拆分原则
 
@@ -44,7 +44,7 @@
 
 ## Task 文件格式
 
-遵循 `references/dev-doc/TASK-FILE.md` 定义的格式。
+遵循 `dow doc task --json` 输出的格式定义。
 
 ## 注意事项
 

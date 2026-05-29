@@ -57,7 +57,7 @@ prompt: `<读取 agents/prd-agent.md 的完整内容>
 
 ## 输出路径
 
-将 PRD 写入：<DOC_ROOT>/PRD.md
+通过 `dow doc prd` 创建文件，写入 `<DOC_ROOT>/PRD.md`。格式通过 `dow doc prd --json` 获取。
 
 ## 禁止
 

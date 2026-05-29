@@ -32,7 +32,7 @@ fn test_doc_task_creates_file() {
     setup_env(dir.path());
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["doc", "--task", "-n", "5"])
+        .args(["doc", "task", "-n", "5"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -55,7 +55,7 @@ fn test_doc_issue_with_source() {
     setup_env(dir.path());
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["doc", "--issue", "--source", "devtest", "-n", "2"])
+        .args(["doc", "issue", "--source", "devtest", "-n", "2"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -80,14 +80,14 @@ fn test_doc_seq_auto_increment() {
 
     // 第一次
     Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["doc", "--task"])
+        .args(["doc", "task"])
         .current_dir(dir.path())
         .output()
         .unwrap();
 
     // 第二次
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["doc", "--task"])
+        .args(["doc", "task"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -106,7 +106,7 @@ fn test_doc_prd_refuses_overwrite() {
     fs::write(dir.path().join("dev-doc").join(&branch).join("PRD.md"), "existing").unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["doc", "--prd"])
+        .args(["doc", "prd"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -114,4 +114,87 @@ fn test_doc_prd_refuses_overwrite() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("已存在"));
+}
+
+#[test]
+fn test_doc_md_output() {
+    // --md 不需要 git 环境，直接输出规范
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["doc", "task", "--md"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Task 文件格式规范"));
+    assert!(stdout.contains("## 模板"));
+    assert!(stdout.contains("TASK-T001"));
+}
+
+#[test]
+fn test_doc_json_output() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["doc", "issue", "--json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["type"], "issue");
+    assert!(json["template"].is_string());
+    assert!(json["fields"].is_array());
+    assert!(json["sections"].is_array());
+}
+
+#[test]
+fn test_doc_invalid_type() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["doc", "invalid"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("未知文档类型"));
+}
+
+#[test]
+fn test_doc_issue_invalid_source() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_env(dir.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["doc", "issue", "--source", "random"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("无效的 issue 来源"));
+}
+
+#[test]
+fn test_doc_issue_valid_sources() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_env(dir.path());
+
+    for source in &["test", "devtest", "other", "audit"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+            .args(["doc", "issue", "--source", source])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        assert!(output.status.success(), "source '{}' should be valid", source);
+    }
 }

@@ -22,7 +22,7 @@
 3. 给出必要设计方案
 4. 定义可测验收
 5. 评估风险和最小验证方式
-6. 产出 `dev-doc/SPEC.md`
+6. 通过 `dow doc spec` 创建 `<DOC_ROOT>/SPEC.md`
 7. 请用户确认关键技术决策
 
 ## 红旗（遇到必须追问或标记 NEEDS_CONTEXT）
@@ -35,7 +35,7 @@
 
 ## SPEC.md 格式
 
-遵循 `references/dev-doc/SPEC-FILE.md` 定义的格式（含按 mode 降级规则）。
+遵循 `dow doc spec --json` 输出的格式定义（含按 mode 降级规则）。
 
 ## 注意事项
 

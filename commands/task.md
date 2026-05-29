@@ -38,14 +38,11 @@ prompt: `<读取 agents/task-agent.md 的完整内容>
 
 ## 输出路径
 
-将任务清单写入：<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md
-
-如果 task/ 目录不存在，先创建它。
-seq 为当天该目录下的下一个序号。
+通过 `dow doc task -n <任务数>` 创建文件（自动处理目录创建和序号递增），写入 `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`。
 
 ## 输出格式
 
-读取 `references/dev-doc/TASK-FILE.md` 获取完整格式定义，将内容拼入 agent prompt。
+执行 `dow doc task --json` 获取结构化格式定义，将内容拼入 agent prompt。
 
 ## 禁止
 

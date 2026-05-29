@@ -43,8 +43,8 @@ prompt: `<读取 agents/test-agent.md 的完整内容>
 ## 输出路径
 
 - 测试代码：tests/（test_<功能>.<ext>）
-- 测试报告：<DOC_ROOT>/TEST.md
-- Issue 文件格式：读取 `references/dev-doc/ISSUE.md` 获取格式定义
+- 测试报告：通过 `dow doc test` 创建 `<DOC_ROOT>/TEST.md`
+- Issue 文件：通过 `dow doc issue --source test` 创建，格式通过 `dow doc issue --json` 获取
 
 ## 禁止
 

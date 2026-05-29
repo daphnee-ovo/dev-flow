@@ -33,12 +33,12 @@ dow issue --list | grep 'other'
 ### 3. 新建文件
 
 ```bash
-dow doc --issue --source other
+dow doc issue --source other -n <issue数>
 ```
 
 ### 4. 写入格式
 
-读取 `references/dev-doc/ISSUE.md` 获取完整格式定义。
+执行 `dow doc issue --json` 获取结构化格式定义。
 
 ### 5. 提示下一步
 

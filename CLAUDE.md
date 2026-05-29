@@ -42,7 +42,7 @@
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 dev-doc 结构 |
-| `dow doc --<type> [-n N] [--source X]` | 生成文档模板 |
+| `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |
 | `dow archive list [--branch <b>]` | 列出所有归档版本 |
@@ -62,6 +62,21 @@
 
 构建：`bash dow/build.sh`（本地原生）或 `bash dow/build.sh --dist`（分发模式，输出平台二进制 + wrapper）。
 
+## 文档格式规范（必读）
+
+**创建或写入 dev-doc 文件时，必须通过 `dow doc <type> --json` 获取格式定义，不要凭记忆或内联模板写入。**
+
+```bash
+dow doc task --json    # 获取 task 文件的结构化格式
+dow doc issue --json   # 获取 issue 文件的结构化格式
+dow doc spec --json    # 获取 SPEC.md 的格式定义
+dow doc prd --json     # 获取 PRD.md 的格式定义
+dow doc test --json    # 获取 TEST.md 的格式定义
+```
+
+`--md` 输出人类可读的完整 markdown 规范，`--json` 输出结构化 JSON（含 template、fields、rules）。
+subagent prompt 中应使用 `--json` 输出拼入格式要求。
+
 ## Hooks
 
 由 `dow` 统一调度（`hooks/hooks.json`）：
@@ -78,6 +93,17 @@
 - Codex hooks 入口：`hooks.json`（调用 `scripts/bin/dow hooks ...`）
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
+
+## 开发脚本（dev-scripts/）
+
+`dev-scripts/` 存放插件开发者自用的维护脚本，不随插件分发：
+
+| 脚本 | 作用 |
+|------|------|
+| `sync-skill.sh` | 将 `skills/dev-flow/SKILL.md` 同步到 `.claude/skills/` 和 `.agents/skills/` |
+| `sync-plugin.sh` | 同步项目到 Claude Code 插件缓存 |
+
+**修改 SKILL.md 后必须执行 `bash dev-scripts/sync-skill.sh` 同步副本。**
 
 ## 目录结构约定
 

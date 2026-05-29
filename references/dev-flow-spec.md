@@ -112,7 +112,7 @@ issue/
 
 **创建新 issue 文件**：
 ```bash
-dow doc --issue --source <source>
+dow doc issue --source <source>
 ```
 
 **关闭 issue**：文件内所有 checkbox 勾选为 `[x]` 后，`dow hooks post-write` 自动重命名为 `closed_` 前缀。
