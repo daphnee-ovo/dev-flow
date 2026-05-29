@@ -2,7 +2,7 @@
 // ├── doc.rs  -- dow doc（文档模板生成 + 文档规范查询）
 
 use crate::cli::DocArgs;
-use crate::core::doc_root;
+use crate::core::{doc_root, yaml};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -48,9 +48,10 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    // --md / --json：输出文档规范
+    // --md / --json：输出文档规范（spec/prd 按当前 mode 过滤）
     if args.md || args.json {
-        return output_spec(&doc_type, args.md);
+        let mode = get_current_mode();
+        return output_spec(&doc_type, args.md, &mode);
     }
 
     // 校验 --source（仅 issue 类型使用）
@@ -70,11 +71,12 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     // 默认：创建模板文件
     let doc_root_path = doc_root::resolve("dev-doc");
 
+    let mode = get_current_mode();
     let (path, slots) = match doc_type.as_str() {
         "task" => create_task(&doc_root_path, args.count)?,
         "issue" => create_issue(&doc_root_path, args.count, args.source.as_deref())?,
-        "prd" => create_single(&doc_root_path, "PRD.md", prd_template())?,
-        "spec" => create_single(&doc_root_path, "SPEC.md", spec_template())?,
+        "prd" => create_single(&doc_root_path, "PRD.md", prd_template(&mode))?,
+        "spec" => create_single(&doc_root_path, "SPEC.md", spec_template(&mode))?,
         "test" => create_single(&doc_root_path, "TEST.md", test_template())?,
         "brainstorm" => create_single(&doc_root_path, "BRAINSTORM.md", brainstorm_template())?,
         "changelog" => create_single(&doc_root_path, "CHANGELOG.md", changelog_template())?,
@@ -109,14 +111,16 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-/// 输出文档规范（--md 或 --json）
-fn output_spec(doc_type: &str, as_md: bool) -> Result<i32, DowError> {
+/// 输出文档规范（--md 或 --json），spec/prd 按 mode 过滤展示
+fn output_spec(doc_type: &str, as_md: bool, mode: &str) -> Result<i32, DowError> {
     let content = get_reference(doc_type);
 
     if as_md {
-        println!("{}", content);
+        let filtered = filter_md_by_mode(doc_type, content, mode);
+        println!("{}", filtered);
     } else {
-        let parsed = parse_spec_to_json(doc_type, content);
+        let mut parsed = parse_spec_to_json(doc_type, content);
+        filter_json_by_mode(&mut parsed, mode);
         println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
     }
 
@@ -439,64 +443,112 @@ fn next_seq(dir: &Path, prefix: &str) -> u32 {
     max + 1
 }
 
-fn prd_template() -> String {
-    r#"# 产品需求文档（PRD）
+fn prd_template_inner(mode: &str, with_hints: bool) -> String {
+    let sections = prd_sections_for_mode(mode);
+    if sections.is_empty() {
+        return format!("# 产品需求文档（PRD）\n\n> {} 模式跳过 PRD 阶段。\n", mode);
+    }
 
-## 1. 背景与动机
-
-## 2. 目标与非目标
-### 目标
-### 非目标（明确不做什么）
-
-## 3. 用户画像
-
-## 4. 功能需求
-### Must Have
-### Should Have
-### Could Have
-### Won't Have
-
-## 5. 用户流程
-
-## 6. 成功指标
-
-## 7. 约束与假设
-
-## 8. 开放问题
-"#
-    .to_string()
+    let mut out = String::from("# 产品需求文档（PRD）\n\n");
+    for (i, sec) in sections.iter().enumerate() {
+        out.push_str(&format!("## {}. {}\n", i + 1, sec));
+        if *sec == "功能需求" {
+            out.push_str("### Must Have\n### Should Have\n### Could Have\n### Won't Have\n");
+        }
+        if *sec == "目标与非目标" {
+            out.push_str("### 目标\n### 非目标（明确不做什么）\n");
+        }
+        if with_hints {
+            match *sec {
+                "背景与动机" => { out.push_str("<为什么要做这件事>\n"); }
+                "用户画像" => { out.push_str("<目标用户是谁>\n"); }
+                "用户流程" => { out.push_str("<用户如何使用>\n"); }
+                "成功指标" => { out.push_str("<如何衡量成功>\n"); }
+                "约束与假设" => { out.push_str("<前提条件和限制>\n"); }
+                "开放问题" => { out.push_str("<待确认事项>\n"); }
+                _ => {}
+            }
+        }
+        out.push('\n');
+    }
+    out
 }
 
-fn spec_template() -> String {
-    r#"# SPEC:
+fn prd_template(mode: &str) -> String {
+    prd_template_inner(mode, false)
+}
 
-## Goal
+fn prd_template_with_hints(mode: &str) -> String {
+    prd_template_inner(mode, true)
+}
 
-## Scope
-### In
-### Out
+/// 生成 SPEC 模板。with_hints=true 时带占位提示（用于 --md 展示），false 时干净空白（用于创建文件）
+fn spec_template_inner(mode: &str, with_hints: bool) -> String {
+    let sections = spec_sections_for_mode(mode);
+    let title_hint = if with_hints { " <主题>" } else { "" };
+    let mut out = format!("# SPEC:{}\n\n", title_hint);
 
-## Requirements Trace
-| Req | AC | Notes |
-| --- | --- | --- |
+    for sec in &sections {
+        out.push_str(&format!("## {}\n", sec));
+        match *sec {
+            "Goal" => {
+                if with_hints { out.push_str("<目标>\n"); }
+            }
+            "Scope" => {
+                out.push_str("### In\n### Out\n");
+            }
+            "Out of scope" => {
+                if with_hints { out.push_str("<明确不做的边界>\n"); }
+            }
+            "Requirements Trace" => {
+                out.push_str("| Req | AC | Notes |\n| --- | --- | --- |\n");
+                if with_hints {
+                    out.push_str("| PRD-FR-001 或 user-request | SPEC-AC-001 | ADDED / MODIFIED / REMOVED |\n");
+                }
+            }
+            "Design" => {
+                if with_hints { out.push_str("<必要方案。能短就短。>\n"); }
+            }
+            "Acceptance" => {
+                if with_hints {
+                    out.push_str("- SPEC-AC-001: <可测验收>\n- SPEC-AC-002: <可测验收>\n");
+                } else {
+                    out.push_str("- SPEC-AC-001:\n- SPEC-AC-002:\n");
+                }
+            }
+            "Risks" => {
+                if with_hints { out.push_str("- <风险和回退>\n"); }
+            }
+            "Test Plan" => {
+                if with_hints { out.push_str("- <最小验证方式>\n"); } else { out.push_str("- \n"); }
+            }
+            "Smoke Test" => {
+                if with_hints { out.push_str("- <冒烟测试>\n"); } else { out.push_str("- \n"); }
+            }
+            _ => {}
+        }
+        out.push('\n');
+    }
 
-## Design
+    // Self Check 始终包含
+    out.push_str("## Self Check\n");
+    out.push_str("- [ ] 目标清楚\n");
+    if sections.contains(&"Scope") || sections.contains(&"Out of scope") {
+        out.push_str("- [ ] 边界清楚\n");
+    }
+    if sections.contains(&"Acceptance") {
+        out.push_str("- [ ] 验收可测\n");
+    }
+    out.push_str("- [ ] 与当前 mode 匹配\n");
+    out
+}
 
-## Acceptance
-- SPEC-AC-001:
-- SPEC-AC-002:
+fn spec_template(mode: &str) -> String {
+    spec_template_inner(mode, false)
+}
 
-## Risks
-
-## Test Plan
-
-## Self Check
-- [ ] 目标清楚
-- [ ] 边界清楚
-- [ ] 验收可测
-- [ ] 与当前 mode 匹配
-"#
-    .to_string()
+fn spec_template_with_hints(mode: &str) -> String {
+    spec_template_inner(mode, true)
 }
 
 fn test_template() -> String {
@@ -548,4 +600,192 @@ fn brainstorm_template() -> String {
 
 fn changelog_template() -> String {
     "# Changelog\n".to_string()
+}
+
+// === Mode 感知功能 ===
+
+/// 读取当前项目 mode（从 STATUS.yaml），fallback 为 "full"
+fn get_current_mode() -> String {
+    let doc_root_path = doc_root::resolve("dev-doc");
+    let status_file = doc_root_path.join("STATUS.yaml");
+    if !status_file.exists() {
+        return "full".to_string();
+    }
+    let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
+    // audit/xxx → 提取原始 mode
+    if let Some(orig) = mode.strip_prefix("audit/") {
+        orig.to_string()
+    } else if mode.is_empty() {
+        "full".to_string()
+    } else {
+        mode
+    }
+}
+
+/// SPEC 各章节在不同 mode 下是否必需
+fn spec_sections_for_mode(mode: &str) -> Vec<&'static str> {
+    match mode {
+        "fast" => vec!["Goal", "Acceptance", "Test Plan"],
+        "mvp" => vec!["Goal", "Out of scope", "Smoke Test"],
+        "quick" => vec!["Goal", "Scope", "Design", "Acceptance", "Test Plan"],
+        _ => vec!["Goal", "Scope", "Requirements Trace", "Design", "Acceptance", "Risks", "Test Plan"],
+    }
+}
+
+/// PRD 各章节在不同 mode 下是否必需
+fn prd_sections_for_mode(mode: &str) -> Vec<&'static str> {
+    match mode {
+        "fast" | "mvp" => vec![],  // fast/mvp 跳过 PRD
+        "quick" => vec!["背景与动机", "目标与非目标", "功能需求", "成功指标", "开放问题"],
+        _ => vec!["背景与动机", "目标与非目标", "用户画像", "功能需求", "用户流程", "成功指标", "约束与假设", "开放问题"],
+    }
+}
+
+/// 按 mode 过滤 --md 输出（处理 spec/prd 的「按 mode 的必需章节」和模板段）
+fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
+    if doc_type != "spec" && doc_type != "prd" {
+        return content.to_string();
+    }
+
+    let mut result = Vec::new();
+    let mut skip_mode_table = false;
+    let mut skip_template_block = false;
+    let mut in_code_fence = false;  // 追踪代码块内外
+
+    for line in content.lines() {
+        // 检测「按 mode 的必需章节」段落 → 替换为当前 mode 列表
+        if !in_code_fence && line.starts_with("## 按 mode 的必需章节") {
+            let sections = if doc_type == "spec" {
+                spec_sections_for_mode(mode)
+            } else {
+                prd_sections_for_mode(mode)
+            };
+            if sections.is_empty() {
+                // 当前 mode 跳过此阶段，展示 full 模式作参考
+                result.push(format!("## 按 mode 的必需章节（当前 {} 模式跳过此阶段）", mode));
+                result.push(String::new());
+                result.push("以下展示 full 模式的要求：".to_string());
+                result.push(String::new());
+                let full_sections = if doc_type == "spec" {
+                    spec_sections_for_mode("full")
+                } else {
+                    prd_sections_for_mode("full")
+                };
+                for s in &full_sections {
+                    result.push(format!("- {}", s));
+                }
+            } else {
+                result.push(format!("## 当前 mode（{}）的必需章节", mode));
+                result.push(String::new());
+                for s in &sections {
+                    result.push(format!("- {}", s));
+                }
+            }
+            result.push(String::new());
+            skip_mode_table = true;
+            continue;
+        }
+
+        // 跳过原始 mode 表格和降级规则直到下一个真正的 ## 段
+        if skip_mode_table {
+            if !in_code_fence && line.starts_with("## ") {
+                skip_mode_table = false;
+            } else {
+                // 跟踪代码块
+                if line.trim().starts_with("```") {
+                    in_code_fence = !in_code_fence;
+                }
+                continue;
+            }
+        }
+
+        // 检测模板段 → 替换为当前 mode 的动态模板
+        if !in_code_fence && line.starts_with("## 模板") {
+            let sections = if doc_type == "spec" {
+                spec_sections_for_mode(mode)
+            } else {
+                prd_sections_for_mode(mode)
+            };
+            if sections.is_empty() {
+                // 跳过的阶段：标注并展示 full 模式模板作参考
+                result.push(format!("## 模板（当前 {} 模式跳过此阶段，以下为 full 模式参考）", mode));
+            } else {
+                result.push("## 模板".to_string());
+            }
+            result.push(String::new());
+            result.push("```markdown".to_string());
+            let effective_mode = if sections.is_empty() { "full" } else { mode };
+            let template = if doc_type == "spec" {
+                spec_template_with_hints(effective_mode)
+            } else {
+                prd_template_with_hints(effective_mode)
+            };
+            result.push(template.trim_end().to_string());
+            result.push("```".to_string());
+            result.push(String::new());
+            skip_template_block = true;
+            continue;
+        }
+
+        // 跳过原始模板代码块（需追踪 ``` 结束）
+        if skip_template_block {
+            if line.trim().starts_with("```") {
+                in_code_fence = !in_code_fence;
+                // 代码块结束后等待下一个 ## 段
+                if !in_code_fence {
+                    continue;
+                }
+            }
+            if in_code_fence {
+                continue;
+            }
+            // 代码块已结束，遇到下一个 ## 段则恢复正常
+            if line.starts_with("## ") {
+                skip_template_block = false;
+                result.push(line.to_string());
+            }
+            continue;
+        }
+
+        // 正常行：追踪代码块状态
+        if line.trim().starts_with("```") {
+            in_code_fence = !in_code_fence;
+        }
+
+        result.push(line.to_string());
+    }
+
+    result.join("\n")
+}
+
+/// 按 mode 过滤 --json 输出中的 mode_requirements 和 template
+fn filter_json_by_mode(parsed: &mut Value, mode: &str) {
+    let doc_type = parsed.get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    // mode_requirements：只保留当前 mode 有标记的行
+    if let Some(arr) = parsed.get("mode_requirements").and_then(|v| v.as_array()) {
+        let filtered: Vec<Value> = arr.iter().filter(|row| {
+            if let Some(val) = row.get(mode).and_then(|v| v.as_str()) {
+                val == "✓" || !val.contains('—')
+            } else {
+                true
+            }
+        }).cloned().collect();
+        parsed["mode_requirements"] = json!(filtered);
+    }
+
+    // template：替换为当前 mode 的动态模板（带占位提示）
+    if doc_type == "spec" || doc_type == "prd" {
+        let template = if doc_type == "spec" {
+            spec_template_with_hints(mode)
+        } else {
+            prd_template_with_hints(mode)
+        };
+        parsed["template"] = json!(template.trim_end());
+    }
+
+    parsed["current_mode"] = json!(mode);
 }

@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/task/task_<YYYY-MM-DD>_<seq>.md`(使用 dow doc task 会自动创建)
+`dev-doc/<branch>/task/task_<YYYY-MM-DD>_<seq>.md`（使用 `dow doc task` 自动创建）
 
 完成标记：hook 自动重命名为 `done_task_<YYYY-MM-DD>_<seq>.md`
 
@@ -113,7 +113,7 @@ nums: <任务总数>
 ## 完成规则
 
 - 文件内所有 checkbox 均为 `[x]` → hook 自动重命名为 `done_` 前缀
-- 归档时 `done_task_*.md` 移入 `archive/v<N>-<topic>/task/`
+- `/iterate` 时 `done_task_*.md` 自动归档到 `dev-doc/archive.db`（SQLite），源文件删除
 - `/iterate` 前会阻断未完成 task；能进入归档时，active task 文件已经全部完成并会随 done_task 一起归档
 
 ## 命名规则

@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/issue/issue_<source>_<YYYY-MM-DD>_<seq>.md`
+`dev-doc/<branch>/issue/issue_<source>_<YYYY-MM-DD>_<seq>.md`
 
 关闭标记：hook 自动重命名为 `closed_issue_<source>_<YYYY-MM-DD>_<seq>.md`
 
@@ -47,7 +47,7 @@ nums: <issue 总数>
 ## 完成规则
 
 - 文件内所有 checkbox 均为 `[x]` → `dow hooks post-write` 自动重命名为 `closed_` 前缀
-- 归档时 `closed_issue_*.md` 由 `dow iterate` 自动移入 `archive/v<N>-<topic>/issue/`
+- `/iterate` 时 `closed_issue_*.md` 自动归档到 `dev-doc/archive.db`（SQLite），源文件删除
 - 未关闭的 issue 文件留在当前目录带入下一轮迭代
 
 ## 优先级展示

@@ -2,9 +2,9 @@
 
 ## 路径
 
-`dev-doc/SPEC.md`
+`dev-doc/<branch>/SPEC.md`
 
-每次迭代只有一份 SPEC；归档时移入 `archive/v<N>-<topic>/SPEC.md`。
+每次迭代只有一份 SPEC；`/iterate` 时自动归档到 `dev-doc/archive.db`（SQLite），源文件删除。
 
 ## 按 mode 的必需章节
 
@@ -17,7 +17,6 @@
 | Acceptance | ✓ | ✓ | ✓ | — |
 | Risks | ✓ | — | — | — |
 | Test Plan | ✓ | ✓ | ✓ | Smoke Test |
-| Self Check | ✓ | ✓ | ✓ | ✓ |
 
 降级规则：
 - **full**：保留完整结构

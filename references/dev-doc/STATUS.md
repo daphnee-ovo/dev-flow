@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/STATUS.yaml`
+`dev-doc/<branch>/STATUS.yaml`
 
 纯 YAML 格式，由 hook 自动维护，也可手动编辑。
 

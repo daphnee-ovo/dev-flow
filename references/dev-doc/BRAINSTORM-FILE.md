@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/BRAINSTORM.md`
+`dev-doc/<branch>/BRAINSTORM.md`
 
 持久参考文档，不随迭代归档。
 

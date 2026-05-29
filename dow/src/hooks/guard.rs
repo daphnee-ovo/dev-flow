@@ -402,8 +402,13 @@ fn check_non_dev_write(file: &str) -> Option<String> {
         return None;
     }
 
-    // 白名单 2：.claude/ 配置目录（settings、hooks 等）
-    if file.starts_with(".claude/") || file.starts_with(".claude\\") {
+    // 白名单 2：AI 工具配置目录
+    let ai_config_prefixes = [
+        ".claude/", ".codex/", ".codex-plugin/",
+        ".agents/", ".cursor/", ".github/copilot/",
+        ".aider/", ".continue/",
+    ];
+    if ai_config_prefixes.iter().any(|p| file.starts_with(p)) {
         return None;
     }
 

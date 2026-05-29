@@ -2,9 +2,9 @@
 
 ## 路径
 
-`dev-doc/PRD.md`
+`dev-doc/<branch>/PRD.md`
 
-每次迭代只有一份 PRD；归档时移入 `archive/v<N>-<topic>/PRD.md`。
+每次迭代只有一份 PRD；`/iterate` 时自动归档到 `dev-doc/archive.db`（SQLite），源文件删除。
 
 ## 模板
 

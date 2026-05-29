@@ -22,5 +22,5 @@
 
 ## 生命周期
 
-- `/iterate` 时全部归档到 archive（新迭代从空 CHANGELOG 开始）
+- `/iterate` 时自动归档到 `dev-doc/archive.db`（SQLite），然后重置为空（新迭代从空 CHANGELOG 开始）
 - inject-context 注入最近一条记录作为上下文
