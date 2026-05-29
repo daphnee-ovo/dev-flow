@@ -88,7 +88,9 @@ pub fn run(args: StatusArgs, human: bool) -> Result<i32, DowError> {
     let is_write = args.phase.is_some()
         || args.mode.is_some()
         || args.exec_mode.is_some()
-        || args.name.is_some();
+        || args.name.is_some()
+        || args.goals_minor.is_some()
+        || args.goals_major.is_some();
 
     if is_write {
         return handle_write(&status_file, &args);
@@ -186,6 +188,16 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
     // 设置 name
     if let Some(ref name) = args.name {
         yaml::set(status_file, "name", name)
+            .map_err(|e| DowError::new(e.to_string(), 1))?;
+    }
+
+    // 设置版本目标
+    if let Some(ref goal) = args.goals_minor {
+        yaml::set(status_file, "goals_minor", goal)
+            .map_err(|e| DowError::new(e.to_string(), 1))?;
+    }
+    if let Some(ref goal) = args.goals_major {
+        yaml::set(status_file, "goals_major", goal)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 

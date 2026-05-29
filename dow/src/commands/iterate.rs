@@ -100,8 +100,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let token = generate_token_for_minute(0);
         // 默认：输出预览
         let commit_files = list_pending_changes(&args.files);
+        let should_tag = args.bump != "patch" || args.tag;
         let result = IterateOutput {
-            tag: format!("v{}", &cur_version),
+            tag: if should_tag { format!("v{}", &cur_version) } else { "no-tag".to_string() },
             released_version: cur_version.clone(),
             archive_db: archive_db_path.clone(),
             archived_files: archived_files.clone(),
@@ -198,7 +199,12 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let mut commit_files = args.files.clone();
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
-    git_tag(&cur_version)?;
+
+    // 只有 minor/major 或显式 --tag 才打 git tag
+    let should_tag = args.bump != "patch" || args.tag;
+    if should_tag {
+        git_tag(&cur_version)?;
+    }
 
     // 8. bump VERSION + 重置 phase
     version::write_current(&new_version)?;
@@ -215,9 +221,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
 
+    let tag_str = if should_tag { format!("v{}", cur_version) } else { "no-tag".to_string() };
     let result = IterateOutput {
         released_version: cur_version.clone(),
-        tag: format!("v{}", cur_version),
+        tag: tag_str.clone(),
         archive_db: archive_db_path,
         archived_files,
         next_version: new_version,
@@ -229,7 +236,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[dev-flow] 迭代完成");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("交付版本：v{} (tagged)", cur_version);
+        let tag_display = if should_tag { " (tagged)" } else { "" };
+        println!("交付版本：v{}{}", cur_version, tag_display);
         println!("新版本：v{}", result.next_version);
         println!("阶段重置：{}", result.next_phase);
     } else {

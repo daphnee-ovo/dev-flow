@@ -57,8 +57,28 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
         .collect();
 
     if !found {
-        lines.push(format!("{}: {}", key, value));
+        // goals/exec_mode 等字段插入到 updated/started 之前（保持时间戳在末尾）
+        let insert_pos = lines.iter().position(|l| {
+            l.starts_with("updated:") || l.starts_with("started:")
+        });
+        if let Some(pos) = insert_pos {
+            lines.insert(pos, format!("{}: {}", key, value));
+        } else {
+            lines.push(format!("{}: {}", key, value));
+        }
     }
+
+    // 确保 updated/started 始终在最后
+    let mut time_lines = Vec::new();
+    lines.retain(|l| {
+        if l.starts_with("updated:") || l.starts_with("started:") {
+            time_lines.push(l.clone());
+            false
+        } else {
+            true
+        }
+    });
+    lines.extend(time_lines);
 
     // 确保文件末尾有换行
     let mut output = lines.join("\n");

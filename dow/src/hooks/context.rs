@@ -21,6 +21,10 @@ struct ContextOutput {
     tasks: TaskStats,
     issues: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
+    goals_minor: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    goals_major: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     current_items: Option<CurrentItems>,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_changelog: Option<String>,
@@ -105,6 +109,9 @@ pub fn run(human: bool) -> Result<i32, DowError> {
 
     let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
 
+    let goals_minor = map.get("goals_minor").cloned().filter(|s| !s.is_empty());
+    let goals_major = map.get("goals_major").cloned().filter(|s| !s.is_empty());
+
     let output_data = ContextOutput {
         branch,
         version,
@@ -115,6 +122,8 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         doc_root: doc_root_path.to_string_lossy().to_string(),
         tasks: task_stats,
         issues: open_issues,
+        goals_minor,
+        goals_major,
         current_items,
         last_changelog,
     };
@@ -430,6 +439,17 @@ fn print_human(data: &ContextOutput) {
             .map(|(k, v)| format!("{}:{}/{}", k, v.done, v.total))
             .collect();
         println!("priority: {}", parts.join(" | "));
+    }
+    // 版本目标
+    if data.goals_minor.is_some() || data.goals_major.is_some() {
+        let mut parts = Vec::new();
+        if let Some(ref g) = data.goals_minor {
+            parts.push(format!("minor: {}", g));
+        }
+        if let Some(ref g) = data.goals_major {
+            parts.push(format!("major: {}", g));
+        }
+        println!("goals: {}", parts.join(" | "));
     }
     // 当前 items
     if let Some(ref items) = data.current_items {

@@ -144,6 +144,14 @@ pub struct StatusArgs {
     /// 设置项目名
     #[arg(long)]
     pub name: Option<String>,
+
+    /// 设置 minor 版本目标
+    #[arg(long)]
+    pub goals_minor: Option<String>,
+
+    /// 设置 major 版本目标
+    #[arg(long)]
+    pub goals_major: Option<String>,
 }
 
 #[derive(clap::Args)]
@@ -160,9 +168,13 @@ pub struct IterateArgs {
     #[arg(long, num_args = 1..)]
     pub files: Vec<String>,
 
-    /// bump 类型
-    #[arg(short = 'v', long, default_value = "minor")]
+    /// bump 类型（默认 patch，显式指定 minor/major 时打 tag）
+    #[arg(short = 'v', long, default_value = "patch")]
     pub bump: String,
+
+    /// 强制对本次 patch 打 tag
+    #[arg(long)]
+    pub tag: bool,
 
     /// 确认执行上次预览的迭代
     #[arg(long)]

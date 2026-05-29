@@ -46,6 +46,18 @@ audit 模式示例：`audit/full`、`audit/quick`
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | exec_mode | enum | 执行模式：`step`（逐步确认）/ `continuous`（连续执行） |
+| goals_minor | string | 当前 minor 版本的目标描述（agent 判断是否满足 bump minor 条件的依据） |
+| goals_major | string | 下一个 major 版本的目标描述（agent 判断是否满足 bump major 条件的依据） |
+
+## 版本目标说明
+
+goals 字段为 agent 提供版本升级的判断依据：
+- agent 在 iterate 时检查当前交付是否满足 minor/major 目标，如满足则建议 `-v minor` 或 `-v major`
+- 用户也可在 iterate 时直接指定 `-v minor/major`
+- 默认 iterate 只 bump patch，patch 不打 git tag
+- minor/major 自动打 git tag
+
+设置方式：`dow status --goals-minor "xxx"` / `dow status --goals-major "xxx"`
 
 ## 示例
 
@@ -53,6 +65,8 @@ audit 模式示例：`audit/full`、`audit/quick`
 name: my-project
 phase: DEV
 mode: full
+goals_minor: dow 完善与优化
+goals_major: 插件生态与多平台支持
 updated: 2026-05-26 10:30
 started: 2026-05-26 09:00
 ```
@@ -64,6 +78,7 @@ name: my-project
 phase: TEST
 mode: audit/quick
 exec_mode: continuous
+goals_minor: 性能优化与缓存策略
 updated: 2026-05-26 14:00
 started: 2026-05-20 09:00
 ```
