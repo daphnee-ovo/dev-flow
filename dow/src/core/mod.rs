@@ -3,7 +3,9 @@
 // ├── yaml.rs        -- STATUS.yaml 轻量读写
 // ├── doc_root.rs    -- doc_root 解析逻辑
 // ├── archive_db.rs  -- SQLite 归档存储
+// ├── version.rs     -- VERSION 文件多分支读写
 
 pub mod archive_db;
 pub mod doc_root;
+pub mod version;
 pub mod yaml;

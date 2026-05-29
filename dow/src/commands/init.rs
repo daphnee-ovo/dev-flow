@@ -2,6 +2,7 @@
 // ├── init.rs  -- dow init（初始化 dev-flow 工作流管理）
 
 use crate::cli::InitArgs;
+use crate::core::version;
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -66,11 +67,12 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     fs::write(&status_path, &status_content)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 写入 VERSION
+    // 写入 VERSION（以当前分支初始化）
     let version_path = std::path::Path::new("VERSION");
     if !version_path.exists() {
-        fs::write(version_path, "0.1.0\n")
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        let branch = crate::core::doc_root::current_branch()
+            .unwrap_or_else(|| "main".to_string());
+        version::write_branch(&branch, "0.1.0")?;
     }
 
     // 写入 CHANGELOG

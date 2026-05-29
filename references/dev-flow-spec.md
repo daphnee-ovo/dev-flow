@@ -204,7 +204,7 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 dow init --name <项目名> --mode <mode>
 ```
 
-自动创建 `dev-doc/{issue,task,archive}`、`STATUS.yaml`、`VERSION`、`CHANGELOG.md`。
+自动创建 `dev-doc/{issue,task,archive}`、`STATUS.yaml`、根目录 `VERSION`（多分支格式：`(<branch>)<semver>`）、`CHANGELOG.md`。
 
 ## 临时文件
 

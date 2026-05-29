@@ -38,7 +38,7 @@ dow scan
    ```bash
    dow init --name <项目名> --mode <mode>
    ```
-   自动创建目录结构（dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和 VERSION。
+   自动创建目录结构（dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和项目根目录 VERSION（多分支格式）。
    如果项目已有 `temp` 目录则沿用，不创建 `tmp`。
 3. 跳到阶段 4
 

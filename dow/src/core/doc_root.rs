@@ -1,6 +1,7 @@
 // dow/src/lib/
 // ├── doc_root.rs  -- doc_root 解析逻辑（对应 devflow_resolve_doc_root）
 
+use crate::core::version;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -26,6 +27,8 @@ pub fn resolve(base: &str) -> PathBuf {
                     now_str(),
                 );
                 let _ = fs::write(branch_path.join("STATUS.yaml"), &status_content);
+                // 在 VERSION 中为新分支初始化版本（继承 main）
+                let _ = version::init_branch(&branch);
                 return branch_path;
             }
         }

@@ -35,9 +35,11 @@ else
   fail "--set 4.0.0 输出异常: $OUT"
 fi
 
+# 多分支格式：(branch)version
 CONTENT=$(cat "$PROJ_ROOT/VERSION")
-if [ "$CONTENT" = "4.0.0" ]; then
-  pass "VERSION 文件已更新为 4.0.0"
+BRANCH=$(git -C "$PROJ_ROOT" branch --show-current 2>/dev/null || echo "main")
+if echo "$CONTENT" | grep -q "(${BRANCH})4.0.0"; then
+  pass "VERSION 文件已更新为 (${BRANCH})4.0.0"
 else
   fail "VERSION 文件内容异常: $CONTENT"
 fi
@@ -64,7 +66,8 @@ fi
 # 5. -H 人类友好
 echo ""
 echo "[5] dow version -H"
-echo "3.0.0" > "$PROJ_ROOT/VERSION"
+BRANCH=$(git -C "$PROJ_ROOT" branch --show-current 2>/dev/null || echo "main")
+echo "(${BRANCH})3.0.0" > "$PROJ_ROOT/VERSION"
 OUT=$($DOW version -H 2>&1)
 if [ "$OUT" = "3.0.0" ]; then
   pass "-H 输出纯版本号"

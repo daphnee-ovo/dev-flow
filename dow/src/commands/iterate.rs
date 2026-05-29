@@ -2,7 +2,7 @@
 // ├── iterate.rs  -- dow iterate（迭代交付：校验 → 归档 → commit + tag → bump）
 
 use crate::cli::IterateArgs;
-use crate::core::{archive_db, doc_root, yaml};
+use crate::core::{archive_db, doc_root, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -63,8 +63,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 3. 读取版本
-    let version = read_version()?;
-    let new_version = bump_version(&version, &args.bump)?;
+    let cur_version = version::read_current()?;
+    let new_version = version::bump_version_str(&cur_version, &args.bump)?;
 
     // 4. 计算归档内容
     let archive_base = archive_db::archive_base();
@@ -91,8 +91,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         // 默认：输出预览
         let commit_files = list_pending_changes(&args.files);
         let result = IterateOutput {
-            tag: format!("v{}", &version),
-            released_version: version.clone(),
+            tag: format!("v{}", &cur_version),
+            released_version: cur_version.clone(),
             archive_db: archive_db_path.clone(),
             archived_files: archived_files.clone(),
             next_version: new_version.clone(),
@@ -114,13 +114,14 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 6. 执行归档（写入 SQLite）
     let conn = archive_db::open_or_create(&archive_base)?;
     let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let cur_branch = doc_root::current_branch().unwrap_or_else(|| "main".to_string());
     archive_db::insert_iteration(&conn, &archive_db::IterationRecord {
-        version: version.clone(),
+        version: cur_version.clone(),
         topic: args.topic.clone(),
         commit_type: Some(args.r#type.clone()),
-        branch: "main".to_string(),
+        branch: cur_branch,
         released_at,
-        tag: format!("v{}", version),
+        tag: format!("v{}", cur_version),
         mode: Some(effective_mode.clone()),
     })?;
 
@@ -133,7 +134,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let tasks = archive_db::parse_task_file(&name, &content);
                     for task in &tasks {
-                        archive_db::insert_task(&conn, &version, task)?;
+                        archive_db::insert_task(&conn, &cur_version, task)?;
                     }
                 }
                 fs::remove_file(entry.path()).ok();
@@ -150,7 +151,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let issues = archive_db::parse_issue_file(&name, &content);
                     for issue in &issues {
-                        archive_db::insert_issue(&conn, &version, issue)?;
+                        archive_db::insert_issue(&conn, &cur_version, issue)?;
                     }
                 }
                 fs::remove_file(entry.path()).ok();
@@ -163,7 +164,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let src = doc_root_path.join(format!("{}.md", doc_type));
         if src.exists() {
             if let Ok(content) = fs::read_to_string(&src) {
-                archive_db::insert_doc(&conn, &version, doc_type, &content)?;
+                archive_db::insert_doc(&conn, &cur_version, doc_type, &content)?;
             }
             fs::remove_file(&src).ok();
         }
@@ -175,7 +176,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         if let Ok(content) = fs::read_to_string(&changelog) {
             let cl_entries = archive_db::parse_changelog(&content);
             for (order, (date, text)) in cl_entries.iter().enumerate() {
-                archive_db::insert_changelog(&conn, &version, date.as_deref(), text, order as i32)?;
+                archive_db::insert_changelog(&conn, &cur_version, date.as_deref(), text, order as i32)?;
             }
         }
         fs::write(&changelog, "# Changelog\n")
@@ -183,14 +184,14 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 7. git commit + tag（archive.db 加入提交）
-    let commit_msg = format_commit_message(&version, &args.topic, &args.r#type, &changelog_entries);
+    let commit_msg = format_commit_message(&cur_version, &args.topic, &args.r#type, &changelog_entries);
     let mut commit_files = args.files.clone();
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
-    git_tag(&version)?;
+    git_tag(&cur_version)?;
 
     // 8. bump VERSION + 重置 phase
-    write_version(&new_version)?;
+    version::write_current(&new_version)?;
     let next_ph = next_phase(&effective_mode, &mode);
 
     if mode.starts_with("audit/") {
@@ -205,8 +206,8 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
 
 
     let result = IterateOutput {
-        released_version: version.clone(),
-        tag: format!("v{}", version),
+        released_version: cur_version.clone(),
+        tag: format!("v{}", cur_version),
         archive_db: archive_db_path,
         archived_files,
         next_version: new_version,
@@ -218,7 +219,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[dev-flow] 迭代完成");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("交付版本：v{} (tagged)", version);
+        println!("交付版本：v{} (tagged)", cur_version);
         println!("新版本：v{}", result.next_version);
         println!("阶段重置：{}", result.next_phase);
     } else {
@@ -279,36 +280,6 @@ fn count_p0_issues(doc_root: &Path) -> u32 {
     p0_open
 }
 
-fn read_version() -> Result<String, DowError> {
-    fs::read_to_string("VERSION")
-        .map(|s| s.trim().to_string())
-        .map_err(|_| DowError::new("VERSION 文件不存在或不可读", 1))
-}
-
-fn write_version(version: &str) -> Result<(), DowError> {
-    fs::write("VERSION", format!("{}\n", version))
-        .map_err(|e| DowError::new(e.to_string(), 1))
-}
-
-fn bump_version(version: &str, bump_type: &str) -> Result<String, DowError> {
-    let parts: Vec<u32> = version
-        .split('.')
-        .map(|s| s.parse::<u32>().unwrap_or(0))
-        .collect();
-
-    if parts.len() != 3 {
-        return Err(DowError::new(format!("版本格式非法：{}", version), 1));
-    }
-
-    let (major, minor, patch) = (parts[0], parts[1], parts[2]);
-    let new = match bump_type {
-        "major" => format!("{}.0.0", major + 1),
-        "minor" => format!("{}.{}.0", major, minor + 1),
-        "patch" => format!("{}.{}.{}", major, minor, patch + 1),
-        _ => return Err(DowError::new(format!("未知 bump 类型：{}", bump_type), 1)),
-    };
-    Ok(new)
-}
 
 fn next_phase(effective_mode: &str, _full_mode: &str) -> String {
     match effective_mode {

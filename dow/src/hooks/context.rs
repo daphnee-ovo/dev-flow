@@ -1,7 +1,7 @@
 // dow/src/hooks/
 // ├── context.rs  -- dow hooks context（注入上下文，替代 inject-context.sh）
 
-use crate::core::{doc_root, yaml};
+use crate::core::{doc_root, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -402,12 +402,10 @@ fn get_last_changelog(doc_root: &Path) -> Option<String> {
 }
 
 fn read_version_info() -> (String, String) {
-    let version = fs::read_to_string("VERSION")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "0.0.0".to_string());
+    let ver = version::read_current().unwrap_or_else(|_| "0.0.0".to_string());
 
     let tag_status = Command::new("git")
-        .args(["tag", "-l", &format!("v{}", version)])
+        .args(["tag", "-l", &format!("v{}", ver)])
         .output()
         .map(|o| {
             let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
@@ -415,7 +413,7 @@ fn read_version_info() -> (String, String) {
         })
         .unwrap_or_else(|_| "no-tag".to_string());
 
-    (version, tag_status)
+    (ver, tag_status)
 }
 
 fn print_human(data: &ContextOutput) {

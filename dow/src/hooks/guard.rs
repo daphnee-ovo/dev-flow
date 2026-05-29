@@ -31,6 +31,13 @@ pub fn run(file: String) -> Result<i32, DowError> {
             return Ok(1);
         }
 
+        // block-version-direct-write: 禁止 agent 直接修改 VERSION 文件
+        if is_version_file(target) {
+            println!("[dev-flow] BLOCKED: 禁止直接修改 VERSION 文件");
+            println!("→ 请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor` 管理版本。");
+            return Ok(1);
+        }
+
         // block-cross-branch: 拦截写入其他分支的 dev-doc 目录
         if let Some(reason) = check_cross_branch_write(target) {
             println!("{}", reason);
@@ -254,4 +261,11 @@ fn check_non_dev_block(file: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+fn is_version_file(file: &str) -> bool {
+    let normalized = file.replace('\\', "/");
+    // 匹配根目录 VERSION 和任何路径下的 VERSION
+    normalized == "VERSION"
+        || normalized.ends_with("/VERSION")
 }
