@@ -267,7 +267,9 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     if delete_originals && !versions.is_empty() {
         // 删除顶层 archive 目录
         if top_archive.is_dir() {
-            fs::remove_dir_all(&top_archive).ok();
+            if let Err(e) = fs::remove_dir_all(&top_archive) {
+                eprintln!("[dow] 警告: 删除归档目录失败 ({}): {}", top_archive.display(), e);
+            }
         }
         // 删除 branch-specific archive 目录
         if let Ok(entries) = fs::read_dir(&doc_root_path) {
@@ -276,7 +278,9 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
                 if entry.path().is_dir() && name != "archive" {
                     let branch_archive = entry.path().join("archive");
                     if branch_archive.is_dir() {
-                        fs::remove_dir_all(&branch_archive).ok();
+                        if let Err(e) = fs::remove_dir_all(&branch_archive) {
+                            eprintln!("[dow] 警告: 删除分支归档目录失败 ({}): {}", branch_archive.display(), e);
+                        }
                     }
                 }
             }

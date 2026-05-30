@@ -1,5 +1,8 @@
 // dow/src/core/platform.rs
 // 平台检测与 XDG 路径约定
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use std::env;
 use std::path::PathBuf;

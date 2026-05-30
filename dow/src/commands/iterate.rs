@@ -1,5 +1,9 @@
 // dow/src/commands/
 // ├── iterate.rs  -- dow iterate（迭代交付：校验 → 归档 → commit + tag → bump）
+//
+// Related Docs:
+// - [CLAUDE.md - 命令](../../../CLAUDE.md#命令)
+// - [dev-flow 规范](../../../references/dev-flow-spec.md)
 
 use crate::cli::IterateArgs;
 use crate::core::{archive_db, doc_root, doc_validator, version, yaml};
@@ -161,7 +165,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                         archive_db::insert_task(&conn, &released_version, task)?;
                     }
                 }
-                fs::remove_file(entry.path()).ok();
+                if let Err(e) = fs::remove_file(entry.path()) {
+                    eprintln!("[dev-flow] 警告：归档后删除 {} 失败: {}", name, e);
+                }
             }
         }
     }
@@ -178,7 +184,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                         archive_db::insert_issue(&conn, &released_version, issue)?;
                     }
                 }
-                fs::remove_file(entry.path()).ok();
+                if let Err(e) = fs::remove_file(entry.path()) {
+                    eprintln!("[dev-flow] 警告：归档后删除 {} 失败: {}", name, e);
+                }
             }
         }
     }
@@ -190,7 +198,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             if let Ok(content) = fs::read_to_string(&src) {
                 archive_db::insert_doc(&conn, &released_version, doc_type, &content)?;
             }
-            fs::remove_file(&src).ok();
+            if let Err(e) = fs::remove_file(&src) {
+                eprintln!("[dev-flow] 警告：归档后删除 {}.md 失败: {}", doc_type, e);
+            }
         }
     }
 

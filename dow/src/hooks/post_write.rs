@@ -1,6 +1,9 @@
 // dow/src/hooks/
 // ├── post_write.rs  -- dow hooks post-write（写后联动）
 //    合并：update-status / audit 触发 / 任务完成度 / done_/closed_ 重命名 / 同步提醒
+//
+// Related Docs:
+// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
 
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
@@ -48,7 +51,9 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
         let is_status = changed_file == status_file.to_string_lossy();
         let is_changelog = changed_file.ends_with("CHANGELOG.md");
         if !is_status && !is_changelog {
-            yaml::touch_updated(&status_file).ok();
+            if let Err(e) = yaml::touch_updated(&status_file) {
+                eprintln!("[dow] 警告: 更新时间戳失败 ({}): {}", status_file.display(), e);
+            }
         }
     }
 
@@ -88,9 +93,15 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
 
 fn enter_audit_mode(status_file: &Path, current_mode: &str) {
     let new_mode = format!("audit/{}", current_mode);
-    yaml::set(status_file, "mode", &new_mode).ok();
-    yaml::set(status_file, "phase", "DEV").ok();
-    yaml::touch_updated(status_file).ok();
+    if let Err(e) = yaml::set(status_file, "mode", &new_mode) {
+        eprintln!("[dow] 警告: 设置 audit 模式失败: {}", e);
+    }
+    if let Err(e) = yaml::set(status_file, "phase", "DEV") {
+        eprintln!("[dow] 警告: 设置 phase=DEV 失败: {}", e);
+    }
+    if let Err(e) = yaml::touch_updated(status_file) {
+        eprintln!("[dow] 警告: 更新 audit 模式时间戳失败: {}", e);
+    }
     println!(
         "[dev-flow] 检测到审计 issue，自动进入 audit 模式（原模式：{}）",
         current_mode
@@ -103,23 +114,11 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
         return;
     }
 
-    let mut total = 0u32;
-    let mut done = 0u32;
+    let (done, total) = crate::core::task_store::count_all_checklist(&task_dir);
 
     let entries: Vec<_> = fs::read_dir(&task_dir)
         .map(|e| e.flatten().collect())
         .unwrap_or_default();
-
-    for entry in &entries {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !name.starts_with("task_") || !name.ends_with(".md") {
-            continue;
-        }
-        if let Ok(content) = fs::read_to_string(entry.path()) {
-            total += content.lines().filter(|l| l.starts_with("- [")).count() as u32;
-            done += content.lines().filter(|l| l.starts_with("- [x]")).count() as u32;
-        }
-    }
 
     if total == 0 {
         return;
@@ -173,8 +172,11 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
                 let new_name = format!("done_{}", name);
                 let new_path = task_dir.join(&new_name);
                 if !new_path.exists() {
-                    fs::rename(entry.path(), &new_path).ok();
-                    println!("[dev-flow] 批次全部完成，已标记：{}", new_name);
+                    if let Err(e) = fs::rename(entry.path(), &new_path) {
+                        eprintln!("[dow] 警告: 重命名任务文件为 done_ 失败 ({}): {}", name, e);
+                    } else {
+                        println!("[dev-flow] 批次全部完成，已标记：{}", new_name);
+                    }
                 }
             }
         }
@@ -200,8 +202,11 @@ fn check_issue_completion(doc_root: &Path) {
                     let new_name = format!("closed_{}", name);
                     let new_path = issue_dir.join(&new_name);
                     if !new_path.exists() {
-                        fs::rename(entry.path(), &new_path).ok();
-                        println!("[dev-flow] Issue 全部关闭：{}", new_name);
+                        if let Err(e) = fs::rename(entry.path(), &new_path) {
+                            eprintln!("[dow] 警告: 重命名 issue 文件为 closed_ 失败 ({}): {}", name, e);
+                        } else {
+                            println!("[dev-flow] Issue 全部关闭：{}", new_name);
+                        }
                     }
                 }
             }

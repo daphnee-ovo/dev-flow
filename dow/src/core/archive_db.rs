@@ -1,5 +1,8 @@
 // dow/src/core/
 // ├── archive_db.rs  -- SQLite 归档存储（建表、读写、解析）
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::error::DowError;
 use rusqlite::{params, Connection};

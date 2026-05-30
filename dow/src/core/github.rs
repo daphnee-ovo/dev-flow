@@ -1,5 +1,8 @@
 // dow/src/core/github.rs
 // GitHub Release API 交互（版本检查、下载）
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use std::fs;
 use std::path::Path;

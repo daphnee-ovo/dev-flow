@@ -183,8 +183,11 @@ fn check_directories(doc_root: &Path, result: &mut ValidateOutput) {
 
     for dir in &dirs {
         if !dir.exists() {
-            fs::create_dir_all(dir).ok();
-            result.auto_fixed.push(format!("created_dir:{}", dir.display()));
+            if let Err(e) = fs::create_dir_all(dir) {
+                eprintln!("[dow] 警告: 创建目录失败 ({}): {}", dir.display(), e);
+            } else {
+                result.auto_fixed.push(format!("created_dir:{}", dir.display()));
+            }
         }
     }
 }
@@ -201,8 +204,11 @@ fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
             });
         }
     } else {
-        fs::write(&changelog, "# Changelog\n").ok();
-        result.auto_fixed.push("created_changelog".to_string());
+        if let Err(e) = fs::write(&changelog, "# Changelog\n") {
+            eprintln!("[dow] 警告: 创建 CHANGELOG.md 失败: {}", e);
+        } else {
+            result.auto_fixed.push("created_changelog".to_string());
+        }
     }
 }
 
@@ -256,12 +262,18 @@ fn check_gitignore(result: &mut ValidateOutput) {
             }
             new_content.push_str(project_temp);
             new_content.push('\n');
-            fs::write(".gitignore", new_content).ok();
-            result.auto_fixed.push("gitignore_added_project_temp".to_string());
+            if let Err(e) = fs::write(".gitignore", new_content) {
+                eprintln!("[dow] 警告: 更新 .gitignore 失败: {}", e);
+            } else {
+                result.auto_fixed.push("gitignore_added_project_temp".to_string());
+            }
         }
     } else {
-        fs::write(".gitignore", format!("{}\n", project_temp)).ok();
-        result.auto_fixed.push("gitignore_created".to_string());
+        if let Err(e) = fs::write(".gitignore", format!("{}\n", project_temp)) {
+            eprintln!("[dow] 警告: 创建 .gitignore 失败: {}", e);
+        } else {
+            result.auto_fixed.push("gitignore_created".to_string());
+        }
     }
 }
 

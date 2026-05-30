@@ -122,7 +122,10 @@ fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
     }
 
     if needs_write {
-        fs::write(path, &new_content).ok();
+        if let Err(e) = fs::write(path, &new_content) {
+            eprintln!("[dev-flow] 警告：写入 {} 失败: {}", filename, e);
+            unfixable.push(format!("{}：写入失败 - {}", filename, e));
+        }
     }
 
     (fixed, unfixable)
@@ -175,7 +178,10 @@ fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
     }
 
     if needs_write {
-        fs::write(path, &new_content).ok();
+        if let Err(e) = fs::write(path, &new_content) {
+            eprintln!("[dev-flow] 警告：写入 {} 失败: {}", filename, e);
+            unfixable.push(format!("{}：写入失败 - {}", filename, e));
+        }
     }
 
     (fixed, unfixable)

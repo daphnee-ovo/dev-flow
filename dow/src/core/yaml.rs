@@ -1,5 +1,8 @@
-// dow/src/lib/
+// dow/src/core/
 // ├── yaml.rs  -- STATUS.yaml 轻量读写（不依赖 YAML 库）
+//
+// Related Docs:
+// - [STATUS 规范](../../../references/.dev-doc/STATUS.md)
 
 use std::collections::BTreeMap;
 use std::fs;

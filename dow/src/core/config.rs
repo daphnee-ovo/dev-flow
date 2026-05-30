@@ -1,5 +1,8 @@
 // dow/src/core/config.rs
 // 全局配置（~/.config/dow/config.toml）读写
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use serde::{Deserialize, Serialize};
 use std::fs;

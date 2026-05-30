@@ -1,6 +1,10 @@
 // dow/src/hooks/
 // ├── save_changelog.rs  -- dow hooks save-changelog（会话结束时追加记录）
 //    topic 推断：open issue → open task → 新 commit（去重）
+//
+// Related Docs:
+// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
+// - [CHANGELOG 规范](../../../references/.dev-doc/CHANGELOG.md)
 
 use crate::core::doc_root;
 use crate::error::DowError;

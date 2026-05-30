@@ -23,5 +23,6 @@ pub mod doc_root;
 pub mod doc_validator;
 pub mod github;
 pub mod platform;
+pub mod task_store;
 pub mod version;
 pub mod yaml;

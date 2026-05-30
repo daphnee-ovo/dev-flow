@@ -1,5 +1,8 @@
 // dow/src/commands/
 // ├── scan.rs  -- dow scan（项目扫描，替代 scan-project.sh）
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::error::DowError;
 use crate::output;

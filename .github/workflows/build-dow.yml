@@ -17,9 +17,6 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: dow-darwin-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact: dow-darwin-x86_64
 
     runs-on: ${{ matrix.os }}
 
@@ -63,7 +60,6 @@ jobs:
         run: |
           cp artifacts/dow-linux-x86_64/dow-linux-x86_64 scripts/bin/
           cp artifacts/dow-darwin-arm64/dow-darwin-arm64 scripts/bin/
-          cp artifacts/dow-darwin-x86_64/dow-darwin-x86_64 scripts/bin/
           chmod +x scripts/bin/dow-*
           cp scripts/bin/dow-wrapper scripts/bin/dow
           chmod +x scripts/bin/dow

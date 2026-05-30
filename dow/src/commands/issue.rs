@@ -1,5 +1,9 @@
 // dow/src/commands/
 // ├── issue.rs  -- dow issue（issue 管理）
+//
+// Related Docs:
+// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::IssueArgs;
 use crate::core::{doc_root, doc_validator};

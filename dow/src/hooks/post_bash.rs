@@ -1,5 +1,8 @@
 // dow/src/hooks/
 // ├── post_bash.rs  -- Bash 执行后检测分支切换
+//
+// Related Docs:
+// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
 
 use crate::core::doc_root;
 use crate::error::DowError;

@@ -1,5 +1,8 @@
-// dow/src/lib/
+// dow/src/core/
 // ├── doc_root.rs  -- doc_root 解析逻辑（对应 devflow_resolve_doc_root）
+//
+// Related Docs:
+// - [CLAUDE.md - 目录结构约定](../../../CLAUDE.md#目录结构约定)
 
 use crate::core::version;
 use std::fs;

@@ -4,6 +4,9 @@
 // 格式：每行 (<branch>)<version>，如：
 //   (main)3.4.0
 //   (feature-x)3.4.0
+//
+// Related Docs:
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::core::doc_root;
 use crate::error::DowError;

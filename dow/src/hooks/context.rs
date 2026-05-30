@@ -1,5 +1,8 @@
 // dow/src/hooks/
 // ├── context.rs  -- dow hooks context（注入上下文，替代 inject-context.sh）
+//
+// Related Docs:
+// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
 
 use crate::core::{doc_root, version, yaml};
 use crate::error::DowError;
@@ -73,7 +76,7 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     let exec_mode = map.get("exec_mode").cloned().unwrap_or_else(|| "step".to_string());
 
     // 统计 tasks
-    let (task_stats, total, done) = count_tasks(&doc_root_path);
+    let (task_stats, _total, _done) = count_tasks(&doc_root_path);
 
     // 统计 open issues
     let open_issues = count_open_issues(&doc_root_path);
@@ -221,22 +224,7 @@ fn count_open_issues(doc_root: &Path) -> u32 {
 /// 统计 active task 文件中未完成的 checklist 项数
 fn count_undone_in_active_tasks(doc_root: &Path) -> u32 {
     let task_dir = doc_root.join("task");
-    if !task_dir.is_dir() {
-        return 0;
-    }
-    let mut undone = 0u32;
-    if let Ok(entries) = fs::read_dir(&task_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if !name.starts_with("task_") || !name.ends_with(".md") {
-                continue;
-            }
-            if let Ok(content) = fs::read_to_string(entry.path()) {
-                undone += content.lines().filter(|l| l.starts_with("- [ ]")).count() as u32;
-            }
-        }
-    }
-    undone
+    crate::core::task_store::count_undone_items(&task_dir)
 }
 
 fn get_current_items(doc_root: &Path, open_issues: u32) -> Option<CurrentItems> {

@@ -1,6 +1,9 @@
 // dow/src/hooks/
 // ├── guard.rs  -- dow hooks guard（文件写入守护）
 //    合并 block-system-tmp.sh + block-non-dev-edit.sh
+//
+// Related Docs:
+// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
 
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
@@ -492,20 +495,8 @@ fn has_active_work(doc_root: &std::path::Path) -> bool {
 
     // 检查 active task 文件中是否有未完成项
     let task_dir = doc_root.join("task");
-    if task_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&task_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with("task_") || !name.ends_with(".md") {
-                    continue;
-                }
-                if let Ok(content) = fs::read_to_string(entry.path()) {
-                    if content.lines().any(|l| l.starts_with("- [ ]")) {
-                        return true;
-                    }
-                }
-            }
-        }
+    if crate::core::task_store::has_active_work(&task_dir) {
+        return true;
     }
 
     // 检查 open issues

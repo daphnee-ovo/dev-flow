@@ -1,5 +1,9 @@
 // dow/src/commands/
 // ├── status.rs  -- dow status 子命令（读写 STATUS.yaml + mode 联动）
+//
+// Related Docs:
+// - [STATUS 规范](../../../references/.dev-doc/STATUS.md)
+// - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::StatusArgs;
 use crate::error::DowError;
@@ -301,22 +305,7 @@ fn print_human(status: &StatusOutput) {
 /// 检查是否存在未完成的 task
 fn has_open_tasks(doc_root: &std::path::Path) -> bool {
     let task_dir = doc_root.join("task");
-    if !task_dir.is_dir() {
-        return false;
-    }
-    if let Ok(entries) = std::fs::read_dir(&task_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with("task_") && name.ends_with(".md") {
-                if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                    if content.lines().any(|l| l.starts_with("- [ ]")) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    false
+    crate::core::task_store::has_active_work(&task_dir)
 }
 
 /// 检查是否存在未关闭的 issue
