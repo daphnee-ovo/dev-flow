@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $REPO = "daphnee-ovo/dev-flow"
 $BIN_DIR = "$env:USERPROFILE\.local\bin"
-$DATA_DIR = "$env:USERPROFILE\.local\share\dow"
+$DATA_DIR = if ($env:LOCALAPPDATA) { "$env:LOCALAPPDATA\dow" } else { "$env:USERPROFILE\AppData\Local\dow" }
 $BUNDLE_DIR = "$DATA_DIR\bundle"
 
 function Info($msg) { Write-Host "[dow] $msg" -ForegroundColor Blue }
