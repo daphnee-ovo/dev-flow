@@ -15,6 +15,7 @@ nums: <任务总数>
 ---
 
 - [ ] TASK-T001: <任务名称>
+  - type: feat
   - priority: P0
   - refs: SPEC-AC-001 或 user-request
   - files:
@@ -28,6 +29,7 @@ nums: <任务总数>
       - <客观可验证的验收标准>
 
 - [ ] TASK-T002: <任务名称>
+  - type: refactor
   - priority: P1
   - refs: SPEC-AC-002
   - files:
@@ -42,6 +44,7 @@ nums: <任务总数>
       - <验收标准 2>
 
 - [x] TASK-T003: <任务名称>（已完成）
+  - type: test
   - priority: P0
   - refs: SPEC-AC-001
   - files:
@@ -61,6 +64,7 @@ nums: <任务总数>
 |------|------|
 | title | yaml 头，批次主题 |
 | nums | yaml 头，该文件中任务总数 |
+| type | 任务类型（详见下方 Type 定义） |
 | priority | P0=阻塞后续任务 / P1=重要不阻塞 / P2=可选优化 |
 | refs | 关联的 SPEC 验收条件或需求来源 |
 | files.create | 需要新建的文件列表 |
@@ -70,6 +74,21 @@ nums: <任务总数>
 | parallel | 是否可与同级任务并行执行 |
 | complexity | S=小 / M=中 / L=大（详见下方定义） |
 | done_when | 可验证的完成标准列表（必须客观具体） |
+
+## Type 定义
+
+| 值 | 含义 |
+|------|------|
+| `init` | 初始化项目 |
+| `feat` | 新特性 |
+| `docs` | 文档修改 |
+| `style` | 代码格式修改 |
+| `refactor` | 代码重构 |
+| `perf` | 优化代码，提高性能 |
+| `test` | 测试用例修改 |
+| `revert` | 回滚到某个版本 |
+| `merge` | 合并请求 |
+| `workflow` | 工作流相关文件修改 |
 
 ## Priority 定义
 

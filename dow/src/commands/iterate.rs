@@ -97,11 +97,17 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             ));
         }
     } else {
+        // 预览前先触发 save_changelog，确保当前会话活动被记录
+        if let Err(e) = crate::hooks::save_changelog::run() {
+            eprintln!("[dev-flow] save_changelog 警告：{}", e.message);
+        }
+
         // 生成 token（预览模式）
         let token = generate_token_for_minute(0);
         // 默认：输出预览
         let commit_files = list_pending_changes(&args.files);
         let should_tag = args.bump != "patch" || args.tag;
+        let changelog_entries = read_changelog_entries(&doc_root_path);
         let result = IterateOutput {
             tag: if should_tag { format!("v{}", &released_version) } else { "no-tag".to_string() },
             released_version: released_version.clone(),
@@ -114,8 +120,12 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         };
         if human {
             print_human_preview(&result);
+            print_changelog_summary(&changelog_entries);
         } else {
-            output::print_json(&result);
+            let mut json_out = serde_json::to_value(&result).unwrap_or_default();
+            json_out["changelog_entries"] = serde_json::json!(changelog_entries);
+            json_out["changelog_hint"] = serde_json::json!("请检查 CHANGELOG 是否有遗漏的记录。如有遗漏，请在确认前手动补充。");
+            println!("{}", serde_json::to_string_pretty(&json_out).unwrap());
         }
         return Ok(0);
     }
@@ -426,6 +436,22 @@ fn format_commit_message(version: &str, topic: &str, commit_type: &str, changelo
         }
     }
     msg
+}
+
+fn print_changelog_summary(entries: &[String]) {
+    if entries.is_empty() {
+        println!();
+        println!("⚠ CHANGELOG 为空，请检查是否有遗漏的记录。");
+        println!("  如有遗漏，请在确认前手动补充到 CHANGELOG.md。");
+    } else {
+        println!();
+        println!("CHANGELOG 当前条目（{}条）：", entries.len());
+        for entry in entries {
+            println!("  {}", entry);
+        }
+        println!();
+        println!("提示：请检查 CHANGELOG 是否有遗漏。如需补充，请在确认前编辑 CHANGELOG.md。");
+    }
 }
 
 fn print_human_preview(result: &IterateOutput) {

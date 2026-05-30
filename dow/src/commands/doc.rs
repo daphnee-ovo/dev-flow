@@ -202,6 +202,23 @@ fn parse_spec_to_json(doc_type: &str, content: &str) -> Value {
         result["complexity_definitions"] = complexity_table;
     }
 
+    // create_command：提示使用 dow doc 创建（task/issue 支持 -n）
+    match doc_type {
+        "task" => {
+            result["create_command"] = json!("dow doc task -n <数量>");
+            result["create_hint"] = json!("禁止手动创建 task 文件，必须通过此命令生成模板");
+        }
+        "issue" => {
+            result["create_command"] = json!("dow doc issue -n <数量> [--source test|devtest|audit|other]");
+            result["create_hint"] = json!("禁止手动创建 issue 文件，必须通过此命令生成模板");
+        }
+        "prd" | "spec" | "test" | "brainstorm" | "changelog" => {
+            result["create_command"] = json!(format!("dow doc {}", doc_type));
+            result["create_hint"] = json!(format!("禁止手动创建 {}.md，必须通过此命令生成", doc_type.to_uppercase()));
+        }
+        _ => {}
+    }
+
     result
 }
 
@@ -372,7 +389,7 @@ fn create_task(doc_root: &Path, count: u32) -> Result<(String, u32), DowError> {
 
     for i in 1..=count {
         content.push_str(&format!(
-            "- [ ] TASK-T{:03}: \n  - priority: P1\n  - refs: \n  - files:\n      create: []\n      modify: []\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - \n\n",
+            "- [ ] TASK-T{:03}: \n  - type: feat\n  - priority: P1\n  - refs: \n  - files:\n      create: []\n      modify: []\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - \n\n",
             i
         ));
     }

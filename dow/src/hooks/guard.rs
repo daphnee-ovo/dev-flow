@@ -106,18 +106,26 @@ pub fn run(file: String) -> Result<i32, DowError> {
     Ok(0)
 }
 
-/// 从 stdin（Claude Code hook JSON）中读取 tool_input，提取写入目标
-/// Claude Code hook 通过 stdin 传入 JSON: {"tool_name":"...", "tool_input":{...}}
+/// 从 hook 输入中提取写入目标路径
+/// 支持三种输入方式：
+/// 1. file 参数为 JSON 文件路径（TOOL_INPUT_FILE_PATH）→ 读取并解析
+/// 2. file 参数为空 → 从 stdin 读取 hook JSON
+/// 3. file 参数为普通文件路径 → 直接作为目标（兼容旧方式）
 fn resolve_targets(file: &str) -> Vec<String> {
-    // 如果命令行传入了路径（兼容旧调用方式），直接使用
+    // 尝试读取 JSON 文件（hook 传入 TOOL_INPUT_FILE_PATH）
     if !file.is_empty() {
+        if let Ok(content) = std::fs::read_to_string(file) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                return extract_targets_from_json(&json);
+            }
+        }
+        // 非 JSON 文件或不存在：视为直接文件路径（兼容旧方式）
         return vec![file.to_string()];
     }
 
     // 从 stdin 读取 hook JSON
     let mut stdin_buf = String::new();
     if std::io::stdin().read_to_string(&mut stdin_buf).is_err() || stdin_buf.is_empty() {
-        // fallback: 尝试环境变量（向后兼容测试场景）
         let tool_input = std::env::var("TOOL_INPUT").unwrap_or_default();
         if tool_input.is_empty() {
             return vec![];
@@ -130,12 +138,16 @@ fn resolve_targets(file: &str) -> Vec<String> {
         Err(_) => return vec![],
     };
 
-    let tool_input = json.get("tool_input").unwrap_or(&json);
+    extract_targets_from_json(&json)
+}
+
+/// 从 hook JSON 中提取写入目标
+fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
+    let tool_input = json.get("tool_input").unwrap_or(json);
     let tool_name = json.get("tool_name").and_then(|v| v.as_str()).unwrap_or("");
 
     match tool_name {
         "Write" | "Edit" => {
-            // tool_input.file_path 是目标文件
             if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
                 vec![path.to_string()]
             } else {
@@ -143,7 +155,6 @@ fn resolve_targets(file: &str) -> Vec<String> {
             }
         }
         "Bash" => {
-            // tool_input.command 是 bash 命令，解析写入目标
             let command = tool_input
                 .get("command")
                 .and_then(|v| v.as_str())
@@ -152,7 +163,6 @@ fn resolve_targets(file: &str) -> Vec<String> {
             extract_write_targets_from_command(&command)
         }
         _ => {
-            // 未知工具或旧格式：尝试 file_path 或 command
             if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
                 vec![path.to_string()]
             } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
