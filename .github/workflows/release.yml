@@ -44,11 +44,10 @@ jobs:
 
       - name: Build release
         run: |
-          cd dow
           if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }}
+            cross build --release --target ${{ matrix.target }} --manifest-path dow/Cargo.toml
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --target ${{ matrix.target }} --manifest-path dow/Cargo.toml
           fi
         shell: bash
 
