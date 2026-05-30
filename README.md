@@ -10,10 +10,19 @@
 [![GitHub stars](https://img.shields.io/github/stars/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/network)
 
-**Lightweight engineering management for Claude Code & Codex CLI.**
+**Engineering discipline for coding agents.**
 
-Small, focused, and opinionated. dev-flow helps agents think clearly before implementation, then uses lightweight documents, disciplined phases, and hard constraints to keep them on an engineering management path.
+Small, focused, and opinionated. dev-flow gives coding agents structure — lightweight documents, disciplined phases, and hard constraints that turn raw coding ability into reliable engineering delivery.
 </div>
+
+---
+
+## Supported Agents
+
+| Agent | Status | Install |
+|-------|--------|---------|
+| **Claude Code** | Supported | `dow setup --agent claude` |
+| **Codex CLI** | Testing | `dow setup --agent codex` |
 
 ---
 

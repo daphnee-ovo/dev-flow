@@ -75,6 +75,7 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
     // 2. 任务完成度检测（仅 DEV 阶段）
     if phase == "DEV" {
         check_task_completion(&doc_root_path, &status_file);
+        check_issue_completion(&doc_root_path);
     }
 
     // 3. 代码变更同步提醒
@@ -179,25 +180,28 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
         }
     }
 
-    // closed_ 前缀自动重命名
+}
+
+fn check_issue_completion(doc_root: &Path) {
     let issue_dir = doc_root.join("issue");
-    if issue_dir.is_dir() {
-        if let Ok(issue_entries) = fs::read_dir(&issue_dir) {
-            for entry in issue_entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with("issue_") || !name.ends_with(".md") {
-                    continue;
-                }
-                if let Ok(content) = fs::read_to_string(entry.path()) {
-                    let file_total = content.lines().filter(|l| l.starts_with("- [")).count();
-                    let file_done = content.lines().filter(|l| l.starts_with("- [x]")).count();
-                    if file_total > 0 && file_total == file_done {
-                        let new_name = format!("closed_{}", name);
-                        let new_path = issue_dir.join(&new_name);
-                        if !new_path.exists() {
-                            fs::rename(entry.path(), &new_path).ok();
-                            println!("[dev-flow] Issue 全部关闭：{}", new_name);
-                        }
+    if !issue_dir.is_dir() {
+        return;
+    }
+    if let Ok(issue_entries) = fs::read_dir(&issue_dir) {
+        for entry in issue_entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with("issue_") || !name.ends_with(".md") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                let file_total = content.lines().filter(|l| l.starts_with("- [")).count();
+                let file_done = content.lines().filter(|l| l.starts_with("- [x]")).count();
+                if file_total > 0 && file_total == file_done {
+                    let new_name = format!("closed_{}", name);
+                    let new_path = issue_dir.join(&new_name);
+                    if !new_path.exists() {
+                        fs::rename(entry.path(), &new_path).ok();
+                        println!("[dev-flow] Issue 全部关闭：{}", new_name);
                     }
                 }
             }

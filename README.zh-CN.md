@@ -10,11 +10,20 @@
 [![GitHub stars](https://img.shields.io/github/stars/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/daphnee-ovo/dev-flow?style=flat)](https://github.com/daphnee-ovo/dev-flow/network)
 
-**Claude Code & Codex CLI 的轻量工程管理插件**
+**给 Coding Agent 的工程纪律**
 
-小而美，不追求大而全。先想清楚再动手，用轻量文档、规范阶段和硬约束，让 agent 按工程管理流程工作。
+小而美，不追求大而全。用轻量文档、规范阶段和硬约束，把 coding agent 的原始编码能力转化为可靠的工程交付。
 
 </div>
+
+---
+
+## 支持的 Agent
+
+| Agent | 状态 | 安装 |
+|-------|------|------|
+| **Claude Code** | 已支持 | `dow setup --agent claude` |
+| **Codex CLI** | 测试中 | `dow setup --agent codex` |
 
 ---
 
