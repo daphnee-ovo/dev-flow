@@ -35,8 +35,15 @@ assemble_agent() {
     cp "$PROJECT_ROOT/targets/claude/hooks.json" "$target_dir/hooks/hooks.json"
   elif [ "$agent" = "codex" ]; then
     mkdir -p "$target_dir/.codex-plugin"
-    cp "$PROJECT_ROOT/targets/codex/plugin.json" "$target_dir/.codex-plugin/plugin.json"
+    sed "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" \
+      "$PROJECT_ROOT/targets/codex/plugin.json" > "$target_dir/.codex-plugin/plugin.json"
+    cp "$PROJECT_ROOT/targets/codex/app.json" "$target_dir/.app.json"
+    mkdir -p "$target_dir/.agents/plugins"
+    sed "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" \
+      "$PROJECT_ROOT/targets/codex/personal-marketplace.json" > "$target_dir/.agents/plugins/marketplace.json"
     cp "$PROJECT_ROOT/targets/codex/hooks.json" "$target_dir/hooks.json"
+    mkdir -p "$target_dir/hooks"
+    cp "$PROJECT_ROOT/targets/codex/hooks.json" "$target_dir/hooks/hooks.json"
   else
     echo "[assemble] 未知 agent: $agent" >&2
     exit 1

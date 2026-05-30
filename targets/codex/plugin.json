@@ -19,6 +19,8 @@
     "dev-flow"
   ],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "apps": "./.app.json",
   "interface": {
     "displayName": "Dev-Flow",
     "shortDescription": "Manage PRD, spec, task, dev, test, and delivery workflows",

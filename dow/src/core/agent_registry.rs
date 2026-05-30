@@ -112,10 +112,21 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
             }
         }
         "codex" => {
-            if !target.join("hooks.json").exists() {
-                issues.push("缺少 hooks.json".to_string());
+            if !target.join("hooks").join("hooks.json").exists() {
+                issues.push("缺少 hooks/hooks.json".to_string());
             }
-            if !target.join(".codex-plugin/plugin.json").exists() {
+            if !target.join(".app.json").exists() {
+                issues.push("缺少 .app.json".to_string());
+            }
+            if !target
+                .join(".agents")
+                .join("plugins")
+                .join("marketplace.json")
+                .exists()
+            {
+                issues.push("缺少 .agents/plugins/marketplace.json".to_string());
+            }
+            if !target.join(".codex-plugin").join("plugin.json").exists() {
                 issues.push("缺少 .codex-plugin/plugin.json".to_string());
             }
         }

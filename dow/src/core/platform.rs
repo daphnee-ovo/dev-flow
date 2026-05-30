@@ -61,9 +61,16 @@ pub fn agent_plugin_dir(agent: &str) -> Option<PathBuf> {
 
     match agent {
         "claude" => Some(home.join(".claude").join("plugins").join("dev-flow")),
-        "codex" => Some(home.join(".codex").join("plugins").join("dev-flow")),
+        "codex" => Some(home.join(".codex").join("plugins").join("plugins").join("dev-flow")),
         _ => None,
     }
+}
+
+pub fn codex_personal_marketplace_dir() -> Option<PathBuf> {
+    let home = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    Some(PathBuf::from(home).join(".codex").join("plugins").join(".agents").join("plugins"))
 }
 
 pub fn agent_global_instructions(agent: &str) -> Option<PathBuf> {
