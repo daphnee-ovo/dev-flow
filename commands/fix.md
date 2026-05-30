@@ -7,9 +7,9 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 ## 前置检查
 
-1. 确认 `dev-doc/` 存在
+1. 确认 `.dev-doc/` 存在
 2. 确认 STATUS 为 DEV
-3. 扫描 `dev-doc/issue/` 目录，确认存在未关闭的 issue（即 `issue_*.md` 且不含 `closed_` 前缀）
+3. 扫描 `.dev-doc/issue/` 目录，确认存在未关闭的 issue（即 `issue_*.md` 且不含 `closed_` 前缀）
 4. 如果没有未关闭 issue，告知用户"当前没有待修复的 issue"并退出
 
 ## 模式检测

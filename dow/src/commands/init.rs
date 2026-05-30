@@ -26,7 +26,7 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    let doc_root = "dev-doc";
+    let doc_root = crate::core::DOC_DIR;
     let doc_root_path = std::path::Path::new(doc_root);
 
     // 创建目录结构

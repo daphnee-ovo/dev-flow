@@ -45,7 +45,7 @@ DOW_ITERATE_<token>=1 dow iterate --confirm --topic <topic> --type <type> [--fil
 
 Token 通过环境变量前缀传递，有效期 5 分钟。确认后依次执行：
 
-1. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `dev-doc/archive.db`（SQLite），然后删除源文件
+1. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `.dev-doc/archive.db`（SQLite），然后删除源文件
 2. **重置 CHANGELOG** — 清空为 `# Changelog\n`
 3. **git commit + tag** — `git add -u` + 显式 add 指定文件和 archive.db，commit message 格式为 `<type>: Release v<版本> <topic>`，CHANGELOG 条目作为 commit body
 4. **bump 版本** — 递增版本号写入 VERSION
@@ -94,7 +94,7 @@ agent 在调用前：
 
 ## 注意
 
-- 归档写入 SQLite（`dev-doc/archive.db`），源文件删除，iterate 后 dev-doc/ 中不残留 PRD/SPEC/TEST/CHANGELOG
+- 归档写入 SQLite（`.dev-doc/archive.db`），源文件删除，iterate 后 .dev-doc/ 中不残留 PRD/SPEC/TEST/CHANGELOG
 - 如果 SQLite 中已存在同版本记录，说明重复操作，INSERT OR IGNORE 跳过
 - `git add -u` 仅处理已跟踪文件的修改/删除，新文件需通过 `--files` 显式指定
 - 查询历史归档使用 `dow archive` 子命令（list/show/tasks/issues/doc/stats）

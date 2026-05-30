@@ -17,8 +17,9 @@ fn default_branch(dir: &Path) -> String {
 fn setup_test_env(dir: &Path, phase: &str, mode: &str) {
     Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
     let branch = default_branch(dir);
-    let doc = dir.join("dev-doc").join(&branch);
-    fs::create_dir_all(&doc).unwrap();
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::create_dir_all(doc.join("task")).unwrap();
+    fs::create_dir_all(doc.join("issue")).unwrap();
     fs::write(
         doc.join("STATUS.yaml"),
         format!(
@@ -26,7 +27,11 @@ fn setup_test_env(dir: &Path, phase: &str, mode: &str) {
             phase, mode
         ),
     ).unwrap();
-    fs::write(dir.join("VERSION"), "2.8.0\n").unwrap();
+    fs::write(
+        doc.join("task/task_2026-05-26_1.md"),
+        "---\ntitle: TASK - test\nnums: 1\n---\n\n- [ ] TASK-T001: test\n  - priority: P1\n  - complexity: S\n  - done_when:\n      - passes\n",
+    ).unwrap();
+    fs::write(dir.join("VERSION"), format!("({})2.8.0\n", branch)).unwrap();
 }
 
 fn read_field(dir: &Path, field: &str) -> String {

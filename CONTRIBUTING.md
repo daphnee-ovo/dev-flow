@@ -78,7 +78,7 @@ dev-flow/
 │       └── migrate.sh
 ├── references/                 # 内部参考规范
 │   ├── dev-flow-spec.md
-│   └── dev-doc/                # 文档格式模板
+│   └── .dev-doc/                # 文档格式模板
 │       ├── STATUS.yaml
 │       ├── TASK-FILE.md
 │       ├── CHANGELOG.md

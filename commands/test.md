@@ -9,7 +9,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 1. 读取 `task/` 目录下所有活跃 task 文件，统计未完成任务数量
 2. 如果有未完成任务 → **停止，告知用户先完成所有任务**，不继续
-3. 检查 `dev-doc/issue/` 中是否有未关闭的 issue → 提醒先修复
+3. 检查 `.dev-doc/issue/` 中是否有未关闭的 issue → 提醒先修复
 
 ## 阶段切换
 

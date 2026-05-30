@@ -31,10 +31,10 @@ pub enum Commands {
     /// 项目扫描
     Scan,
 
-    /// 校验 dev-doc 结构
+    /// 校验 .dev-doc 结构
     Validate,
 
-    /// 修复 dev-doc 文件格式问题
+    /// 修复 .dev-doc 文件格式问题
     Fix,
 
     /// 生成文档模板

@@ -8,7 +8,7 @@ use std::io::Read as IoRead;
 use std::path::Path;
 
 pub fn run(command: Option<String>) -> Result<i32, DowError> {
-    if !Path::new("dev-doc").is_dir() {
+    if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
 
@@ -37,7 +37,7 @@ pub fn run(command: Option<String>) -> Result<i32, DowError> {
 
     // 获取当前分支并报告
     let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     println!(
         "[dev-flow] 检测到分支切换 → 当前分支：`{}`，doc_root：{}",
@@ -53,7 +53,7 @@ pub fn run(command: Option<String>) -> Result<i32, DowError> {
             .unwrap_or_else(|| "unknown".to_string());
         println!("  阶段：{}，文档目录已就绪。", phase);
     } else {
-        println!("  ⚠ 新分支尚未初始化 dev-doc，将自动创建。");
+        println!("  ⚠ 新分支尚未初始化 .dev-doc，将自动创建。");
     }
 
     Ok(0)

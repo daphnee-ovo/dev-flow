@@ -25,7 +25,7 @@ struct IterateOutput {
 }
 
 pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {
@@ -62,19 +62,20 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    // 2.5 校验：所有 dev-doc 文件合法
+    // 2.5 校验：所有 .dev-doc 文件合法
     let validation_errors = doc_validator::validate_all(&doc_root_path);
     if !validation_errors.is_empty() {
         let msg = format!(
-            "iterate 前置检查失败：dev-doc 文件存在格式错误。\n{}",
+            "iterate 前置检查失败：.dev-doc 文件存在格式错误。\n{}",
             doc_validator::format_errors_human(&validation_errors)
         );
         return Err(DowError::new(msg, 1));
     }
 
-    // 3. 读取版本
+    // 3. 计算版本：当前 → bump → released_version（归档版本），再 +patch = next_version
     let cur_version = version::read_current()?;
-    let new_version = version::bump_version_str(&cur_version, &args.bump)?;
+    let released_version = version::bump_version_str(&cur_version, &args.bump)?;
+    let next_version = version::bump_version_str(&released_version, "patch")?;
 
     // 4. 计算归档内容
     let archive_base = archive_db::archive_base();
@@ -102,11 +103,11 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let commit_files = list_pending_changes(&args.files);
         let should_tag = args.bump != "patch" || args.tag;
         let result = IterateOutput {
-            tag: if should_tag { format!("v{}", &cur_version) } else { "no-tag".to_string() },
-            released_version: cur_version.clone(),
+            tag: if should_tag { format!("v{}", &released_version) } else { "no-tag".to_string() },
+            released_version: released_version.clone(),
             archive_db: archive_db_path.clone(),
             archived_files: archived_files.clone(),
-            next_version: new_version.clone(),
+            next_version: next_version.clone(),
             next_phase: next_phase(&effective_mode, &mode),
             commit_files,
             token: Some(token),
@@ -122,17 +123,20 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
     let changelog_entries = read_changelog_entries(&doc_root_path);
 
-    // 6. 执行归档（写入 SQLite）
+    // 6. bump VERSION 先写入（归档版本）
+    version::write_current(&released_version)?;
+
+    // 7. 执行归档（写入 SQLite）
     let conn = archive_db::open_or_create(&archive_base)?;
     let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
     let cur_branch = doc_root::current_branch().unwrap_or_else(|| "main".to_string());
     archive_db::insert_iteration(&conn, &archive_db::IterationRecord {
-        version: cur_version.clone(),
+        version: released_version.clone(),
         topic: args.topic.clone(),
         commit_type: Some(args.r#type.clone()),
         branch: cur_branch,
         released_at,
-        tag: format!("v{}", cur_version),
+        tag: format!("v{}", released_version),
         mode: Some(effective_mode.clone()),
     })?;
 
@@ -145,7 +149,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let tasks = archive_db::parse_task_file(&name, &content);
                     for task in &tasks {
-                        archive_db::insert_task(&conn, &cur_version, task)?;
+                        archive_db::insert_task(&conn, &released_version, task)?;
                     }
                 }
                 fs::remove_file(entry.path()).ok();
@@ -162,7 +166,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let issues = archive_db::parse_issue_file(&name, &content);
                     for issue in &issues {
-                        archive_db::insert_issue(&conn, &cur_version, issue)?;
+                        archive_db::insert_issue(&conn, &released_version, issue)?;
                     }
                 }
                 fs::remove_file(entry.path()).ok();
@@ -175,7 +179,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let src = doc_root_path.join(format!("{}.md", doc_type));
         if src.exists() {
             if let Ok(content) = fs::read_to_string(&src) {
-                archive_db::insert_doc(&conn, &cur_version, doc_type, &content)?;
+                archive_db::insert_doc(&conn, &released_version, doc_type, &content)?;
             }
             fs::remove_file(&src).ok();
         }
@@ -187,15 +191,15 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         if let Ok(content) = fs::read_to_string(&changelog) {
             let cl_entries = archive_db::parse_changelog(&content);
             for (order, (date, text)) in cl_entries.iter().enumerate() {
-                archive_db::insert_changelog(&conn, &cur_version, date.as_deref(), text, order as i32)?;
+                archive_db::insert_changelog(&conn, &released_version, date.as_deref(), text, order as i32)?;
             }
         }
         fs::write(&changelog, "# Changelog\n")
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 7. git commit + tag（archive.db 加入提交）
-    let commit_msg = format_commit_message(&cur_version, &args.topic, &args.r#type, &changelog_entries);
+    // 8. git commit + tag（archive.db 加入提交）
+    let commit_msg = format_commit_message(&released_version, &args.topic, &args.r#type, &changelog_entries);
     let mut commit_files = args.files.clone();
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
@@ -203,11 +207,11 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 只有 minor/major 或显式 --tag 才打 git tag
     let should_tag = args.bump != "patch" || args.tag;
     if should_tag {
-        git_tag(&cur_version)?;
+        git_tag(&released_version)?;
     }
 
-    // 8. bump VERSION + 重置 phase
-    version::write_current(&new_version)?;
+    // 9. bump VERSION 到 next_version + 重置 phase
+    version::write_current(&next_version)?;
     let next_ph = next_phase(&effective_mode, &mode);
 
     if mode.starts_with("audit/") {
@@ -221,13 +225,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
 
-    let tag_str = if should_tag { format!("v{}", cur_version) } else { "no-tag".to_string() };
+    let tag_str = if should_tag { format!("v{}", released_version) } else { "no-tag".to_string() };
     let result = IterateOutput {
-        released_version: cur_version.clone(),
+        released_version: released_version.clone(),
         tag: tag_str.clone(),
         archive_db: archive_db_path,
         archived_files,
-        next_version: new_version,
+        next_version: next_version,
         next_phase: next_ph,
         commit_files: vec![],
         token: None,
@@ -237,7 +241,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         println!("[dev-flow] 迭代完成");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
         let tag_display = if should_tag { " (tagged)" } else { "" };
-        println!("交付版本：v{}{}", cur_version, tag_display);
+        println!("交付版本：v{}{}", released_version, tag_display);
         println!("新版本：v{}", result.next_version);
         println!("阶段重置：{}", result.next_phase);
     } else {

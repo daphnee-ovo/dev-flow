@@ -43,7 +43,7 @@ dow doc issue --source other -n <issue数>
 ### 5. 提示下一步
 
 ```
-[dev-flow] Issue 已创建：dev-doc/issue/<filename>
+[dev-flow] Issue 已创建：.dev-doc/issue/<filename>
 是否需要立即修复？执行 /fix 自动修复未关闭 issue。
 ```
 

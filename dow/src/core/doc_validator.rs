@@ -1,17 +1,17 @@
 // dow/src/core/
-// ├── doc_validator.rs  -- dev-doc 文件合法性校验
-//    从 references/dev-doc/*.md 编译时嵌入规范，运行时解析并校验文件
+// ├── doc_validator.rs  -- .dev-doc 文件合法性校验
+//    从 references/.dev-doc/*.md 编译时嵌入规范，运行时解析并校验文件
 //
 // Related Docs:
-// - [ISSUE 规范](../../../references/dev-doc/ISSUE.md)
-// - [TASK 规范](../../../references/dev-doc/TASK-FILE.md)
+// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
+// - [TASK 规范](../../../references/.dev-doc/TASK-FILE.md)
 
 use std::fs;
 use std::path::Path;
 
 // 编译时嵌入规范 md
-const REF_ISSUE: &str = include_str!("../../../references/dev-doc/ISSUE.md");
-const REF_TASK: &str = include_str!("../../../references/dev-doc/TASK-FILE.md");
+const REF_ISSUE: &str = include_str!("../../../references/.dev-doc/ISSUE.md");
+const REF_TASK: &str = include_str!("../../../references/.dev-doc/TASK-FILE.md");
 
 /// 验证错误
 #[derive(Debug, Clone)]
@@ -679,7 +679,7 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 验证所有 dev-doc 文件，返回错误列表
+/// 验证所有 .dev-doc 文件，返回错误列表
 /// 包含：STATUS.yaml 校验、task/issue 内容校验、SPEC 序号校验、issue 状态一致性、非法文件检测
 pub fn validate_all(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = validate_status_yaml(doc_root);
@@ -807,7 +807,7 @@ fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 检测 dev-doc/<branch>/ 下是否存在不属于工作流管理的文件
+/// 检测 .dev-doc/<branch>/ 下是否存在不属于工作流管理的文件
 fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
@@ -826,7 +826,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     errors.push(ValidationError {
                         file: name,
                         kind: ErrorKind::BadFilename,
-                        message: "dev-doc 下不允许存在非工作流文件（合法：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、STATUS.yaml）".into(),
+                        message: ".dev-doc 下不允许存在非工作流文件（合法：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、STATUS.yaml）".into(),
                         fixable: false,
                     });
                 }
@@ -835,7 +835,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     errors.push(ValidationError {
                         file: name,
                         kind: ErrorKind::BadFilename,
-                        message: "dev-doc 下不允许存在非工作流目录（合法：task/、issue/）".into(),
+                        message: ".dev-doc 下不允许存在非工作流目录（合法：task/、issue/）".into(),
                         fixable: false,
                     });
                 }

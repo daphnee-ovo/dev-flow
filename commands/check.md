@@ -1,5 +1,5 @@
 ---
-description: 检查开发工作是否已同步到 dev-doc 文档
+description: 检查开发工作是否已同步到 .dev-doc 文档
 allowed-tools: Bash, Read
 ---
 

@@ -35,7 +35,7 @@ pub fn run(args: IssueArgs, human: bool) -> Result<i32, DowError> {
 }
 
 fn list_issues(human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let issue_dir = doc_root_path.join("issue");
 
     // 合法性校验

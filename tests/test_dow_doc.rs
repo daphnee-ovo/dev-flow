@@ -17,7 +17,7 @@ fn default_branch(dir: &Path) -> String {
 fn setup_env(dir: &Path) {
     Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
     let branch = default_branch(dir);
-    let doc = dir.join("dev-doc").join(&branch);
+    let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
     fs::create_dir_all(doc.join("issue")).unwrap();
     fs::write(
@@ -103,7 +103,7 @@ fn test_doc_prd_refuses_overwrite() {
     let dir = tempfile::tempdir().unwrap();
     setup_env(dir.path());
     let branch = default_branch(dir.path());
-    fs::write(dir.path().join("dev-doc").join(&branch).join("PRD.md"), "existing").unwrap();
+    fs::write(dir.path().join(".dev-doc").join(&branch).join("PRD.md"), "existing").unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["doc", "prd"])

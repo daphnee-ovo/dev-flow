@@ -113,4 +113,4 @@ allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 
 - 纯对话式流程，主 agent 直接执行，不启动子 agent
 - BRAINSTORM.md 在 `/iterate` 时不归档（作为项目持久参考保留）
-- 如果 dev-doc/ 不存在，brainstorm 会创建它
+- 如果 .dev-doc/ 不存在，brainstorm 会创建它

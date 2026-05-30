@@ -1,5 +1,5 @@
 ---
-description: 初始化 dev-flow 项目 — 扫描现状、创建/对齐 dev-doc、更新 agent 指令文件
+description: 初始化 dev-flow 项目 — 扫描现状、创建/对齐 .dev-doc、更新 agent 指令文件
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ## 总则
 
 `/init` 是 dev-flow 的入口命令。不管项目处于何种状态，执行后保证：
-1. `dev-doc/` 目录结构符合规范
+1. `.dev-doc/` 目录结构符合规范
 2. 所有文档格式通过校验
 3. 项目级 agent 指令文件正确反映项目信息
 4. 项目状态与实际一致
@@ -23,7 +23,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 dow scan
 ```
 
-输出项目名、技术栈、命令、目录结构、git 状态、已有 dev-doc 等。
+输出项目名、技术栈、命令、目录结构、git 状态、已有 .dev-doc 等。
 
 根据输出判断路径：
 - 输出中 `dev_doc: none` → 路径 A（全新项目）
@@ -38,7 +38,7 @@ dow scan
    ```bash
    dow init --name <项目名> --mode <mode>
    ```
-   自动创建目录结构（dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和项目根目录 VERSION（多分支格式）。
+   自动创建目录结构（.dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和项目根目录 VERSION（多分支格式）。
    如果项目已有 `temp` 目录则沿用，不创建 `tmp`。
 3. 跳到阶段 4
 

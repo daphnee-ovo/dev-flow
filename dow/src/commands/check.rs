@@ -18,7 +18,7 @@ struct CheckOutput {
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {

@@ -17,10 +17,9 @@ fn default_branch(dir: &Path) -> String {
 fn setup_valid_env(dir: &Path) {
     Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
     let branch = default_branch(dir);
-    let doc = dir.join("dev-doc").join(&branch);
+    let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
     fs::create_dir_all(doc.join("issue")).unwrap();
-    fs::create_dir_all(doc.join("archive")).unwrap();
     fs::create_dir_all(dir.join("tests")).unwrap();
     fs::create_dir_all(dir.join("tmp")).unwrap();
     fs::write(
@@ -53,7 +52,7 @@ fn test_validate_creates_missing_dirs() {
     let dir = tempfile::tempdir().unwrap();
     Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
     let branch = default_branch(dir.path());
-    let doc = dir.path().join("dev-doc").join(&branch);
+    let doc = dir.path().join(".dev-doc").join(&branch);
     fs::create_dir_all(&doc).unwrap();
     fs::write(
         doc.join("STATUS.yaml"),
@@ -75,7 +74,7 @@ fn test_validate_creates_missing_dirs() {
         .collect();
 
     assert!(auto_fixed.iter().any(|s| s.contains("created_dir")));
-    let doc_path = format!("dev-doc/{}", branch);
+    let doc_path = format!(".dev-doc/{}", branch);
     assert!(dir.path().join(&doc_path).join("task").exists());
     assert!(dir.path().join(&doc_path).join("issue").exists());
 }
@@ -86,7 +85,7 @@ fn test_validate_warns_invalid_phase() {
     setup_valid_env(dir.path());
     let branch = default_branch(dir.path());
     fs::write(
-        dir.path().join("dev-doc").join(&branch).join("STATUS.yaml"),
+        dir.path().join(".dev-doc").join(&branch).join("STATUS.yaml"),
         "name: test\nphase: INVALID\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
 
@@ -97,12 +96,10 @@ fn test_validate_warns_invalid_phase() {
         .unwrap();
 
     assert!(!output.status.success()); // exit 1 because warnings
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let warnings: Vec<String> = json["warnings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| v.as_str().unwrap().to_string())
-        .collect();
-    assert!(warnings.iter().any(|w| w.contains("status_invalid_phase")));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let warnings = json["warnings"].as_array().unwrap();
+    assert!(warnings.iter().any(|w| {
+        w["message"].as_str().map(|m| m.contains("INVALID")).unwrap_or(false)
+    }));
 }

@@ -27,7 +27,7 @@ struct DevtestOutput {
 }
 
 pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let task_dir = doc_root_path.join("task");
 
     if !task_dir.is_dir() {

@@ -15,23 +15,23 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
         .or_else(|| read_file_path_from_stdin())
         .unwrap_or_default();
 
-    if changed_file.is_empty() || !Path::new("dev-doc").is_dir() {
+    if changed_file.is_empty() || !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
 
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
-    // 分支校验：写入 dev-doc/ 内文件时检查是否属于当前分支
-    if changed_file.starts_with("dev-doc/") {
+    // 分支校验：写入 .dev-doc/ 内文件时检查是否属于当前分支
+    if changed_file.starts_with(".dev-doc/") {
         if let Some(branch) = doc_root::current_branch() {
-            let expected_prefix = format!("dev-doc/{}/", branch);
+            let expected_prefix = format!(".dev-doc/{}/", branch);
             let normalized = changed_file.replace('\\', "/");
             // 只对有分支子目录格式的路径做校验
-            if !normalized.starts_with(&expected_prefix) && !normalized.starts_with("dev-doc/archive/") {
-                let rest = &normalized["dev-doc/".len()..];
+            if !normalized.starts_with(&expected_prefix) && !normalized.starts_with(".dev-doc/archive/") {
+                let rest = &normalized[".dev-doc/".len()..];
                 if let Some(target_branch) = rest.split('/').next() {
-                    if Path::new(&format!("dev-doc/{}", target_branch)).is_dir() && target_branch != "archive" {
+                    if Path::new(&format!(".dev-doc/{}", target_branch)).is_dir() && target_branch != "archive" {
                         println!(
                             "[dev-flow] ⚠ 写入了其他分支的文件：{}（当前分支：{}）",
                             changed_file, branch
@@ -43,8 +43,8 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
         }
     }
 
-    // 1. 更新时间戳（dev-doc 内文件变更时）
-    if changed_file.starts_with("dev-doc/") && status_file.exists() {
+    // 1. 更新时间戳（.dev-doc 内文件变更时）
+    if changed_file.starts_with(".dev-doc/") && status_file.exists() {
         let is_status = changed_file == status_file.to_string_lossy();
         let is_changelog = changed_file.ends_with("CHANGELOG.md");
         if !is_status && !is_changelog {
@@ -76,7 +76,7 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
     }
 
     // 3. 代码变更同步提醒
-    if phase == "DEV" && !changed_file.starts_with("dev-doc/") {
+    if phase == "DEV" && !changed_file.starts_with(".dev-doc/") {
         check_code_sync(&changed_file, &doc_root_path, &mode);
     }
 

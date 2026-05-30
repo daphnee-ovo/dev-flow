@@ -85,7 +85,7 @@ Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to
 | `/fix` | Auto-read open issues and fix them |
 | `/test` | Full TEST agent (project-level verification) |
 | `/status` | Report current project status & progress |
-| `/check` | Check if dev work is synced with dev-doc |
+| `/check` | Check if dev work is synced with .dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
 | `/mode` | Select development mode (full/quick/fast/mvp; audit is auto-triggered) |
 
@@ -130,10 +130,10 @@ No manual operations needed:
 
 ### Document-Driven Development
 
-The plugin maintains a `dev-doc/` directory in your project:
+The plugin maintains a `.dev-doc/` directory in your project:
 
 ```
-dev-doc/
+.dev-doc/
 ├── STATUS.yaml            # Project status
 ├── CHANGELOG.md           # Session changelog (append-only)
 ├── BRAINSTORM.md          # Brainstorming notes
@@ -218,7 +218,7 @@ dev-flow/
 ├── VERSION                     # Semantic version (single source of truth)
 ├── references/                 # Single source of truth for all format schemas
 │   ├── dev-flow-spec.md
-│   └── dev-doc/                # Document format schemas (authoritative)
+│   └── .dev-doc/                # Document format schemas (authoritative)
 │       ├── BRAINSTORM-FILE.md
 │       ├── CHANGELOG.md
 │       ├── ISSUE.md

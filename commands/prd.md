@@ -8,7 +8,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ## 执行步骤
 
 1. 检测项目模式，确定 `DOC_ROOT`（见下方脚本）
-2. 如果 `dev-doc/` 不存在，创建目录结构
+2. 如果 `.dev-doc/` 不存在，创建目录结构
 3. 检查是否存在 `BRAINSTORM.md`（决定工作模式）
 4. 读取本插件的 `agents/prd-agent.md`
 5. **启动独立 Agent（严格按模板）**

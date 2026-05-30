@@ -77,7 +77,7 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 
 | 命令 | 说明 |
 |------|------|
-| `/init` | 初始化项目（创建 dev-doc、选择模式、规范校验） |
+| `/init` | 初始化项目（创建 .dev-doc、选择模式、规范校验） |
 | `/brainstorm` | 实现前的协作式需求探索与设计 |
 | `/prd` | 启动 PRD agent，产出 PRD.md |
 | `/spec` | 启动 SPEC agent，产出 SPEC.md |
@@ -87,7 +87,7 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 | `/fix` | 自动读取未关闭 issue 并修复 |
 | `/test` | 完整 TEST agent（项目级全量验证） |
 | `/status` | 查看当前项目状态和进度 |
-| `/check` | 检查开发工作是否已同步到 dev-doc |
+| `/check` | 检查开发工作是否已同步到 .dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
@@ -132,10 +132,10 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 
 ### 文档驱动开发
 
-插件在项目中维护 `dev-doc/` 目录：
+插件在项目中维护 `.dev-doc/` 目录：
 
 ```
-dev-doc/
+.dev-doc/
 ├── STATUS.yaml            # 项目状态
 ├── CHANGELOG.md           # 会话变更日志（追加式）
 ├── BRAINSTORM.md          # 头脑风暴
@@ -220,7 +220,7 @@ dev-flow/
 ├── VERSION                     # 语义化版本号（单一真相源）
 ├── references/                 # 唯一格式 schema 层（权威定义）
 │   ├── dev-flow-spec.md
-│   └── dev-doc/                # 文档格式 schema（权威）
+│   └── .dev-doc/                # 文档格式 schema（权威）
 │       ├── BRAINSTORM-FILE.md
 │       ├── CHANGELOG.md
 │       ├── ISSUE.md

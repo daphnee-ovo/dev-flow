@@ -78,7 +78,7 @@ fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<
 }
 
 pub fn run(args: StatusArgs, human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {
@@ -140,7 +140,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             let validation_errors = doc_validator::validate_all(doc_root_path);
             if !validation_errors.is_empty() {
                 let msg = format!(
-                    "无法进入 DEV：dev-doc 文件存在格式错误。\n{}",
+                    "无法进入 DEV：.dev-doc 文件存在格式错误。\n{}",
                     doc_validator::format_errors_human(&validation_errors)
                 );
                 return Err(DowError::new(msg, 1));

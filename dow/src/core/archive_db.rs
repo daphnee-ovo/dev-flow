@@ -51,7 +51,7 @@ pub struct IssueRecord {
 
 // ─── 连接与建表 ───
 
-/// 打开归档数据库（始终在 dev-doc/archive.db，跨分支共享）
+/// 打开归档数据库（始终在 .dev-doc/archive.db，跨分支共享）
 pub fn open_or_create(base: &Path) -> Result<Connection, DowError> {
     let db_path = base.join("archive.db");
     let conn = Connection::open(&db_path)
@@ -64,9 +64,9 @@ pub fn open_or_create(base: &Path) -> Result<Connection, DowError> {
     Ok(conn)
 }
 
-/// 归档数据库基础路径（固定 dev-doc/，不随分支变化）
+/// 归档数据库基础路径（固定 .dev-doc/，不随分支变化）
 pub fn archive_base() -> std::path::PathBuf {
-    std::path::PathBuf::from("dev-doc")
+    std::path::PathBuf::from(crate::core::DOC_DIR)
 }
 
 fn create_tables(conn: &Connection) -> Result<(), DowError> {

@@ -43,7 +43,7 @@ fn setup_git_repo(dir: &Path) {
 fn setup_branch_env(dir: &Path) {
     setup_git_repo(dir);
     let branch = default_branch(dir);
-    let doc = dir.join("dev-doc").join(&branch);
+    let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
     fs::create_dir_all(doc.join("issue")).unwrap();
     fs::write(
@@ -89,25 +89,27 @@ fn test_context_doc_root_matches_branch() {
 
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let doc_root = json["doc_root"].as_str().unwrap();
-    assert_eq!(doc_root, format!("dev-doc/{}", branch));
+    assert_eq!(doc_root, format!(".dev-doc/{}", branch));
 }
 
 #[test]
 fn test_guard_blocks_cross_branch_write() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
-    // 创建另一个分支目录模拟已有分支
-    fs::create_dir_all(&dir.join("dev-doc/feature-x")).unwrap();
+    // 创建另一个分支目录模拟已有分支（需含 STATUS.yaml 才能被识别为分支）
+    fs::create_dir_all(&dir.join(".dev-doc/feature-x")).unwrap();
+    fs::write(dir.join(".dev-doc/feature-x/STATUS.yaml"), "name: test\nphase: DEV\n").unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["hooks", "guard", "dev-doc/feature-x/SPEC.md"])
+        .args(["hooks", "guard", ".dev-doc/feature-x/SPEC.md"])
         .current_dir(&dir)
         .output()
         .unwrap();
 
-    assert!(!output.status.success());
+    // deny() exits 0 per Claude Code hook protocol, check stdout for BLOCKED
+    assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("BLOCKED"));
+    assert!(stdout.contains("BLOCKED"), "expected BLOCKED in: {}", stdout);
     assert!(stdout.contains("feature-x"));
 }
 
@@ -117,7 +119,7 @@ fn test_guard_allows_current_branch_write() {
     setup_branch_env(&dir);
     let branch = default_branch(&dir);
 
-    let file = format!("dev-doc/{}/task/task_01.md", branch);
+    let file = format!(".dev-doc/{}/task/task_01.md", branch);
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard", &file])
         .current_dir(&dir)
@@ -149,10 +151,10 @@ fn test_auto_creates_branch_dir_on_new_branch() {
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["branch"], "feat-new");
-    assert_eq!(json["doc_root"], "dev-doc/feat-new");
+    assert_eq!(json["doc_root"], ".dev-doc/feat-new");
 
     // 目录应该被自动创建
-    assert!(&dir.join("dev-doc/feat-new/STATUS.yaml").exists());
+    assert!(&dir.join(".dev-doc/feat-new/STATUS.yaml").exists());
 }
 
 #[test]
@@ -173,7 +175,7 @@ fn test_new_branch_inherits_project_name() {
         .output()
         .unwrap();
 
-    let content = fs::read_to_string(&dir.join("dev-doc/fix-bug/STATUS.yaml")).unwrap();
+    let content = fs::read_to_string(&dir.join(".dev-doc/fix-bug/STATUS.yaml")).unwrap();
     assert!(content.contains("name: test"));
 }
 
@@ -182,7 +184,7 @@ fn test_guard_allows_non_devdoc_files() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
 
-    // 非 dev-doc 非代码文件不受分支隔离限制
+    // 非 .dev-doc 非代码文件不受分支隔离限制
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard", "README.md"])
         .current_dir(&dir)
@@ -196,19 +198,21 @@ fn test_guard_allows_non_devdoc_files() {
 fn test_guard_blocks_bash_redirect_cross_branch() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
-    fs::create_dir_all(dir.join("dev-doc/other-branch")).unwrap();
+    fs::create_dir_all(dir.join(".dev-doc/other-branch")).unwrap();
+    fs::write(dir.join(".dev-doc/other-branch/STATUS.yaml"), "name: test\nphase: DEV\n").unwrap();
 
     // 模拟 Bash 工具通过 TOOL_INPUT 环境变量传入命令
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard"])
-        .env("TOOL_INPUT", r#"{"command":"echo x > dev-doc/other-branch/SPEC.md"}"#)
+        .env("TOOL_INPUT", r#"{"command":"echo x > .dev-doc/other-branch/SPEC.md"}"#)
         .current_dir(&dir)
         .output()
         .unwrap();
 
-    assert!(!output.status.success());
+    // deny() exits 0 per Claude Code hook protocol, check stdout for BLOCKED
+    assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("BLOCKED"));
+    assert!(stdout.contains("BLOCKED"), "expected BLOCKED in: {}", stdout);
 }
 
 #[test]
@@ -217,7 +221,7 @@ fn test_guard_allows_bash_redirect_current_branch() {
     setup_branch_env(&dir);
     let branch = default_branch(&dir);
 
-    let cmd = format!(r#"{{"command":"echo x > dev-doc/{}/task/new.md"}}"#, branch);
+    let cmd = format!(r#"{{"command":"echo x > .dev-doc/{}/task/new.md"}}"#, branch);
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard"])
         .env("TOOL_INPUT", &cmd)

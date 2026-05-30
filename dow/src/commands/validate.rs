@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── validate.rs  -- dow validate（校验 dev-doc 目录结构与文件规范）
+// ├── validate.rs  -- dow validate（校验 .dev-doc 目录结构与文件规范）
 
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
@@ -26,7 +26,18 @@ struct ValidateOutput {
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    // 0. 旧版 dev-doc/ 目录迁移检测
+    if let Some(msg) = check_legacy_doc_dir() {
+        if human {
+            println!("{}", msg);
+        } else {
+            let warn = serde_json::json!({"legacy_migration": msg});
+            println!("{}", warn);
+        }
+        return Ok(2);
+    }
+
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let mut result = ValidateOutput {
         doc_root: doc_root_path.to_string_lossy().to_string(),
         auto_fixed: Vec::new(),
@@ -196,7 +207,7 @@ fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
 }
 
 fn check_stale_root_files(doc_root: &Path, result: &mut ValidateOutput) {
-    let base_path = Path::new("dev-doc");
+    let base_path = Path::new(crate::core::DOC_DIR);
     if doc_root == base_path {
         return;
     }
@@ -222,7 +233,7 @@ fn check_stale_root_files(doc_root: &Path, result: &mut ValidateOutput) {
     if !stale_files.is_empty() {
         result.needs_confirm.push(ValidateItem {
             r#type: "stale_root_files".into(),
-            message: "files in dev-doc/ root should be in branch subdirectory".into(),
+            message: "files in .dev-doc/ root should be in branch subdirectory".into(),
             files: stale_files,
             hint: Some(format!("move to {}/", doc_root.display())),
         });
@@ -255,7 +266,7 @@ fn check_gitignore(result: &mut ValidateOutput) {
 }
 
 fn print_human(result: &ValidateOutput) {
-    println!("[dev-flow] dev-doc validation report");
+    println!("[dev-flow] .dev-doc validation report");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
     println!("doc_root: {}", result.doc_root);
     println!();
@@ -295,4 +306,26 @@ fn print_human(result: &ValidateOutput) {
     if result.needs_confirm.is_empty() && result.warnings.is_empty() {
         println!("all passed.");
     }
+}
+
+/// 检测旧版 dev-doc/ 目录是否存在且含 dev-flow 特征文件
+/// 只有包含 STATUS.yaml 的才视为 dev-flow 管理的旧目录需要迁移
+fn check_legacy_doc_dir() -> Option<String> {
+    let legacy = Path::new(crate::core::DOC_DIR_LEGACY);
+    if !legacy.is_dir() {
+        return None;
+    }
+    // 检查是否含 dev-flow 特征：任意子目录中有 STATUS.yaml
+    let has_status = fs::read_dir(legacy).ok()?.flatten().any(|e| {
+        e.path().is_dir() && e.path().join("STATUS.yaml").exists()
+    });
+    // 顶层也可能有（旧格式）
+    let has_top_status = legacy.join("STATUS.yaml").exists();
+    if !has_status && !has_top_status {
+        return None;
+    }
+    Some(format!(
+        "[dev-flow] 检测到旧版文档目录 `dev-doc/`（含 STATUS.yaml）。\n\
+         dev-flow 已迁移到 `.dev-doc/`，请执行 `mv dev-doc .dev-doc` 完成迁移，否则 dev-flow 无法正常工作。"
+    ))
 }

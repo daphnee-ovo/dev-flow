@@ -2,11 +2,14 @@
 
 项目全流程管理插件，从需求探索到交付的完整生命周期管理。
 
+## 注意事项
+- 禁止直接在开发环境测试导致开发环境的流程管理被污染。如需测试，需要在./tmp/test_target_project 中进行测试
+
 ## 命令
 
 | 命令 | 作用 |
 |------|------|
-| `/init` | 初始化 dev-flow 项目（创建 dev-doc、选择模式） |
+| `/init` | 初始化 dev-flow 项目（创建 .dev-doc、选择模式） |
 | `/brainstorm` | 实现前的协作式需求探索与设计 |
 | `/prd` | 启动 PRD agent，进入需求探索阶段 |
 | `/spec` | 启动 SPEC agent，进入技术规范阶段 |
@@ -16,7 +19,7 @@
 | `/fix` | 自动读取未关闭 issue 并修复 |
 | `/test` | 启动完整 TEST agent（项目级全量验证） |
 | `/status` | 报告当前项目状态和进度 |
-| `/check` | 检查开发工作是否已同步到 dev-doc |
+| `/check` | 检查开发工作是否已同步到 .dev-doc |
 | `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
@@ -41,8 +44,8 @@
 | `dow issue --list` | 列出未关闭的 issue |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--tag] [--confirm]` | 迭代交付（默认 patch，minor/major 自动打 tag） |
 | `dow scan` | 项目扫描 |
-| `dow validate` | 校验 dev-doc 结构 |
-| `dow fix` | 自动修复 dev-doc 文件格式问题 |
+| `dow validate` | 校验 .dev-doc 结构 |
+| `dow fix` | 自动修复 .dev-doc 文件格式问题 |
 | `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |
@@ -65,7 +68,7 @@
 
 ## 文档格式规范（必读）
 
-**创建或写入 dev-doc 文件时，必须通过 `dow doc <type> --json` 获取格式定义，不要凭记忆或内联模板写入。**
+**创建或写入 .dev-doc 文件时，必须通过 `dow doc <type> --json` 获取格式定义，不要凭记忆或内联模板写入。**
 
 ```bash
 dow doc task --json    # 获取 task 文件的结构化格式
@@ -95,18 +98,22 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
 
-## 开发脚本（dev-scripts/）
+## 开发辅助工具（devtools/）
 
-`dev-scripts/` 存放插件开发者自用的维护脚本，不随插件分发：
+`devtools/` 统一存放项目开发过程中使用的辅助脚本和工具，不随插件分发。
+
+规范：
+- 所有开发辅助脚本（同步、预检、批处理、本地调试工具等）统一放在 `devtools/`
+- 临时/一次性脚本放 `tmp/`，不进 `devtools/`
+- `devtools/` 下的脚本应有明确用途，文件名体现功能
 
 | 脚本 | 作用 |
 |------|------|
 | `sync-skill.sh` | 将 `skills/dev-flow/SKILL.md` 同步到 `.claude/skills/` 和 `.agents/skills/` |
 | `sync-plugin.sh` | 同步项目到 Claude Code 插件缓存 |
 
-**修改 SKILL.md 后必须执行 `bash dev-scripts/sync-skill.sh` 同步副本。**
+**修改 SKILL.md 后必须执行 `bash devtools/sync-skill.sh` 同步副本。**
 
 ## 目录结构约定
 
-项目使用 `dev-doc/` 目录管理所有流程文档。
-
+项目使用 `.dev-doc/` 目录管理所有流程文档。

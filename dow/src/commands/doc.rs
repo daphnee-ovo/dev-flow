@@ -11,14 +11,14 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
 
-// 嵌入 references/dev-doc/ 的规范文件
-const REF_TASK: &str = include_str!("../../../references/dev-doc/TASK-FILE.md");
-const REF_ISSUE: &str = include_str!("../../../references/dev-doc/ISSUE.md");
-const REF_PRD: &str = include_str!("../../../references/dev-doc/PRD-FILE.md");
-const REF_SPEC: &str = include_str!("../../../references/dev-doc/SPEC-FILE.md");
-const REF_TEST: &str = include_str!("../../../references/dev-doc/TEST.md");
-const REF_BRAINSTORM: &str = include_str!("../../../references/dev-doc/BRAINSTORM-FILE.md");
-const REF_CHANGELOG: &str = include_str!("../../../references/dev-doc/CHANGELOG.md");
+// 嵌入 references/.dev-doc/ 的规范文件
+const REF_TASK: &str = include_str!("../../../references/.dev-doc/TASK-FILE.md");
+const REF_ISSUE: &str = include_str!("../../../references/.dev-doc/ISSUE.md");
+const REF_PRD: &str = include_str!("../../../references/.dev-doc/PRD-FILE.md");
+const REF_SPEC: &str = include_str!("../../../references/.dev-doc/SPEC-FILE.md");
+const REF_TEST: &str = include_str!("../../../references/.dev-doc/TEST.md");
+const REF_BRAINSTORM: &str = include_str!("../../../references/.dev-doc/BRAINSTORM-FILE.md");
+const REF_CHANGELOG: &str = include_str!("../../../references/.dev-doc/CHANGELOG.md");
 
 #[derive(Serialize)]
 struct DocOutput {
@@ -69,7 +69,7 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 默认：创建模板文件
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     let mode = get_current_mode();
     let (path, slots) = match doc_type.as_str() {
@@ -606,7 +606,7 @@ fn changelog_template() -> String {
 
 /// 读取当前项目 mode（从 STATUS.yaml），fallback 为 "full"
 fn get_current_mode() -> String {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
     if !status_file.exists() {
         return "full".to_string();

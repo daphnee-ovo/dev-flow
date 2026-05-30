@@ -9,11 +9,11 @@ use std::path::Path;
 use std::process::Command;
 
 pub fn run() -> Result<i32, DowError> {
-    if !Path::new("dev-doc").is_dir() {
+    if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
 
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let changelog = doc_root_path.join("CHANGELOG.md");
     let date = Local::now().format("%Y-%m-%d").to_string();
     let time = Local::now().format("%H:%M").to_string();

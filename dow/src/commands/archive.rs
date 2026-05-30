@@ -245,13 +245,13 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     let mut versions = Vec::new();
     let mut total_records = 0u32;
 
-    // 扫描 dev-doc/archive/v*-*/
+    // 扫描 .dev-doc/archive/v*-*/
     let top_archive = doc_root_path.join("archive");
     if top_archive.is_dir() {
         migrate_dir_entries(&conn, &top_archive, "main", &mut versions, &mut total_records)?;
     }
 
-    // 扫描 dev-doc/*/archive/v*-*/（branch-specific）
+    // 扫描 .dev-doc/*/archive/v*-*/（branch-specific）
     if let Ok(entries) = fs::read_dir(&doc_root_path) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();

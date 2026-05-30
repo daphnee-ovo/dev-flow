@@ -33,7 +33,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 
 | 命令 | 阶段 | 角色 |
 |------|------|------|
-| `/init` | 初始化 | 创建 dev-doc、选择模式 |
+| `/init` | 初始化 | 创建 .dev-doc、选择模式 |
 | `/brainstorm` | PRD 前置 | 协作式设计探索 |
 | `/prd` | PRD | 懂技术的高级产品经理 |
 | `/spec` | SPEC | 资深架构师 |
@@ -104,7 +104,7 @@ audit 模式用于处理非 DEV 阶段发现的紧急 issue，**不可手动设�
 ## 目录结构
 
 ```
-dev-doc/
+.dev-doc/
 ├── STATUS.yaml
 ├── CHANGELOG.md
 ├── BRAINSTORM.md
@@ -131,7 +131,7 @@ dev-doc/
 | `dow issue --list` | 列出未关闭的 issue |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
-| `dow validate` | 校验 dev-doc 结构 |
+| `dow validate` | 校验 .dev-doc 结构 |
 | `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
 | `dow devtest [--task <id>]` | 任务级测试 |
 | `dow test [--file <x>]` | 全量测试 |

@@ -87,17 +87,17 @@ pub fn run(file: String) -> Result<i32, DowError> {
             );
         }
 
-        // block-devdoc-direct-create: 禁止 agent 手动创建 dev-doc 文档文件
+        // block-devdoc-direct-create: 禁止 agent 手动创建 .dev-doc 文档文件
         if let Some(msg) = check_devdoc_direct_create(rel_target) {
             return deny(&msg);
         }
 
-        // block-cross-branch: 拦截写入其他分支的 dev-doc 目录
+        // block-cross-branch: 拦截写入其他分支的 .dev-doc 目录
         if let Some(reason) = check_cross_branch_write(rel_target) {
             return deny(&reason);
         }
 
-        // 非 DEV/TEST 阶段：只允许写入 dev-doc/<branch>/ 已存在文件和 tmp/
+        // 非 DEV/TEST 阶段：只允许写入 .dev-doc/<branch>/ 已存在文件和 tmp/
         if let Some(reason) = check_non_dev_write(rel_target) {
             return deny(&reason);
         }
@@ -287,7 +287,7 @@ fn looks_like_path(s: &str) -> bool {
     if protected_names.contains(&s) {
         return true;
     }
-    s.contains('/') || s.contains('.') || s.starts_with("dev-doc")
+    s.contains('/') || s.contains('.') || s.starts_with(".dev-doc")
 }
 
 fn resolve_absolute(file: &str) -> String {
@@ -327,22 +327,22 @@ fn is_dangerous_path(resolved: &str) -> bool {
 }
 
 fn check_cross_branch_write(file: &str) -> Option<String> {
-    // 只检查 dev-doc/ 内的写入
+    // 只检查 .dev-doc/ 内的写入
     let normalized = file.replace('\\', "/");
-    if !normalized.starts_with("dev-doc/") {
+    if !normalized.starts_with(".dev-doc/") {
         return None;
     }
 
-    let rest = &normalized["dev-doc/".len()..];
+    let rest = &normalized[".dev-doc/".len()..];
 
-    // 直接在 dev-doc/ 下的文件（如 archive.db）不属于分支目录
+    // 直接在 .dev-doc/ 下的文件（如 archive.db）不属于分支目录
     if !rest.contains('/') {
         return None;
     }
 
     // 获取当前分支（分支名可能含 `/`，如 refactor/tui）
     let current = doc_root::current_branch()?;
-    let current_prefix = format!("dev-doc/{}/", current);
+    let current_prefix = format!(".dev-doc/{}/", current);
 
     // 文件在当前分支目录下 → 允许
     if normalized.starts_with(&current_prefix) {
@@ -363,7 +363,7 @@ fn check_cross_branch_write(file: &str) -> Option<String> {
             break;
         }
 
-        let branch_path = Path::new("dev-doc").join(&candidate);
+        let branch_path = Path::new(".dev-doc").join(&candidate);
         if branch_path.join("STATUS.yaml").exists() {
             return Some(format!(
                 "[dev-flow] BLOCKED: 当前分支为 `{}`，禁止写入其他分支的文档目录：{}\n→ 请确认你已切换到正确的分支，或使用 `git checkout {}` 切换。",
@@ -377,14 +377,14 @@ fn check_cross_branch_write(file: &str) -> Option<String> {
 }
 
 /// 非 DEV/TEST 阶段写入白名单检查
-/// 允许：dev-doc/<current-branch>/ 已存在文件、项目内 tmp/
+/// 允许：.dev-doc/<current-branch>/ 已存在文件、项目内 tmp/
 /// 其余位置一律 deny
 fn check_non_dev_write(file: &str) -> Option<String> {
-    if !Path::new("dev-doc").is_dir() {
+    if !Path::new(".dev-doc").is_dir() {
         return None;
     }
 
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(".dev-doc");
     let status_file = doc_root_path.join("STATUS.yaml");
     if !status_file.exists() {
         return None;
@@ -417,13 +417,13 @@ fn check_non_dev_write(file: &str) -> Option<String> {
         return None;
     }
 
-    // 白名单 4：dev-doc/<branch>/ 内的合法工作流文件
-    if file.starts_with("dev-doc/") || file.starts_with("dev-doc\\") {
+    // 白名单 4：.dev-doc/<branch>/ 内的合法工作流文件
+    if file.starts_with(".dev-doc/") || file.starts_with(".dev-doc\\") {
         // 已存在的文件允许编辑（新建文件已被 check_devdoc_direct_create 拦截）
         if Path::new(file).exists() {
             return None;
         }
-        // dev-doc 下的目录本身允许
+        // .dev-doc 下的目录本身允许
         if Path::new(file).is_dir() {
             return None;
         }
@@ -432,14 +432,14 @@ fn check_non_dev_write(file: &str) -> Option<String> {
             return None;
         }
         return Some(format!(
-            "[dev-flow] dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
+            "[dev-flow] .dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
             file
         ));
     }
 
     // 其余位置：非 DEV 阶段禁止写入
     Some(format!(
-        "[dev-flow] 当前阶段为 {}，只允许写入 dev-doc/、docs/ 和 tmp/。要写入 {} 请先进入 DEV 阶段。（探索性代码、demo 可放 tmp/ 下）",
+        "[dev-flow] 当前阶段为 {}，只允许写入 .dev-doc/、docs/ 和 tmp/。要写入 {} 请先完成规划并进入 DEV 阶段：创建任务（/task）或创建 issue（/issue）后即可进入 DEV。（探索性代码、demo 可放 tmp/ 下）",
         phase, file
     ))
 }
@@ -453,19 +453,19 @@ fn is_version_file(file: &str) -> bool {
 fn is_status_file(file: &str) -> bool {
     let normalized = file.replace('\\', "/");
     normalized.ends_with("STATUS.yaml")
-        && (normalized.starts_with("dev-doc/") || normalized.contains("/dev-doc/"))
+        && (normalized.starts_with(".dev-doc/") || normalized.contains("/.dev-doc/"))
 }
 
-/// 禁止 agent 直接创建 dev-doc 下应通过 dow doc 创建的文件
+/// 禁止 agent 直接创建 .dev-doc 下应通过 dow doc 创建的文件
 fn check_devdoc_direct_create(file: &str) -> Option<String> {
     let normalized = file.replace('\\', "/");
 
-    // 只检查 dev-doc/ 内的文件
-    if !normalized.starts_with("dev-doc/") {
+    // 只检查 .dev-doc/ 内的文件
+    if !normalized.starts_with(".dev-doc/") {
         return None;
     }
 
-    // 提取 dev-doc/<branch>/ 之后的相对路径
+    // 提取 .dev-doc/<branch>/ 之后的相对路径
     let parts: Vec<&str> = normalized.splitn(3, '/').collect();
     if parts.len() < 3 {
         return None;
@@ -533,10 +533,10 @@ fn is_docs_path(file: &str) -> bool {
     normalized.starts_with("docs/") || normalized.contains("/docs/")
 }
 
-/// 判断 dev-doc/ 内新文件是否属于 dev-flow 工作流管理范围
+/// 判断 .dev-doc/ 内新文件是否属于 dev-flow 工作流管理范围
 fn is_valid_devdoc_file(file: &str) -> bool {
     let normalized = file.replace('\\', "/");
-    // 提取 dev-doc/<branch>/ 之后的相对路径
+    // 提取 .dev-doc/<branch>/ 之后的相对路径
     let parts: Vec<&str> = normalized.splitn(3, '/').collect();
     if parts.len() < 3 {
         return false;

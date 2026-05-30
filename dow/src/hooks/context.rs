@@ -56,11 +56,11 @@ struct CurrentItems {
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
-    if !Path::new("dev-doc").is_dir() {
+    if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
 
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {

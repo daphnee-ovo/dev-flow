@@ -305,7 +305,7 @@ fn detect_git() -> GitInfo {
 }
 
 fn detect_dev_doc() -> DevDocInfo {
-    if !Path::new("dev-doc").is_dir() {
+    if !Path::new(crate::core::DOC_DIR).is_dir() {
         return DevDocInfo {
             exists: false,
             files: Vec::new(),
@@ -314,13 +314,13 @@ fn detect_dev_doc() -> DevDocInfo {
         };
     }
 
-    let files: Vec<String> = walkdir_simple("dev-doc")
+    let files: Vec<String> = walkdir_simple(crate::core::DOC_DIR)
         .into_iter()
         .filter(|f| f.ends_with(".md") || f.ends_with(".yaml"))
         .collect();
 
-    let task_summary = if Path::new("dev-doc/task").is_dir() {
-        let active = fs::read_dir("dev-doc/task")
+    let task_summary = if Path::new(".dev-doc/task").is_dir() {
+        let active = fs::read_dir(".dev-doc/task")
             .map(|e| {
                 e.flatten()
                     .filter(|e| {
@@ -330,7 +330,7 @@ fn detect_dev_doc() -> DevDocInfo {
                     .count()
             })
             .unwrap_or(0);
-        let done = fs::read_dir("dev-doc/task")
+        let done = fs::read_dir(".dev-doc/task")
             .map(|e| {
                 e.flatten()
                     .filter(|e| {
@@ -345,8 +345,8 @@ fn detect_dev_doc() -> DevDocInfo {
         None
     };
 
-    let issue_summary = if Path::new("dev-doc/issue").is_dir() {
-        let open = fs::read_dir("dev-doc/issue")
+    let issue_summary = if Path::new(".dev-doc/issue").is_dir() {
+        let open = fs::read_dir(".dev-doc/issue")
             .map(|e| {
                 e.flatten()
                     .filter(|e| {
@@ -356,7 +356,7 @@ fn detect_dev_doc() -> DevDocInfo {
                     .count()
             })
             .unwrap_or(0);
-        let closed = fs::read_dir("dev-doc/issue")
+        let closed = fs::read_dir(".dev-doc/issue")
             .map(|e| {
                 e.flatten()
                     .filter(|e| {

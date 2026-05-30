@@ -3,7 +3,7 @@
 ## 目录结构
 
 ```
-dev-doc/
+.dev-doc/
 ├── STATUS.yaml                              # 项目状态
 ├── CHANGELOG.md                           # 追加式会话日志
 ├── BRAINSTORM.md                          # 头脑风暴记录（持久，不归档）
@@ -31,7 +31,7 @@ dev-doc/
 当项目有多分支并行开发时：
 
 ```
-dev-doc/
+.dev-doc/
 ├── main/
 │   ├── STATUS.yaml
 │   ├── ...
@@ -40,7 +40,7 @@ dev-doc/
 │   ├── ...
 ```
 
-检测规则：如果 `dev-doc/` 下存在包含 `STATUS.yaml` 的子目录，则进入多工程模式，`DOC_ROOT=dev-doc/<当前分支名>`。
+检测规则：如果 `.dev-doc/` 下存在包含 `STATUS.yaml` 的子目录，则进入多工程模式，`DOC_ROOT=.dev-doc/<当前分支名>`。
 
 ## 文件命名规范
 
@@ -76,7 +76,7 @@ task/
 
 ### Task 文件内容格式
 
-遵循 `references/dev-doc/TASK-FILE.md` 定义的格式。
+遵循 `references/.dev-doc/TASK-FILE.md` 定义的格式。
 
 **状态标记**：`- [ ]` 未完成，`- [x]` 已完成
 
@@ -204,7 +204,7 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 dow init --name <项目名> --mode <mode>
 ```
 
-自动创建 `dev-doc/{issue,task,archive}`、`STATUS.yaml`、根目录 `VERSION`（多分支格式：`(<branch>)<semver>`）、`CHANGELOG.md`。
+自动创建 `.dev-doc/{issue,task,archive}`、`STATUS.yaml`、根目录 `VERSION`（多分支格式：`(<branch>)<semver>`）、`CHANGELOG.md`。
 
 ## 临时文件
 
@@ -219,8 +219,26 @@ tmp 或 temp
 
 - 选用的本地临时目录应加入 `.gitignore`
 - **禁止写入系统临时目录**——所有临时文件必须放在项目内 `tmp` 或 `temp` 下，确保可追溯、可清理
-- 不要在 `dev-doc/`、`tests/`、`src/` 中存放临时文件
+- 不要在 `.dev-doc/`、`tests/`、`src/` 中存放临时文件
 - 会话结束或问题解决后可清理，不做持久化
+
+## 开发辅助工具（devtools/）
+
+项目开发过程中使用的辅助脚本和工具统一放在 `devtools/` 目录下，不随产品分发。
+
+```
+devtools/
+├── sync-skill.sh       # 同步 SKILL.md 到各副本位置
+├── sync-plugin.sh      # 同步项目到插件缓存
+├── ...                 # 其他辅助脚本
+```
+
+### 规范
+
+- **归属原则**：有持续使用价值的辅助脚本放 `devtools/`，一次性/临时脚本放 `tmp/`
+- **命名**：文件名应体现功能（动词-名词 或 功能描述），如 `sync-skill.sh`、`check-links.sh`
+- **版本控制**：`devtools/` 纳入版本控制，`tmp/` 不纳入
+- **不放入 devtools/ 的内容**：产品运行时脚本（放 `scripts/`）、构建脚本（放项目根或 `scripts/`）、测试脚本（放 `tests/`）
 
 ## 测试代码规范
 

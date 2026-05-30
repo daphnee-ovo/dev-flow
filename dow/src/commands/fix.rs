@@ -1,9 +1,9 @@
 // dow/src/commands/
-// ├── fix.rs  -- dow fix（自动修复 dev-doc 文件格式问题）
+// ├── fix.rs  -- dow fix（自动修复 .dev-doc 文件格式问题）
 //
 // Related Docs:
-// - [ISSUE 规范](../../../references/dev-doc/ISSUE.md)
-// - [TASK 规范](../../../references/dev-doc/TASK-FILE.md)
+// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
+// - [TASK 规范](../../../references/.dev-doc/TASK-FILE.md)
 
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
@@ -19,7 +19,7 @@ struct FixOutput {
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
-    let doc_root_path = doc_root::resolve("dev-doc");
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
 

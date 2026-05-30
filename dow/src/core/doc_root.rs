@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// 解析实际的 doc_root 路径
-/// 强制使用 dev-doc/<branch>/ 格式（包括 main/master）
+/// 强制使用 .dev-doc/<branch>/ 格式（包括 main/master）
 /// 新分支自动创建目录和 STATUS.yaml
 pub fn resolve(base: &str) -> PathBuf {
     let base_path = Path::new(base);

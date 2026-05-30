@@ -18,13 +18,14 @@ fn default_branch(dir: &Path) -> String {
 fn setup_test_env(dir: &Path) {
     Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
     let branch = default_branch(dir);
-    let doc = dir.join("dev-doc").join(&branch);
+    let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(&doc).unwrap();
     fs::write(
         doc.join("STATUS.yaml"),
         "name: test-project\nphase: DEV\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
-    fs::write(dir.join("VERSION"), "2.8.0\n").unwrap();
+    let branch = default_branch(dir);
+    fs::write(dir.join("VERSION"), format!("({})2.8.0\n", branch)).unwrap();
 }
 
 #[test]
@@ -47,9 +48,9 @@ fn test_status_json_output() {
     assert_eq!(json["mode"], "quick");
     assert_eq!(json["version"], "2.8.0");
     assert_eq!(json["version_tag"], "no-tag");
-    // doc_root 应为 dev-doc/<branch> 格式
+    // doc_root 应为 .dev-doc/<branch> 格式
     let doc_root = json["doc_root"].as_str().unwrap();
-    assert!(doc_root.starts_with("dev-doc/"), "doc_root should be branch-specific: {}", doc_root);
+    assert!(doc_root.starts_with(".dev-doc/"), "doc_root should be branch-specific: {}", doc_root);
 }
 
 #[test]
