@@ -78,19 +78,21 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     // 统计 open issues
     let open_issues = count_open_issues(&doc_root_path);
 
-    // BLOCKED 检查
+    // BLOCKED 检查：DEV 阶段无待做工作时阻断
     if phase == "DEV" && !mode.starts_with("audit/") {
-        let active_tasks = count_active_task_files(&doc_root_path);
-        let done_tasks = count_done_task_files(&doc_root_path);
+        let undone_items = count_undone_in_active_tasks(&doc_root_path);
 
-        if active_tasks == 0 && open_issues == 0 && done_tasks == 0 {
+        if undone_items == 0 && open_issues == 0 {
+            let reason = "[dev-flow] DEV 阶段无待完成的 task 且无 open issue，不允许继续开发。请选择：\n\
+                → /task 创建新任务\n\
+                → /issue 创建 issue\n\
+                → /test 进入测试阶段";
             if human {
-                println!("[dev-flow] BLOCKED: DEV 阶段无活跃 task 且无 open issue");
+                println!("{}", reason);
             } else {
-                // Claude Code UserPromptSubmit 阻断格式
                 let block_json = serde_json::json!({
                     "decision": "block",
-                    "reason": "[dev-flow] DEV 阶段无活跃 task 且无 open issue。请先用 /task 创建任务或 /issue 创建 issue。"
+                    "reason": reason
                 });
                 println!("{}", block_json);
             }
@@ -216,38 +218,25 @@ fn count_open_issues(doc_root: &Path) -> u32 {
     open
 }
 
-fn count_active_task_files(doc_root: &Path) -> u32 {
+/// 统计 active task 文件中未完成的 checklist 项数
+fn count_undone_in_active_tasks(doc_root: &Path) -> u32 {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
         return 0;
     }
-    fs::read_dir(&task_dir)
-        .map(|e| {
-            e.flatten()
-                .filter(|e| {
-                    let n = e.file_name().to_string_lossy().to_string();
-                    n.starts_with("task_") && n.ends_with(".md")
-                })
-                .count() as u32
-        })
-        .unwrap_or(0)
-}
-
-fn count_done_task_files(doc_root: &Path) -> u32 {
-    let task_dir = doc_root.join("task");
-    if !task_dir.is_dir() {
-        return 0;
+    let mut undone = 0u32;
+    if let Ok(entries) = fs::read_dir(&task_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with("task_") || !name.ends_with(".md") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                undone += content.lines().filter(|l| l.starts_with("- [ ]")).count() as u32;
+            }
+        }
     }
-    fs::read_dir(&task_dir)
-        .map(|e| {
-            e.flatten()
-                .filter(|e| {
-                    let n = e.file_name().to_string_lossy().to_string();
-                    n.starts_with("done_task_") && n.ends_with(".md")
-                })
-                .count() as u32
-        })
-        .unwrap_or(0)
+    undone
 }
 
 fn get_current_items(doc_root: &Path, open_issues: u32) -> Option<CurrentItems> {

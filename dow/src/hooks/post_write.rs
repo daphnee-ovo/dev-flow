@@ -56,7 +56,7 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    let phase = yaml::get(&status_file, "phase")
+    let mut phase = yaml::get(&status_file, "phase")
         .ok()
         .flatten()
         .unwrap_or_default();
@@ -68,6 +68,8 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
     // 1.5 audit 模式自动触发
     if changed_file.contains("/issue/issue_") && !mode.starts_with("audit/") && phase != "DEV" {
         enter_audit_mode(&status_file, &mode);
+        // enter_audit_mode 已将 phase 设为 DEV，刷新本地变量
+        phase = "DEV".to_string();
     }
 
     // 2. 任务完成度检测（仅 DEV 阶段）

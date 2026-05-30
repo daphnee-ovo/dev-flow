@@ -386,7 +386,7 @@ fn check_cross_branch_write(file: &str) -> Option<String> {
     None
 }
 
-/// 非 DEV/TEST 阶段写入白名单检查
+/// 非 DEV/TEST 阶段写入白名单检查 + DEV 阶段无活跃工作检查
 /// 允许：.dev-doc/<current-branch>/ 已存在文件、项目内 tmp/
 /// 其余位置一律 deny
 fn check_non_dev_write(file: &str) -> Option<String> {
@@ -401,9 +401,41 @@ fn check_non_dev_write(file: &str) -> Option<String> {
     }
 
     let phase = yaml::get(&status_file, "phase").ok().flatten().unwrap_or_default();
+    let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
 
-    // DEV/TEST 阶段不限制
+    // DEV/TEST 阶段：检查是否有活跃工作
     if phase == "DEV" || phase == "TEST" {
+        // audit 模式不限制
+        if mode.starts_with("audit/") {
+            return None;
+        }
+        // 白名单：.dev-doc/、tmp/、AI config、docs/ 写入始终允许
+        if file.starts_with(".dev-doc/") || file.starts_with(".dev-doc\\")
+            || file.starts_with("tmp/") || file.starts_with("tmp\\")
+        {
+            return None;
+        }
+        let ai_config_prefixes = [
+            ".claude/", ".codex/", ".codex-plugin/",
+            ".agents/", ".cursor/", ".github/copilot/",
+            ".aider/", ".continue/",
+        ];
+        if ai_config_prefixes.iter().any(|p| file.starts_with(p)) {
+            return None;
+        }
+        if is_docs_path(file) {
+            return None;
+        }
+        // DEV 阶段：无待完成 task 且无 open issue 时拦截代码写入
+        if phase == "DEV" && !has_active_work(&doc_root_path) {
+            return Some(format!(
+                "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
+                → /task 创建新任务\n\
+                → /issue 创建 issue\n\
+                → /test 进入测试阶段",
+                file
+            ));
+        }
         return None;
     }
 
@@ -452,6 +484,49 @@ fn check_non_dev_write(file: &str) -> Option<String> {
         "[dev-flow] 当前阶段为 {}，只允许写入 .dev-doc/、docs/ 和 tmp/。要写入 {} 请先完成规划并进入 DEV 阶段：创建任务（/task）或创建 issue（/issue）后即可进入 DEV。（探索性代码、demo 可放 tmp/ 下）",
         phase, file
     ))
+}
+
+/// DEV 阶段是否有活跃工作（未完成 task 或 open issue）
+fn has_active_work(doc_root: &std::path::Path) -> bool {
+    use std::fs;
+
+    // 检查 active task 文件中是否有未完成项
+    let task_dir = doc_root.join("task");
+    if task_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&task_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with("task_") || !name.ends_with(".md") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    if content.lines().any(|l| l.starts_with("- [ ]")) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 检查 open issues
+    let issue_dir = doc_root.join("issue");
+    if issue_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with("issue_") || !name.ends_with(".md") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    if content.lines().any(|l| l.starts_with("- [ ]")) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    false
 }
 
 fn is_version_file(file: &str) -> bool {

@@ -50,10 +50,10 @@ fn setup_branch_env(dir: &Path) {
         doc.join("STATUS.yaml"),
         "name: test\nphase: DEV\nmode: quick\nupdated: 2026-05-26 10:00\nstarted: 2026-05-26 09:00\n",
     ).unwrap();
-    // DEV 阶段需要至少一个 task 文件避免 BLOCKED
+    // DEV 阶段需要至少一个未完成 task 避免 BLOCKED
     fs::write(
         doc.join("task/task_2026-05-26_1.md"),
-        "- [x] TASK-T001: setup\n  - priority: P1\n",
+        "- [ ] TASK-T001: active work\n  - priority: P1\n",
     ).unwrap();
 }
 
@@ -262,4 +262,168 @@ fn test_post_bash_ignores_non_git_commands() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.is_empty());
+}
+
+// --- DEV 阶段无活跃工作回退测试 ---
+
+/// 辅助：创建 DEV 阶段环境，所有 task 已完成
+fn setup_dev_all_done(dir: &Path) {
+    setup_git_repo(dir);
+    let branch = default_branch(dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::create_dir_all(doc.join("task")).unwrap();
+    fs::create_dir_all(doc.join("issue")).unwrap();
+    fs::write(
+        doc.join("STATUS.yaml"),
+        "name: test\nphase: DEV\nmode: fast\nupdated: 2026-05-30 10:00\nstarted: 2026-05-30 09:00\n",
+    ).unwrap();
+    fs::write(
+        doc.join("task/task_2026-05-30_1.md"),
+        "- [x] TASK-T001: completed task\n  - priority: P1\n",
+    ).unwrap();
+}
+
+#[test]
+fn test_context_blocks_when_all_tasks_done() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["decision"], "block");
+    let reason = json["reason"].as_str().unwrap();
+    assert!(reason.contains("/task"), "should suggest /task");
+    assert!(reason.contains("/issue"), "should suggest /issue");
+    assert!(reason.contains("/test"), "should suggest /test");
+}
+
+#[test]
+fn test_context_blocks_when_no_task_files() {
+    let dir = create_test_dir();
+    setup_git_repo(&dir);
+    let branch = default_branch(&dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::create_dir_all(doc.join("task")).unwrap();
+    fs::create_dir_all(doc.join("issue")).unwrap();
+    fs::write(
+        doc.join("STATUS.yaml"),
+        "name: test\nphase: DEV\nmode: fast\nupdated: 2026-05-30 10:00\nstarted: 2026-05-30 09:00\n",
+    ).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["decision"], "block");
+}
+
+#[test]
+fn test_context_does_not_block_with_undone_task() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir); // has undone task
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(json.get("decision").is_none(), "should NOT block with active task");
+    assert!(json.get("phase").is_some(), "should output full context");
+}
+
+#[test]
+fn test_context_does_not_block_with_open_issue() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+    let branch = default_branch(&dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::write(
+        doc.join("issue/issue_test_2026-05-30_1.md"),
+        "- [ ] BUG: something broken\n  - severity: P1\n",
+    ).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(json.get("decision").is_none(), "should NOT block with open issue");
+}
+
+#[test]
+fn test_guard_blocks_code_write_when_all_done() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = r#"{"tool_name":"Write","tool_input":{"file_path":"src/main.rs"}}"#;
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard"])
+        .env("TOOL_INPUT", tool_input)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("permissionDecision"), "should output permission JSON");
+    assert!(stdout.contains("deny"), "should deny code write");
+    assert!(stdout.contains("/task"), "should suggest /task");
+}
+
+#[test]
+fn test_guard_allows_devdoc_edit_when_all_done() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+    let branch = default_branch(&dir);
+
+    // 编辑已存在的 task 文件应当允许（已存在文件不受 direct-create 拦截）
+    let file_path = format!(".dev-doc/{}/task/task_2026-05-30_1.md", branch);
+    let tool_input = format!(
+        r#"{{"tool_name":"Edit","tool_input":{{"file_path":"{}"}}}}"#,
+        file_path
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard"])
+        .env("TOOL_INPUT", &tool_input)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("deny"), "should allow .dev-doc edit: {}", stdout);
+}
+
+#[test]
+fn test_guard_allows_code_write_with_active_task() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir); // has undone task
+
+    let tool_input = r#"{"tool_name":"Write","tool_input":{"file_path":"src/main.rs"}}"#;
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard"])
+        .env("TOOL_INPUT", tool_input)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("deny"), "should allow code write with active task: {}", stdout);
 }
