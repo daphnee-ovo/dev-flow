@@ -13,44 +13,31 @@ fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 echo "=== T13: 验证 skills 和项目级文档 ==="
 echo ""
 
-# --- 检查1: 三处 SKILL.md 的 description 字段含 /issue ---
-echo "[1] 三处 SKILL.md description 字段含 /issue"
+# --- 检查1: plugin/skills/dev-flow/SKILL.md description 含 /issue ---
+echo "[1] SKILL.md description 字段含 /issue"
 
-for f in \
-  "$PROJ_ROOT/skills/dev-flow/SKILL.md" \
-  "$PROJ_ROOT/.agents/skills/dev-flow/SKILL.md" \
-  "$PROJ_ROOT/.claude/skills/dev-flow/SKILL.md"; do
-  if [ ! -f "$f" ]; then
-    fail "$f 文件不存在"
-    continue
-  fi
-  # description 在前5行
-  if head -5 "$f" | grep -q "/issue"; then
-    pass "$f description 含 /issue"
+SKILL="$PROJ_ROOT/plugin/skills/dev-flow/SKILL.md"
+if [ ! -f "$SKILL" ]; then
+  fail "$SKILL 文件不存在"
+else
+  if head -5 "$SKILL" | grep -q "/issue"; then
+    pass "SKILL.md description 含 /issue"
   else
-    fail "$f description 不含 /issue"
+    fail "SKILL.md description 不含 /issue"
   fi
-done
+fi
 
-# --- 检查2: 三处 SKILL.md 命令映射表含 /issue ---
+# --- 检查2: SKILL.md 命令映射表含 /issue ---
 echo ""
-echo "[2] 三处 SKILL.md 命令映射表含 /issue 行"
+echo "[2] SKILL.md 命令映射表含 /issue 行"
 
-for f in \
-  "$PROJ_ROOT/skills/dev-flow/SKILL.md" \
-  "$PROJ_ROOT/.agents/skills/dev-flow/SKILL.md" \
-  "$PROJ_ROOT/.claude/skills/dev-flow/SKILL.md"; do
-  if [ ! -f "$f" ]; then
-    fail "$f 文件不存在"
-    continue
-  fi
-  # 命令映射表格式: | `/issue` | ... |
-  if grep -q '`/issue`' "$f"; then
-    pass "$f 命令表含 /issue"
+if [ -f "$SKILL" ]; then
+  if grep -q '`/issue`' "$SKILL"; then
+    pass "SKILL.md 命令表含 /issue"
   else
-    fail "$f 命令表不含 /issue"
+    fail "SKILL.md 命令表不含 /issue"
   fi
-done
+fi
 
 # --- 检查3: CLAUDE.md 命令表含 /issue ---
 echo ""
@@ -72,7 +59,7 @@ else
   fail "AGENTS.md 不含 /issue"
 fi
 
-# --- 检查5: references/dev-flow-spec.md 目录结构含 task/ ---
+# --- 检查5: references/dev-flow-spec.md 含 task/ 目录 ---
 echo ""
 echo "[5] references/dev-flow-spec.md 含 task/ 目录"
 
@@ -115,7 +102,7 @@ fi
 echo ""
 echo "[8] Claude plugin manifest 含 /issue"
 
-if python3 - "$PROJ_ROOT/.claude-plugin/plugin.json" <<'PY'
+if python3 - "$PROJ_ROOT/targets/claude/plugin.json" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
@@ -123,9 +110,9 @@ commands = set(data.get("commands", []))
 sys.exit(0 if "./commands/issue.md" in commands else 1)
 PY
 then
-  pass ".claude-plugin/plugin.json 含 /issue"
+  pass "targets/claude/plugin.json 含 /issue"
 else
-  fail ".claude-plugin/plugin.json 不含 /issue"
+  fail "targets/claude/plugin.json 不含 /issue"
 fi
 
 # --- 汇总 ---

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DOW="$PROJ_ROOT/scripts/bin/dow"
+DOW="$PROJ_ROOT/dow/target/release/dow"
 PASS=0; FAIL=0
 
 pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
