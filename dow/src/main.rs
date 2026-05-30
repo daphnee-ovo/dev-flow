@@ -24,6 +24,11 @@ fn main() {
     let cli = Cli::parse();
     let human = cli.human;
 
+    // 每日版本检查（非 setup/update/self-check 命令时）
+    if should_check_version(&cli.command) {
+        check_version_background();
+    }
+
     let result = match cli.command {
         Commands::Status(args) => commands::status::run(args, human),
         Commands::Init(args) => commands::init::run(args, human),
@@ -48,6 +53,9 @@ fn main() {
             HooksCommands::PostBash { command } => hooks::post_bash::run(command),
             HooksCommands::SaveChangelog => hooks::save_changelog::run(),
         },
+        Commands::Setup(args) => commands::setup::run(args.agent, human),
+        Commands::Update => commands::update::run(human),
+        Commands::SelfCheck => commands::self_check::run(human),
     };
 
     match result {
@@ -56,5 +64,55 @@ fn main() {
             eprintln!("{}", e);
             process::exit(1);
         }
+    }
+}
+
+fn should_check_version(cmd: &Commands) -> bool {
+    !matches!(cmd, Commands::Setup(_) | Commands::Update | Commands::SelfCheck)
+}
+
+fn check_version_background() {
+    use core::config::DowConfig;
+
+    let config = DowConfig::load();
+
+    // 显示缓存的新版本提醒
+    if let Some(ref remote) = config.latest_remote_version {
+        let current = env!("DOW_VERSION");
+        if core::github::compare_versions(current, remote) == std::cmp::Ordering::Less {
+            eprintln!(
+                "[dow] 新版本 v{} 可用（当前 v{}），运行 `dow update` 升级",
+                remote, current
+            );
+            if let Some(ref notes) = config.latest_release_notes {
+                eprintln!("[dow] 变更: {}", notes);
+            }
+        }
+    }
+
+    // 判断是否需要后台检查
+    let should_check = match &config.last_version_check {
+        None => true,
+        Some(last) => {
+            chrono::DateTime::parse_from_rfc3339(last)
+                .map(|t| {
+                    let elapsed = chrono::Utc::now().signed_duration_since(t);
+                    elapsed.num_hours() >= 24
+                })
+                .unwrap_or(true)
+        }
+    };
+
+    if should_check {
+        // spawn 后台线程，不阻塞主命令
+        std::thread::spawn(|| {
+            if let Ok(release) = core::github::check_latest_version() {
+                let mut config = DowConfig::load();
+                config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
+                config.latest_remote_version = Some(release.version);
+                config.latest_release_notes = release.notes;
+                let _ = config.save();
+            }
+        });
     }
 }

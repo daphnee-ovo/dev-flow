@@ -33,29 +33,18 @@ Core principles:
 
 ## Quick Start
 
-### Claude Code
+### One-Line Install
 
 ```bash
-# Add marketplace
-/plugin marketplace add daphnee-ovo/dev-flow
+# Linux / macOS / WSL
+curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
 
-# Install plugin
-/plugin install dev-flow@daphnee-ovo
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-### Codex CLI
+The installer downloads `dow` (the CLI), then launches an interactive setup to register with your preferred agent (Claude Code, Codex, or both).
 
-```bash
-# Add marketplace
-codex plugin marketplace add daphnee-ovo/dev-flow
-```
-
-Then open `/plugins` in Codex, search for `Dev-Flow` and install. Run `/init` to initialize your project.
-
-> For local development, you can also add the repo directly:
-> ```bash
-> codex plugin marketplace add .
-> ```
 
 ### First Run
 
@@ -153,17 +142,30 @@ The plugin maintains a `.dev-doc/` directory in your project:
 
 ## Cross-Platform Support
 
-dev-flow supports both **Claude Code** and **OpenAI Codex CLI** with platform-specific configurations:
+dev-flow supports both **Claude Code** and **OpenAI Codex CLI** through a shared plugin core with per-agent adapters:
 
 | Component | Claude Code | Codex CLI |
 |-----------|-------------|-----------|
 | Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` |
-| Skill entry | `.claude/skills/dev-flow/SKILL.md` | `skills/dev-flow/SKILL.md` |
 | Hooks config | `hooks/hooks.json` | `hooks.json` (root) |
 | Project instructions | `CLAUDE.md` | `AGENTS.md` |
 | Sub-agent API | `Agent({...})` | `spawn_agent` |
 
-Commands in `commands/` are written in a runtime-neutral style that works across both platforms.
+Commands, skills, and agents are shared across platforms. Hooks call the global `dow` CLI directly.
+
+### dow CLI
+
+`dow` is the unified dispatcher that powers all hooks and automation:
+
+| Command | Description |
+|---------|-------------|
+| `dow setup [--agent claude\|codex\|all]` | Register plugin with agents (interactive TUI) |
+| `dow update` | Self-update binary + plugins |
+| `dow self-check` | Show install status and health |
+| `dow status` | Read/write STATUS.yaml |
+| `dow iterate` | Delivery: archive + commit + tag + bump |
+| `dow doc <type>` | Generate/query document templates |
+| `dow hooks ...` | Hook dispatch (context, guard, post-write) |
 
 ---
 
@@ -171,68 +173,44 @@ Commands in `commands/` are written in a runtime-neutral style that works across
 
 ```
 dev-flow/
-├── .claude-plugin/
-│   ├── plugin.json            # Claude Code plugin config
-│   └── marketplace.json       # Marketplace metadata
-├── .codex-plugin/
-│   └── plugin.json            # Codex CLI plugin manifest
-├── .claude/skills/dev-flow/
-│   └── SKILL.md               # Claude Code skill trigger
-├── skills/dev-flow/
-│   └── SKILL.md               # Codex CLI skill entry
-├── commands/                   # Slash command definitions
-│   ├── init.md
-│   ├── brainstorm.md
-│   ├── prd.md
-│   ├── spec.md
-│   ├── task.md
-│   ├── issue.md
-│   ├── devtest.md
-│   ├── fix.md
-│   ├── test.md
-│   ├── status.md
-│   ├── check.md
-│   ├── iterate.md
-│   └── mode.md
-├── agents/                     # Agent prompt templates
-│   ├── prd-agent.md
-│   ├── spec-agent.md
-│   ├── task-agent.md
-│   └── test-agent.md
-├── hooks/
-│   └── hooks.json              # Claude Code hook registration
-├── hooks.json                  # Codex CLI hook registration
-├── dow/                        # Rust CLI source
+├── dow/                        # Rust CLI source (the dow binary)
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
 │   │   ├── commands/           # Subcommand implementations
+│   │   │   ├── setup.rs        # dow setup
+│   │   │   ├── update.rs       # dow update
+│   │   │   └── self_check.rs   # dow self-check
 │   │   ├── hooks/              # Hook implementations
 │   │   └── core/               # Shared libraries
-│   ├── Cargo.toml
-│   └── build.sh
-├── scripts/
-│   └── bin/dow                 # Compiled CLI binary
-├── .agents/skills/dev-flow/
-│   └── SKILL.md               # Codex/AGENTS skill entry
-├── VERSION                     # Semantic version (single source of truth)
-├── references/                 # Single source of truth for all format schemas
-│   ├── dev-flow-spec.md
-│   └── .dev-doc/                # Document format schemas (authoritative)
-│       ├── BRAINSTORM-FILE.md
-│       ├── CHANGELOG.md
-│       ├── ISSUE.md
-│       ├── PRD-FILE.md
-│       ├── SPEC-FILE.md
-│       ├── STATUS.md
-│       ├── STATUS.yaml
-│       ├── TASK-FILE.md
-│       └── TEST.md
+│   │       ├── config.rs       # ~/.config/dow/config.toml
+│   │       ├── platform.rs     # XDG paths, platform detection
+│   │       ├── github.rs       # Release API, self-update
+│   │       └── agent_registry.rs # Plugin deployment
+│   └── Cargo.toml
+├── plugin/                     # Shared plugin content (agent-agnostic)
+│   ├── skills/
+│   ├── commands/
+│   └── agents/
+├── targets/                    # Per-agent adapter layer
+│   ├── claude/
+│   │   ├── plugin.json
+│   │   └── hooks.json
+│   └── codex/
+│       ├── plugin.json
+│       └── hooks.json
+├── install/                    # One-line install scripts
+│   ├── install.sh              # curl | bash
+│   └── install.ps1             # irm | iex
+├── devtools/                   # Development helpers
+│   ├── assemble.sh             # Assemble dist/<agent>/
+│   └── deploy-local.sh         # Build + deploy locally
+├── .github/workflows/
+│   └── release.yml             # CI: tag → build → GitHub Release
+├── VERSION
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── README.md
-├── README.zh-CN.md
-├── CONTRIBUTING.md
 └── LICENSE
 ```
 

@@ -34,29 +34,18 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 ## 快速开始
 
-### Claude Code
+### 一条命令安装
 
 ```bash
-# 添加 marketplace
-/plugin marketplace add daphnee-ovo/dev-flow
+# Linux / macOS / WSL
+curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
 
-# 安装插件
-/plugin install dev-flow@daphnee-ovo
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-### Codex CLI
+安装脚本会下载 `dow` CLI，然后启动交互式设置引导，选择要注册的 agent（Claude Code、Codex 或两者）。
 
-```bash
-# 添加 marketplace
-codex plugin marketplace add daphnee-ovo/dev-flow
-```
-
-在 Codex 中打开 `/plugins`，搜索 `Dev-Flow` 并安装。安装后执行 `/init` 初始化项目。
-
-> 本地开发时也可以直接添加当前目录：
-> ```bash
-> codex plugin marketplace add .
-> ```
 
 ### 基本流程
 
@@ -155,17 +144,30 @@ codex plugin marketplace add daphnee-ovo/dev-flow
 
 ## 跨平台支持
 
-dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**：
+dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插件核心 + 各 agent 适配层实现：
 
 | 组件 | Claude Code | Codex CLI |
 |------|-------------|-----------|
 | 插件 manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` |
-| Skill 入口 | `.claude/skills/dev-flow/SKILL.md` | `skills/dev-flow/SKILL.md` |
 | Hooks 配置 | `hooks/hooks.json` | `hooks.json`（根目录） |
 | 项目指令 | `CLAUDE.md` | `AGENTS.md` |
 | 子代理 API | `Agent({...})` | `spawn_agent` |
 
-`commands/` 中的命令以运行时中立的方式编写，两个平台通用。
+命令、skills 和 agents 跨平台共享。Hooks 直接调用全局 `dow` CLI。
+
+### dow CLI
+
+`dow` 是统一调度器，驱动所有 hooks 和自动化：
+
+| 命令 | 说明 |
+|------|------|
+| `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
+| `dow update` | 自更新二进制 + 插件 |
+| `dow self-check` | 查看安装状态 |
+| `dow status` | 读写 STATUS.yaml |
+| `dow iterate` | 交付：归档 + commit + tag + bump |
+| `dow doc <type>` | 生成/查询文档模板 |
+| `dow hooks ...` | Hook 调度（context, guard, post-write） |
 
 ---
 
@@ -173,68 +175,44 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**：
 
 ```
 dev-flow/
-├── .claude-plugin/
-│   ├── plugin.json            # Claude Code 插件配置
-│   └── marketplace.json       # Marketplace 元数据
-├── .codex-plugin/
-│   └── plugin.json            # Codex CLI 插件 manifest
-├── .claude/skills/dev-flow/
-│   └── SKILL.md               # Claude Code skill 触发
-├── skills/dev-flow/
-│   └── SKILL.md               # Codex CLI skill 入口
-├── commands/                   # Slash 命令定义
-│   ├── init.md
-│   ├── brainstorm.md
-│   ├── prd.md
-│   ├── spec.md
-│   ├── task.md
-│   ├── issue.md
-│   ├── devtest.md
-│   ├── fix.md
-│   ├── test.md
-│   ├── status.md
-│   ├── check.md
-│   ├── iterate.md
-│   └── mode.md
-├── agents/                     # Agent prompt 模板
-│   ├── prd-agent.md
-│   ├── spec-agent.md
-│   ├── task-agent.md
-│   └── test-agent.md
-├── hooks/
-│   └── hooks.json              # Claude Code hook 注册
-├── hooks.json                  # Codex CLI hook 注册
-├── dow/                        # Rust CLI 源码
+├── dow/                        # Rust CLI 源码（dow 二进制）
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
 │   │   ├── commands/           # 子命令实现
+│   │   │   ├── setup.rs        # dow setup
+│   │   │   ├── update.rs       # dow update
+│   │   │   └── self_check.rs   # dow self-check
 │   │   ├── hooks/              # Hook 实现
 │   │   └── core/               # 公共库
-│   ├── Cargo.toml
-│   └── build.sh
-├── scripts/
-│   └── bin/dow                 # 编译后的 CLI 二进制
-├── .agents/skills/dev-flow/
-│   └── SKILL.md               # Codex/AGENTS skill 入口
-├── VERSION                     # 语义化版本号（单一真相源）
-├── references/                 # 唯一格式 schema 层（权威定义）
-│   ├── dev-flow-spec.md
-│   └── .dev-doc/                # 文档格式 schema（权威）
-│       ├── BRAINSTORM-FILE.md
-│       ├── CHANGELOG.md
-│       ├── ISSUE.md
-│       ├── PRD-FILE.md
-│       ├── SPEC-FILE.md
-│       ├── STATUS.md
-│       ├── STATUS.yaml
-│       ├── TASK-FILE.md
-│       └── TEST.md
+│   │       ├── config.rs       # ~/.config/dow/config.toml
+│   │       ├── platform.rs     # XDG 路径、平台检测
+│   │       ├── github.rs       # Release API、自更新
+│   │       └── agent_registry.rs # 插件部署
+│   └── Cargo.toml
+├── plugin/                     # 共享插件内容（agent 无关）
+│   ├── skills/
+│   ├── commands/
+│   └── agents/
+├── targets/                    # 各 agent 适配层
+│   ├── claude/
+│   │   ├── plugin.json
+│   │   └── hooks.json
+│   └── codex/
+│       ├── plugin.json
+│       └── hooks.json
+├── install/                    # 一条命令安装脚本
+│   ├── install.sh              # curl | bash
+│   └── install.ps1             # irm | iex
+├── devtools/                   # 开发辅助
+│   ├── assemble.sh             # 组装 dist/<agent>/
+│   └── deploy-local.sh         # 编译 + 本地部署
+├── .github/workflows/
+│   └── release.yml             # CI：tag → 构建 → GitHub Release
+├── VERSION
 ├── CLAUDE.md
 ├── AGENTS.md
 ├── README.md
-├── README.zh-CN.md
-├── CONTRIBUTING.md
 └── LICENSE
 ```
 

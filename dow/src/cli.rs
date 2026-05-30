@@ -4,7 +4,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "dow", about = "dev-flow 统一 CLI 调度器")]
+#[command(name = "dow", about = "dev-flow 统一 CLI 调度器", version = env!("DOW_VERSION"))]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -69,6 +69,22 @@ pub enum Commands {
         #[command(subcommand)]
         command: HooksCommands,
     },
+
+    /// 安装并注册到 agent
+    Setup(SetupArgs),
+
+    /// 自更新二进制和插件
+    Update,
+
+    /// 安装状态诊断
+    SelfCheck,
+}
+
+#[derive(clap::Args)]
+pub struct SetupArgs {
+    /// 目标 agent（claude/codex/all）
+    #[arg(long)]
+    pub agent: Option<String>,
 }
 
 #[derive(Subcommand)]

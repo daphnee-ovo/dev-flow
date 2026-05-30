@@ -1,0 +1,61 @@
+{
+  "description": "Dev-flow hooks for Codex — dow CLI 统一调度",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks context -H",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks save-changelog",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
+}

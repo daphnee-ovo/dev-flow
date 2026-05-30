@@ -5,164 +5,86 @@
 ```bash
 # 克隆仓库
 git clone https://github.com/daphnee-ovo/dev-flow.git
+cd dev-flow
 
-# 本地测试（不安装，直接加载）
-claude --plugin-dir ./dev-flow
+# 编译 dow + 组装 + 部署到本地（Claude Code 示例）
+bash devtools/deploy-local.sh claude
 
-# 或添加为本地 marketplace
-/plugin marketplace add ./dev-flow
-/plugin install dev-flow@dev-flow
+# 验证
+dow self-check
 ```
 
-### Codex
+`deploy-local.sh` 会自动完成：
+1. 编译 dow（需要 Rust 工具链）
+2. 组装插件（`devtools/assemble.sh`）
+3. 安装 dow 到 `~/.local/bin/`
+4. 部署插件到对应 agent 目录
+
+### 单独操作
 
 ```bash
-# 添加当前仓库为本地 marketplace
-codex plugin marketplace add .
+# 只编译 dow
+cd dow && cargo build --release
 
-# 然后在 Codex 中打开 /plugins，搜索 Dev-Flow 并安装
+# 只组装插件
+bash devtools/assemble.sh claude    # 或 codex / all
+
+# 查看组装产物
+ls dist/claude/
 ```
 
 ## 项目结构
 
 ```
 dev-flow/
-├── .claude-plugin/
-│   ├── plugin.json            # 插件配置（命令注册）
-│   └── marketplace.json       # marketplace 元数据
-├── .codex-plugin/
-│   └── plugin.json            # Codex 插件 manifest
-├── .claude/skills/dev-flow/
-│   └── SKILL.md               # skill 触发描述
-├── skills/dev-flow/
-│   └── SKILL.md               # Codex 插件 skill 入口
-├── commands/                   # slash 命令定义
-│   ├── init.md
-│   ├── brainstorm.md
-│   ├── prd.md
-│   ├── spec.md
-│   ├── task.md
-│   ├── devtest.md
-│   ├── fix.md
-│   ├── test.md
-│   ├── done.md
-│   ├── status.md
-│   ├── check.md
-│   ├── iterate.md
-│   └── mode.md
-├── agents/                     # agent prompt 模板
-│   ├── prd-agent.md
-│   ├── spec-agent.md
-│   ├── task-agent.md
-│   └── test-agent.md
-├── hooks/
-│   └── hooks.json              # hook 事件注册
-├── hooks.json                  # Codex hook 事件注册
-├── scripts/
-│   ├── hooks/                  # hook 脚本
-│   │   ├── inject-context.sh
-│   │   ├── block-system-tmp.sh
-│   │   ├── check-task-completion.sh
-│   │   ├── check-doc-sync.sh
-│   │   ├── check-phase-completion.sh
-│   │   ├── update-status.sh
-│   │   └── save-changelog.sh
-│   ├── commands/               # 脚本化命令
-│   │   ├── status.sh
-│   │   ├── check.sh
-│   │   ├── mode.sh
-│   │   └── iterate.sh
-│   └── init/                   # init 命令脚本
-│       ├── scan-project.sh
-│       ├── validate.sh
-│       └── migrate.sh
-├── references/                 # 内部参考规范
-│   ├── dev-flow-spec.md
-│   └── .dev-doc/                # 文档格式模板
-│       ├── STATUS.yaml
-│       ├── TASK-FILE.md
-│       ├── CHANGELOG.md
-│       ├── TEST.md
-│       └── ISSUE.md
-├── CLAUDE.md                   # Claude Code 插件级指令
-├── AGENTS.md                   # Codex 插件级指令
-├── README.md
-├── CONTRIBUTING.md
-└── LICENSE
+├── dow/                        # Rust CLI 源码
+│   ├── src/
+│   │   ├── commands/           # 子命令（status, setup, update...）
+│   │   ├── hooks/              # Hook 实现
+│   │   └── core/               # 公共库（config, platform, github...）
+│   └── Cargo.toml
+├── plugin/                     # 共享插件内容（agent 无关）
+│   ├── skills/                 # Skill 定义
+│   ├── commands/               # Slash 命令
+│   └── agents/                 # Agent prompt 模板
+├── targets/                    # 各 agent 适配层
+│   ├── claude/                 # plugin.json + hooks.json
+│   └── codex/                  # plugin.json + hooks.json
+├── install/                    # 安装脚本
+│   ├── install.sh
+│   └── install.ps1
+├── devtools/                   # 开发辅助
+│   ├── assemble.sh             # 组装 plugin/ + targets/ → dist/
+│   └── deploy-local.sh         # 编译 + 部署到本地
+├── tests/                      # 测试
+└── .github/workflows/
+    └── release.yml             # tag → 构建 → Release
 ```
 
 ## 开发约定
 
-- 命令文件使用 YAML frontmatter（description + allowed-tools）
-- Claude hook 使用 `${CLAUDE_PLUGIN_ROOT}` 引用插件根目录；Codex 根级 `hooks.json` 使用相对路径调用 `scripts/hooks/`
-- 命令中涉及独立 agent 时，写成运行时中立的"子代理 prompt 模板"；Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`
-- hook 脚本 exit 0 = 通过，exit 2 = 阻断工具执行
-- 新增命令后需在 `.claude-plugin/plugin.json` 的 commands 数组中注册；Codex 通过 `commands/` 目录发现命令，仍要确认新命令内容不包含 Claude-only API
+- 共享内容（skills、commands、agents）放 `plugin/`，一份源码多 agent 共用
+- agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
+- hooks 直接调用全局 `dow` 命令，不使用相对路径或 `${CLAUDE_PLUGIN_ROOT}`
+- 命令使用运行时中立的写法（子代理 prompt 模板），Claude 用 `Agent`，Codex 用 `spawn_agent`
+- 新增命令后需在 `targets/claude/plugin.json` 的 commands 数组中注册
+- 修改 plugin/ 或 targets/ 后执行 `bash devtools/deploy-local.sh <agent>` 验证
 
-## Codex 插件开发注意点
+## 发布流程
 
-Codex 插件至少需要这些入口：
-
-- `.codex-plugin/plugin.json`：Codex 插件 manifest，声明 `skills`、`hooks`、展示信息和能力
-- `skills/<skill-name>/SKILL.md`：Codex skill 入口，负责触发描述和运行约定
-- `commands/*.md`：slash command 定义，尽量写成运行时中立的流程说明
-- `hooks.json`：Codex 根级 hook 注册，命令路径使用相对路径，如 `./scripts/hooks/inject-context.sh`
-- `scripts/hooks/*.sh`：hook 脚本应可被 Claude 和 Codex 复用，不要只依赖 Claude 专属环境变量
-- `scripts/init/*.sh`：init 命令专用脚本，负责扫描和校验，输出结构化报告
-
-编写 Codex 兼容内容时注意：
-
-- 不要在通用命令里写死 `Agent({...})`、`AskUserQuestion` 等 Claude Code API。写成"启动独立子代理"、"向用户确认"，并注明 Codex 使用 `spawn_agent`。
-- 不要在 Codex hook 中使用 `${CLAUDE_PLUGIN_ROOT}`。Codex 插件根目录下的 `hooks.json` 用 `./scripts/hooks/...`。
-- hook 脚本如果读取工具输入，优先兼容多环境，例如同时支持 `CLAUDE_TOOL_INPUT`、`CODEX_TOOL_INPUT` 和 stdin。
-- 项目级指令文件不要只更新 `CLAUDE.md`。Codex 项目优先更新 `AGENTS.md`；如果两个文件都存在，保持 dev-flow 段落一致。
-- `.codex-plugin/plugin.json` 不使用 Claude 的 `commands` 字段。Codex 的命令文件可以放在根级 `commands/`。
-- 修改 manifest 后必须跑 JSON 校验：`python3 -m json.tool .codex-plugin/plugin.json`。
-- 修改 hook 后必须跑 JSON 校验：`python3 -m json.tool hooks.json`。
-
-## 先开发 Claude Code 再同步到 Codex
-
-如果先按 Claude Code 方式开发，合并前必须逐项同步：
-
-- `.claude-plugin/plugin.json` 新增或删除命令后，确认根级 `commands/` 内容也适合 Codex 读取。
-- `.claude/skills/dev-flow/SKILL.md` 有行为变更时，同步到 `skills/dev-flow/SKILL.md`。
-- `hooks/hooks.json` 有 hook 变更时，同步到根级 `hooks.json`，并把 `${CLAUDE_PLUGIN_ROOT}/scripts/hooks/...` 改成 `./scripts/hooks/...`。
-- `scripts/hooks/*.sh` 不要只读取 Claude 环境变量；新增输入读取逻辑时同步检查 Codex。
-- 命令文档里如果新增了 `Agent({...})` 示例，改成运行时中立的子代理 prompt 模板。
-- `/init`、`/mode` 等会写项目指令的命令，确认同时覆盖 `AGENTS.md` 和 `CLAUDE.md` 的规则。
-- README 安装说明如果变更，Claude Code 和 Codex CLI 两段都要更新。
-- 最后用 Codex 临时环境验证 marketplace 能加载：
-
-```bash
-python3 -m json.tool .codex-plugin/plugin.json >/dev/null
-python3 -m json.tool hooks.json >/dev/null
-codex plugin marketplace add .
-codex debug prompt-input "/status"
-```
-
-`codex debug prompt-input "/status"` 的输出中应能看到 `dev-flow:dev-flow` skill。
+1. `dow version --bump minor`（或 major/patch）
+2. `git tag v<version> && git push --tags`
+3. GitHub Actions 自动构建 5 平台二进制 + 组装 bundle → 发布到 Release
+4. 用户执行 `dow update` 即可获取新版本
 
 ## 测试
 
-Claude Code 修改后本地验证：
-
 ```bash
-# 加载插件
-claude --plugin-dir ./dev-flow
+# Rust 单元测试
+cd dow && cargo test
 
-# 验证命令注册
-/plugin
-
-# 测试具体命令
-/init
-/status
+# 集成测试（在隔离目录）
+mkdir -p tmp/test_target_project
+cd tmp/test_target_project
+dow self-check
 ```
-
-Codex 修改后本地验证：
-
-```bash
-codex plugin marketplace add .
-codex debug prompt-input "/status"
-```
-
-检查输出中应出现 `dev-flow:dev-flow` skill，且 `.codex-plugin/plugin.json`、`hooks.json` 都是合法 JSON。

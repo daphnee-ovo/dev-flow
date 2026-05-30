@@ -4,5 +4,10 @@ temp/
 .DS_Store
 Thumbs.db
 .codegraph/
+.claude/projects/
+.claude/settings.json
+.calude/settings.local.json
 # Rust 编译缓存
 dow/target/
+# 组装产出
+dist/

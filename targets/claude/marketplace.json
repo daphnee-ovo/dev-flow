@@ -1,0 +1,19 @@
+{
+  "name": "dev-flow",
+  "owner": {
+    "name": "xinyue"
+  },
+  "metadata": {
+    "description": "项目全流程管理插件 — 从需求探索到交付的完整生命周期管理",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "dev-flow",
+      "source": "./",
+      "description": "项目全流程管理插件。从需求探索到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE），支持独立阶段命令、自动化 hooks、角色隔离 agent。",
+      "category": "workflow",
+      "tags": ["project-management", "workflow", "dev-flow", "agents", "hooks"]
+    }
+  ]
+}

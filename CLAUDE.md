@@ -35,7 +35,7 @@
 
 ## dow CLI
 
-`scripts/bin/dow` 是 Rust 编写的统一调度器，所有 hook 和脚本化操作通过它执行。
+`dow` 是 Rust 编写的全局 CLI 统一调度器，所有 hook 和脚本化操作通过它执行。安装后位于 `~/.local/bin/dow`。
 
 | 子命令 | 作用 |
 |--------|------|
@@ -61,10 +61,13 @@
 | `dow hooks post-write <file>` | hook：写后联动 |
 | `dow hooks save-changelog` | hook：保存 CHANGELOG |
 | `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION（禁止直接编辑文件） |
+| `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
+| `dow update` | 自更新二进制 + 插件 |
+| `dow self-check` | 查看安装状态和健康度 |
 
 默认 JSON 输出，`-H` 切换人类友好格式。
 
-构建：`bash dow/build.sh`（本地原生）或 `bash dow/build.sh --dist`（分发模式，输出平台二进制 + wrapper）。
+构建与部署：`bash devtools/deploy-local.sh <claude|codex|all>`（编译 + 组装 + 本地部署）。
 
 ## 文档格式规范（必读）
 
@@ -83,18 +86,17 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 
 ## Hooks
 
-由 `dow` 统一调度（`hooks/hooks.json`）：
+由 `dow` 统一调度（`targets/<agent>/hooks.json`）：
 
 - `UserPromptSubmit`: `dow hooks context`
 - `PreToolUse(Write|Edit|Bash)`: `dow hooks guard`
 - `PostToolUse(Write|Edit)`: `dow hooks post-write`
 - `Stop`: `dow hooks save-changelog`
 
-## Codex 兼容
+## 多 Agent 支持
 
-- Codex 插件入口：`.codex-plugin/plugin.json`
-- Codex skill 入口：`skills/dev-flow/SKILL.md`
-- Codex hooks 入口：`hooks.json`（调用 `scripts/bin/dow hooks ...`）
+- 共享内容（skills、commands、agents）放 `plugin/`
+- agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
 
@@ -102,17 +104,11 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 
 `devtools/` 统一存放项目开发过程中使用的辅助脚本和工具，不随插件分发。
 
-规范：
-- 所有开发辅助脚本（同步、预检、批处理、本地调试工具等）统一放在 `devtools/`
-- 临时/一次性脚本放 `tmp/`，不进 `devtools/`
-- `devtools/` 下的脚本应有明确用途，文件名体现功能
-
 | 脚本 | 作用 |
 |------|------|
-| `sync-skill.sh` | 将 `skills/dev-flow/SKILL.md` 同步到 `.claude/skills/` 和 `.agents/skills/` |
-| `sync-plugin.sh` | 同步项目到 Claude Code 插件缓存 |
-
-**修改 SKILL.md 后必须执行 `bash devtools/sync-skill.sh` 同步副本。**
+| `assemble.sh` | 组装 plugin/ + targets/ → dist/<agent>/ |
+| `deploy-local.sh` | 编译 + 组装 + 部署到本地 agent 插件目录 |
+| `sync-skill.sh` | 将 SKILL.md 同步到各副本位置 |
 
 ## 目录结构约定
 

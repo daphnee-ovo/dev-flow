@@ -1,0 +1,26 @@
+{
+  "name": "dev-flow",
+  "description": "项目全流程管理插件。从需求探索到交付的完整生命周期（PRD → SPEC → TASK → DEV → TEST → DONE），支持独立阶段命令、自动化 hooks、角色隔离 agent。",
+  "version": "1.0.0",
+  "author": {
+    "name": "xinyue"
+  },
+  "commands": [
+    "./commands/init.md",
+    "./commands/prd.md",
+    "./commands/spec.md",
+    "./commands/task.md",
+    "./commands/issue.md",
+    "./commands/devtest.md",
+    "./commands/fix.md",
+    "./commands/test.md",
+    "./commands/status.md",
+    "./commands/check.md",
+    "./commands/iterate.md",
+    "./commands/brainstorm.md",
+    "./commands/mode.md"
+  ],
+  "homepage": "https://github.com/daphnee-ovo/dev-flow",
+  "license": "MIT",
+  "keywords": ["project-management", "workflow", "dev-flow", "agents", "hooks"]
+}
