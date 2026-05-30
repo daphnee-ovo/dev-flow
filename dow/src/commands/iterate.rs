@@ -72,10 +72,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         return Err(DowError::new(msg, 1));
     }
 
-    // 3. 计算版本：当前 → bump → released_version（归档版本），再 +patch = next_version
-    let cur_version = version::read_current()?;
-    let released_version = version::bump_version_str(&cur_version, &args.bump)?;
-    let next_version = version::bump_version_str(&released_version, "patch")?;
+    // 3. 计算版本：当前版本即 released_version，bump 一次得到 next_version
+    let released_version = version::read_current()?;
+    let next_version = version::bump_version_str(&released_version, &args.bump)?;
 
     // 4. 计算归档内容
     let archive_base = archive_db::archive_base();
