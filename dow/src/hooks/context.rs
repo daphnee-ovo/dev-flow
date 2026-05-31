@@ -90,7 +90,10 @@ pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
     let map = yaml::read(&status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
     let phase = map.get("phase").cloned().unwrap_or_default();
     let mode = map.get("mode").cloned().unwrap_or_default();
-    let exec_mode = map.get("exec_mode").cloned().unwrap_or_else(|| "step".to_string());
+    let exec_mode = map
+        .get("exec_mode")
+        .cloned()
+        .unwrap_or_else(|| "step".to_string());
 
     // 统计 tasks
     let (task_stats, _total, _done) = count_tasks(&doc_root_path);
@@ -103,7 +106,8 @@ pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
         let undone_items = count_undone_in_active_tasks(&doc_root_path);
 
         if undone_items == 0 && open_issues == 0 {
-            let reason = "[dev-flow] DEV 阶段无待完成的 task 且无 open issue，不允许继续开发。请选择：\n\
+            let reason =
+                "[dev-flow] DEV 阶段无待完成的 task 且无 open issue，不允许继续开发。请选择：\n\
                 → /task 创建新任务\n\
                 → /issue 创建 issue\n\
                 → /test 进入测试阶段";
@@ -171,7 +175,11 @@ fn count_tasks(doc_root: &Path) -> (TaskStats, u32, u32) {
 
     if !task_dir.is_dir() {
         return (
-            TaskStats { total: 0, done: 0, by_priority },
+            TaskStats {
+                total: 0,
+                done: 0,
+                by_priority,
+            },
             0,
             0,
         );
@@ -195,7 +203,9 @@ fn count_tasks(doc_root: &Path) -> (TaskStats, u32, u32) {
                         current_done = false;
                     } else if line.contains("priority:") {
                         if let Some(p) = extract_priority(line) {
-                            let entry = by_priority.entry(p).or_insert(PriorityStats { total: 0, done: 0 });
+                            let entry = by_priority
+                                .entry(p)
+                                .or_insert(PriorityStats { total: 0, done: 0 });
                             entry.total += 1;
                             if current_done {
                                 entry.done += 1;
@@ -207,7 +217,15 @@ fn count_tasks(doc_root: &Path) -> (TaskStats, u32, u32) {
         }
     }
 
-    (TaskStats { total, done, by_priority }, total, done)
+    (
+        TaskStats {
+            total,
+            done,
+            by_priority,
+        },
+        total,
+        done,
+    )
 }
 
 fn extract_priority(line: &str) -> Option<String> {
@@ -413,13 +431,11 @@ fn get_last_changelog(doc_root: &Path) -> Option<String> {
     if !changelog.exists() {
         return None;
     }
-    fs::read_to_string(&changelog)
-        .ok()
-        .and_then(|c| {
-            c.lines()
-                .find(|l| l.starts_with("- "))
-                .map(|l| l.trim_start_matches("- ").to_string())
-        })
+    fs::read_to_string(&changelog).ok().and_then(|c| {
+        c.lines()
+            .find(|l| l.starts_with("- "))
+            .map(|l| l.trim_start_matches("- ").to_string())
+    })
 }
 
 fn read_version_info() -> (String, String) {
@@ -430,7 +446,11 @@ fn read_version_info() -> (String, String) {
         .output()
         .map(|o| {
             let out = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if out.is_empty() { "no-tag".to_string() } else { "tagged".to_string() }
+            if out.is_empty() {
+                "no-tag".to_string()
+            } else {
+                "tagged".to_string()
+            }
         })
         .unwrap_or_else(|_| "no-tag".to_string());
 
@@ -505,9 +525,15 @@ fn print_human(data: &ContextOutput) {
     // 当前 items
     if let Some(ref items) = data.current_items {
         let label = if items.item_type == "issue" {
-            format!("current issues [{}]", items.severity.as_deref().unwrap_or("?"))
+            format!(
+                "current issues [{}]",
+                items.severity.as_deref().unwrap_or("?")
+            )
         } else {
-            format!("current tasks [{}]", items.priority.as_deref().unwrap_or("?"))
+            format!(
+                "current tasks [{}]",
+                items.priority.as_deref().unwrap_or("?")
+            )
         };
         println!("{}:", label);
         for item in &items.items {

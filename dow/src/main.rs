@@ -46,7 +46,10 @@ fn main() {
         Commands::Issue(args) => commands::issue::run(args, human),
         Commands::Version(args) => commands::version::run(args, human),
         Commands::Archive { command } => commands::archive::run(command, human),
-        Commands::Hooks { codex_hook, command } => match command {
+        Commands::Hooks {
+            codex_hook,
+            command,
+        } => match command {
             HooksCommands::Context => hooks::context::run(human, codex_hook),
             HooksCommands::Guard { file } => hooks::guard::run(file.unwrap_or_default()),
             HooksCommands::PostWrite { file } => hooks::post_write::run(file),
@@ -68,7 +71,10 @@ fn main() {
 }
 
 fn should_check_version(cmd: &Commands) -> bool {
-    !matches!(cmd, Commands::Setup(_) | Commands::Update | Commands::SelfCheck)
+    !matches!(
+        cmd,
+        Commands::Setup(_) | Commands::Update | Commands::SelfCheck
+    )
 }
 
 fn check_version_background() {
@@ -93,14 +99,12 @@ fn check_version_background() {
     // 判断是否需要后台检查
     let should_check = match &config.last_version_check {
         None => true,
-        Some(last) => {
-            chrono::DateTime::parse_from_rfc3339(last)
-                .map(|t| {
-                    let elapsed = chrono::Utc::now().signed_duration_since(t);
-                    elapsed.num_hours() >= 24
-                })
-                .unwrap_or(true)
-        }
+        Some(last) => chrono::DateTime::parse_from_rfc3339(last)
+            .map(|t| {
+                let elapsed = chrono::Utc::now().signed_duration_since(t);
+                elapsed.num_hours() >= 24
+            })
+            .unwrap_or(true),
     };
 
     if should_check {

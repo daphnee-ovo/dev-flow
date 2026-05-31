@@ -22,10 +22,12 @@ pub fn run(command: Option<String>) -> Result<i32, DowError> {
             std::io::stdin().read_to_string(&mut buf).ok()?;
             serde_json::from_str::<serde_json::Value>(&buf)
                 .ok()
-                .and_then(|j| j.get("tool_input")
-                    .and_then(|ti| ti.get("command"))
-                    .and_then(|v| v.as_str())
-                    .map(String::from))
+                .and_then(|j| {
+                    j.get("tool_input")
+                        .and_then(|ti| ti.get("command"))
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                })
         })
         .unwrap_or_default();
 

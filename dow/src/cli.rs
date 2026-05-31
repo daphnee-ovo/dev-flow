@@ -99,9 +99,7 @@ pub enum ArchiveCommands {
         branch: Option<String>,
     },
     /// 显示某版本归档详情
-    Show {
-        version: String,
-    },
+    Show { version: String },
     /// 查询归档任务
     Tasks {
         #[arg(long)]

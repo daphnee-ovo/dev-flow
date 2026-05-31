@@ -29,12 +29,11 @@ pub fn run() -> Result<i32, DowError> {
     };
 
     if !changelog.exists() {
-        fs::write(&changelog, "# Changelog\n\n")
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        fs::write(&changelog, "# Changelog\n\n").map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    let mut content = fs::read_to_string(&changelog)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    let mut content =
+        fs::read_to_string(&changelog).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // 去重：topic 已存在于 CHANGELOG 中则跳过
     if content.contains(&topic) {
@@ -51,8 +50,7 @@ pub fn run() -> Result<i32, DowError> {
 
     let entry = format!("- {} {}", time, topic);
     content.push_str(&format!("{}\n", entry));
-    fs::write(&changelog, content)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::write(&changelog, content).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     println!("[dev-flow] CHANGELOG 已更新：{} {}", time, topic);
     Ok(0)
@@ -92,7 +90,10 @@ fn get_issue_topic(doc_root: &Path) -> Option<String> {
                         let title = line.trim_start_matches("- [ ] ").to_string();
                         let rank = find_field_rank(&lines[i..], "severity:");
                         if best.is_none() || rank < best.as_ref().unwrap().0 {
-                            let clean = title.trim_end_matches('：').trim_end_matches(':').to_string();
+                            let clean = title
+                                .trim_end_matches('：')
+                                .trim_end_matches(':')
+                                .to_string();
                             best = Some((rank, clean));
                         }
                     }
@@ -128,7 +129,9 @@ fn get_task_topic(doc_root: &Path) -> Option<(String, String)> {
                         let task_type = find_field_value(&lines[i..], "type:")
                             .unwrap_or_else(|| "feat".to_string());
                         if best.is_none() || rank < best.as_ref().unwrap().0 {
-                            let clean = title.split(':').nth(1)
+                            let clean = title
+                                .split(':')
+                                .nth(1)
                                 .or_else(|| title.split('：').nth(1))
                                 .map(|s| s.trim().to_string())
                                 .unwrap_or(title);
@@ -179,9 +182,15 @@ fn find_field_rank(lines: &[&str], field: &str) -> u8 {
             break;
         }
         if line.contains(field) {
-            if line.contains("P0") { return 0; }
-            if line.contains("P1") { return 1; }
-            if line.contains("P2") { return 2; }
+            if line.contains("P0") {
+                return 0;
+            }
+            if line.contains("P1") {
+                return 1;
+            }
+            if line.contains("P2") {
+                return 2;
+            }
             return 3;
         }
     }

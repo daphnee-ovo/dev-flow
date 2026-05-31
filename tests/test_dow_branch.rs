@@ -11,7 +11,10 @@ static TEST_SEQ: AtomicU32 = AtomicU32::new(0);
 
 fn create_test_dir() -> PathBuf {
     let seq = TEST_SEQ.fetch_add(1, Ordering::SeqCst);
-    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("tmp/test_branch");
+    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("tmp/test_branch");
     let dir = base.join(format!("t{}", seq));
     if dir.exists() {
         fs::remove_dir_all(&dir).unwrap();
@@ -30,9 +33,17 @@ fn default_branch(dir: &Path) -> String {
 }
 
 fn setup_git_repo(dir: &Path) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     fs::write(dir.join("dummy.txt"), "init").unwrap();
-    Command::new("git").args(["add", "."]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     Command::new("git")
         .args(["commit", "-m", "init"])
         .current_dir(dir)
@@ -54,7 +65,8 @@ fn setup_branch_env(dir: &Path) {
     fs::write(
         doc.join("task/task_2026-05-26_1.md"),
         "- [ ] TASK-T001: active work\n  - priority: P1\n",
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 #[test]
@@ -122,7 +134,11 @@ fn test_guard_blocks_cross_branch_write() {
     setup_branch_env(&dir);
     // 创建另一个分支目录模拟已有分支（需含 STATUS.yaml 才能被识别为分支）
     fs::create_dir_all(&dir.join(".dev-doc/feature-x")).unwrap();
-    fs::write(dir.join(".dev-doc/feature-x/STATUS.yaml"), "name: test\nphase: DEV\n").unwrap();
+    fs::write(
+        dir.join(".dev-doc/feature-x/STATUS.yaml"),
+        "name: test\nphase: DEV\n",
+    )
+    .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard", ".dev-doc/feature-x/SPEC.md"])
@@ -133,7 +149,11 @@ fn test_guard_blocks_cross_branch_write() {
     // deny() exits 0 per Claude Code hook protocol, check stdout for BLOCKED
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("BLOCKED"), "expected BLOCKED in: {}", stdout);
+    assert!(
+        stdout.contains("BLOCKED"),
+        "expected BLOCKED in: {}",
+        stdout
+    );
     assert!(stdout.contains("feature-x"));
 }
 
@@ -223,12 +243,19 @@ fn test_guard_blocks_bash_redirect_cross_branch() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
     fs::create_dir_all(dir.join(".dev-doc/other-branch")).unwrap();
-    fs::write(dir.join(".dev-doc/other-branch/STATUS.yaml"), "name: test\nphase: DEV\n").unwrap();
+    fs::write(
+        dir.join(".dev-doc/other-branch/STATUS.yaml"),
+        "name: test\nphase: DEV\n",
+    )
+    .unwrap();
 
     // 模拟 Bash 工具通过 TOOL_INPUT 环境变量传入命令
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard"])
-        .env("TOOL_INPUT", r#"{"command":"echo x > .dev-doc/other-branch/SPEC.md"}"#)
+        .env(
+            "TOOL_INPUT",
+            r#"{"command":"echo x > .dev-doc/other-branch/SPEC.md"}"#,
+        )
         .current_dir(&dir)
         .output()
         .unwrap();
@@ -236,7 +263,11 @@ fn test_guard_blocks_bash_redirect_cross_branch() {
     // deny() exits 0 per Claude Code hook protocol, check stdout for BLOCKED
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("BLOCKED"), "expected BLOCKED in: {}", stdout);
+    assert!(
+        stdout.contains("BLOCKED"),
+        "expected BLOCKED in: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -245,7 +276,10 @@ fn test_guard_allows_bash_redirect_current_branch() {
     setup_branch_env(&dir);
     let branch = default_branch(&dir);
 
-    let cmd = format!(r#"{{"command":"echo x > .dev-doc/{}/task/new.md"}}"#, branch);
+    let cmd = format!(
+        r#"{{"command":"echo x > .dev-doc/{}/task/new.md"}}"#,
+        branch
+    );
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard"])
         .env("TOOL_INPUT", &cmd)
@@ -304,7 +338,8 @@ fn setup_dev_all_done(dir: &Path) {
     fs::write(
         doc.join("task/task_2026-05-30_1.md"),
         "- [x] TASK-T001: completed task\n  - priority: P1\n",
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 #[test]
@@ -391,7 +426,10 @@ fn test_context_does_not_block_with_undone_task() {
 
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert!(json.get("decision").is_none(), "should NOT block with active task");
+    assert!(
+        json.get("decision").is_none(),
+        "should NOT block with active task"
+    );
     assert!(json.get("phase").is_some(), "should output full context");
 }
 
@@ -404,7 +442,8 @@ fn test_context_does_not_block_with_open_issue() {
     fs::write(
         doc.join("issue/issue_test_2026-05-30_1.md"),
         "- [ ] BUG: something broken\n  - severity: P1\n",
-    ).unwrap();
+    )
+    .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "context"])
@@ -414,7 +453,10 @@ fn test_context_does_not_block_with_open_issue() {
 
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert!(json.get("decision").is_none(), "should NOT block with open issue");
+    assert!(
+        json.get("decision").is_none(),
+        "should NOT block with open issue"
+    );
 }
 
 #[test]
@@ -432,9 +474,34 @@ fn test_guard_blocks_code_write_when_all_done() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("permissionDecision"), "should output permission JSON");
+    assert!(
+        stdout.contains("permissionDecision"),
+        "should output permission JSON"
+    );
     assert!(stdout.contains("deny"), "should deny code write");
     assert!(stdout.contains("/task"), "should suggest /task");
+}
+
+#[test]
+fn test_guard_accepts_codex_hook_global_arg_after_subcommand() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = r#"{"tool_name":"Write","tool_input":{"file_path":"src/main.rs"}}"#;
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("permissionDecision"),
+        "should output permission JSON"
+    );
+    assert!(stdout.contains("deny"), "should deny code write");
 }
 
 #[test]
@@ -458,7 +525,11 @@ fn test_guard_allows_devdoc_edit_when_all_done() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("deny"), "should allow .dev-doc edit: {}", stdout);
+    assert!(
+        !stdout.contains("deny"),
+        "should allow .dev-doc edit: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -476,5 +547,25 @@ fn test_guard_allows_code_write_with_active_task() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("deny"), "should allow code write with active task: {}", stdout);
+    assert!(
+        !stdout.contains("deny"),
+        "should allow code write with active task: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_post_bash_accepts_codex_hook_global_arg_after_subcommand() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+
+    let tool_input = r#"{"tool_name":"Bash","tool_input":{"command":"git switch main"}}"#;
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "post-bash", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
 }

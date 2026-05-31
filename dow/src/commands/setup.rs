@@ -155,7 +155,12 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
     set_codex_root_bool("suppress_unstable_features_warning", true)?;
 
     let add = std::process::Command::new("codex")
-        .args(["plugin", "marketplace", "add", stage_root.to_str().unwrap_or("")])
+        .args([
+            "plugin",
+            "marketplace",
+            "add",
+            stage_root.to_str().unwrap_or(""),
+        ])
         .output();
 
     match add {
@@ -288,7 +293,10 @@ fn install_codex_personal_marketplace(plugin_dir: &Path) -> Result<std::path::Pa
     }
     fs::create_dir_all(&stage_root)
         .map_err(|e| format!("创建 Codex marketplace stage 失败: {}", e))?;
-    let stage_marketplace = stage_root.join(".agents").join("plugins").join("marketplace.json");
+    let stage_marketplace = stage_root
+        .join(".agents")
+        .join("plugins")
+        .join("marketplace.json");
     if let Some(parent) = stage_marketplace.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("创建 Codex marketplace stage 目录失败: {}", e))?;
@@ -441,10 +449,7 @@ fn compute_hook_hash(
     );
 
     let mut hook_obj = serde_json::Map::new();
-    hook_obj.insert(
-        "async".to_string(),
-        serde_json::Value::Bool(is_async),
-    );
+    hook_obj.insert("async".to_string(), serde_json::Value::Bool(is_async));
     hook_obj.insert(
         "command".to_string(),
         serde_json::Value::String(command.to_string()),
@@ -504,8 +509,13 @@ fn remove_plugin_metadata_dirs(root: &Path, strip_skills: bool) -> Result<(), St
     for dir in dirs {
         let candidate = root.join(dir);
         if candidate.exists() {
-            fs::remove_dir_all(&candidate)
-                .map_err(|e| format!("清理 Codex 插件元数据目录 {} 失败: {}", candidate.display(), e))?;
+            fs::remove_dir_all(&candidate).map_err(|e| {
+                format!(
+                    "清理 Codex 插件元数据目录 {} 失败: {}",
+                    candidate.display(),
+                    e
+                )
+            })?;
         }
     }
     Ok(())

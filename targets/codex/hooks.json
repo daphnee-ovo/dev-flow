@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "dow hooks guard --codex-hook",
             "timeout": 5
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
+            "command": "dow hooks guard --codex-hook",
             "timeout": 5
           }
         ]
@@ -40,8 +40,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
+            "command": "dow hooks post-write --codex-hook",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dow hooks post-bash --codex-hook",
+            "timeout": 5
           }
         ]
       }

@@ -30,13 +30,17 @@ impl GuardPath {
         let mut parts: Vec<Component> = Vec::new();
         for comp in joined.components() {
             match comp {
-                Component::ParentDir => { parts.pop(); }
+                Component::ParentDir => {
+                    parts.pop();
+                }
                 Component::CurDir => {}
                 other => parts.push(other),
             }
         }
 
-        GuardPath { abs: parts.iter().collect() }
+        GuardPath {
+            abs: parts.iter().collect(),
+        }
     }
 
     fn is_under(&self, dir: &Path) -> bool {
@@ -87,12 +91,15 @@ struct GuardContext {
 impl GuardContext {
     fn new(root: PathBuf) -> Self {
         let ai_names = [
-            ".claude", ".codex", ".codex-plugin",
-            ".agents", ".cursor", ".aider", ".continue",
+            ".claude",
+            ".codex",
+            ".codex-plugin",
+            ".agents",
+            ".cursor",
+            ".aider",
+            ".continue",
         ];
-        let ai_config_dirs: Vec<PathBuf> = ai_names.iter()
-            .map(|d| root.join(d))
-            .collect();
+        let ai_config_dirs: Vec<PathBuf> = ai_names.iter().map(|d| root.join(d)).collect();
         // .github/copilot 特殊处理
         let mut dirs = ai_config_dirs;
         dirs.push(root.join(".github/copilot"));
@@ -122,8 +129,14 @@ impl GuardContext {
         if !status_file.exists() {
             return None;
         }
-        let phase = yaml::get(&status_file, "phase").ok().flatten().unwrap_or_default();
-        let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
+        let phase = yaml::get(&status_file, "phase")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let mode = yaml::get(&status_file, "mode")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
         Some((phase, mode))
     }
 
@@ -175,12 +188,11 @@ pub fn run(file: String) -> Result<i32, DowError> {
         // 1. 项目边界检查
         if !path.is_under(&ctx.root) {
             if is_dangerous_system_path(&path) {
-                return deny(&format!(
-                    "[dev-flow] 禁止写入系统敏感路径：{}", raw_target
-                ));
+                return deny(&format!("[dev-flow] 禁止写入系统敏感路径：{}", raw_target));
             }
             return ask(&format!(
-                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。", raw_target
+                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。",
+                raw_target
             ));
         }
 
@@ -229,8 +241,7 @@ enum PhaseDecision {
 
 fn is_dangerous_system_path(path: &GuardPath) -> bool {
     let prefixes: &[&str] = &[
-        "/tmp", "/var/tmp", "/dev", "/etc", "/usr",
-        "/bin", "/sbin", "/boot", "/proc", "/sys",
+        "/tmp", "/var/tmp", "/dev", "/etc", "/usr", "/bin", "/sbin", "/boot", "/proc", "/sys",
         "/root", "/System", "/Library",
     ];
     prefixes.iter().any(|p| path.is_under(Path::new(p)))
@@ -322,7 +333,8 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         if is_code_file(path) {
             return Some(PhaseDecision::Ask(format!(
                 "[dev-flow] 当前阶段为 {}，tmp/ 下写入代码文件：{}。确认是探索性 demo 吗？",
-                phase, path.display()
+                phase,
+                path.display()
             )));
         }
         return None;
@@ -388,7 +400,8 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
             if !path.exists() {
                 return Some(format!(
                     "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {}`",
-                    path.display(), doc_type
+                    path.display(),
+                    doc_type
                 ));
             }
             return None;
@@ -401,10 +414,15 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         && is_standard_doc_filename(&rel_str)
     {
         if !path.exists() {
-            let doc_type = if rel_str.starts_with("task/") { "task" } else { "issue" };
+            let doc_type = if rel_str.starts_with("task/") {
+                "task"
+            } else {
+                "issue"
+            };
             return Some(format!(
                 "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {} [-n N]`",
-                path.display(), doc_type
+                path.display(),
+                doc_type
             ));
         }
     }
@@ -443,14 +461,53 @@ fn has_active_work(doc_root: &Path) -> bool {
 }
 
 fn is_code_file(path: &GuardPath) -> bool {
-    matches!(path.extension(),
-        Some("py" | "js" | "ts" | "tsx" | "jsx" | "rs" | "go" | "java" | "rb" | "php"
-            | "vue" | "svelte" | "sh" | "bash" | "zsh"
-            | "cpp" | "c" | "h" | "hpp" | "cc" | "cxx"
-            | "kt" | "kts" | "swift" | "dart" | "m" | "mm"
-            | "scala" | "lua" | "sql" | "pl" | "pm" | "r"
-            | "cs" | "fs" | "ex" | "exs" | "erl" | "zig" | "nim"
-            | "ps1" | "psm1" | "bat" | "cmd")
+    matches!(
+        path.extension(),
+        Some(
+            "py" | "js"
+                | "ts"
+                | "tsx"
+                | "jsx"
+                | "rs"
+                | "go"
+                | "java"
+                | "rb"
+                | "php"
+                | "vue"
+                | "svelte"
+                | "sh"
+                | "bash"
+                | "zsh"
+                | "cpp"
+                | "c"
+                | "h"
+                | "hpp"
+                | "cc"
+                | "cxx"
+                | "kt"
+                | "kts"
+                | "swift"
+                | "dart"
+                | "m"
+                | "mm"
+                | "scala"
+                | "lua"
+                | "sql"
+                | "pl"
+                | "pm"
+                | "r"
+                | "cs"
+                | "fs"
+                | "ex"
+                | "exs"
+                | "erl"
+                | "zig"
+                | "nim"
+                | "ps1"
+                | "psm1"
+                | "bat"
+                | "cmd"
+        )
     )
 }
 
@@ -466,7 +523,12 @@ fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
     let rel_str = rel.to_string_lossy().to_string();
 
     let valid_singles = [
-        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
+        "PRD.md",
+        "SPEC.md",
+        "TEST.md",
+        "BRAINSTORM.md",
+        "CHANGELOG.md",
+        "STATUS.yaml",
     ];
     if valid_singles.contains(&rel_str.as_str()) {
         return true;
@@ -616,7 +678,8 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
     for prefix in &["cp ", "mv "] {
         if let Some(pos) = cmd.find(prefix) {
             let args_str = &cmd[pos + prefix.len()..];
-            let args_end = args_str.find(';')
+            let args_end = args_str
+                .find(';')
                 .or_else(|| args_str.find("&&"))
                 .or_else(|| args_str.find('|'))
                 .unwrap_or(args_str.len());
@@ -639,8 +702,11 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
             let args_str = &cmd[pos + prefix.len()..];
             let tokens: Vec<&str> = args_str.split_whitespace().collect();
             let has_inplace = tokens.iter().any(|t| {
-                *t == "-i" || t.starts_with("-i.") || t.starts_with("-i'")
-                    || *t == "-pi" || *t == "-pie"
+                *t == "-i"
+                    || t.starts_with("-i.")
+                    || t.starts_with("-i'")
+                    || *t == "-pi"
+                    || *t == "-pie"
             });
             if has_inplace {
                 if let Some(last) = tokens.last() {

@@ -95,6 +95,7 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 
 ## 多 Agent 支持
 
+- 严禁更新 A agent 相关内容的时候导致 B agent的支持被破坏
 - 共享内容（skills、commands、agents）放 `plugin/`
 - agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`

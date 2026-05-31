@@ -31,10 +31,14 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
             let expected_prefix = format!(".dev-doc/{}/", branch);
             let normalized = changed_file.replace('\\', "/");
             // 只对有分支子目录格式的路径做校验
-            if !normalized.starts_with(&expected_prefix) && !normalized.starts_with(".dev-doc/archive/") {
+            if !normalized.starts_with(&expected_prefix)
+                && !normalized.starts_with(".dev-doc/archive/")
+            {
                 let rest = &normalized[".dev-doc/".len()..];
                 if let Some(target_branch) = rest.split('/').next() {
-                    if Path::new(&format!(".dev-doc/{}", target_branch)).is_dir() && target_branch != "archive" {
+                    if Path::new(&format!(".dev-doc/{}", target_branch)).is_dir()
+                        && target_branch != "archive"
+                    {
                         println!(
                             "[dev-flow] ⚠ 写入了其他分支的文件：{}（当前分支：{}）",
                             changed_file, branch
@@ -52,7 +56,11 @@ pub fn run(file: Option<String>) -> Result<i32, DowError> {
         let is_changelog = changed_file.ends_with("CHANGELOG.md");
         if !is_status && !is_changelog {
             if let Err(e) = yaml::touch_updated(&status_file) {
-                eprintln!("[dow] 警告: 更新时间戳失败 ({}): {}", status_file.display(), e);
+                eprintln!(
+                    "[dow] 警告: 更新时间戳失败 ({}): {}",
+                    status_file.display(),
+                    e
+                );
             }
         }
     }
@@ -141,11 +149,7 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(entry.path()) {
-                if let Some(last_done) = content
-                    .lines()
-                    .filter(|l| l.starts_with("- [x]"))
-                    .last()
-                {
+                if let Some(last_done) = content.lines().filter(|l| l.starts_with("- [x]")).last() {
                     let task_name = last_done.trim_start_matches("- [x] ");
                     println!("[dev-flow] 任务完成（{}/{}）：{}", done, total, task_name);
                     if exec_mode == "continuous" {
@@ -181,7 +185,6 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
             }
         }
     }
-
 }
 
 fn check_issue_completion(doc_root: &Path) {
@@ -203,7 +206,10 @@ fn check_issue_completion(doc_root: &Path) {
                     let new_path = issue_dir.join(&new_name);
                     if !new_path.exists() {
                         if let Err(e) = fs::rename(entry.path(), &new_path) {
-                            eprintln!("[dow] 警告: 重命名 issue 文件为 closed_ 失败 ({}): {}", name, e);
+                            eprintln!(
+                                "[dow] 警告: 重命名 issue 文件为 closed_ 失败 ({}): {}",
+                                name, e
+                            );
                         } else {
                             println!("[dev-flow] Issue 全部关闭：{}", new_name);
                         }
@@ -232,8 +238,8 @@ fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {
         return;
     }
     let code_exts = [
-        ".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".java",
-        ".rb", ".php", ".vue", ".svelte",
+        ".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".java", ".rb", ".php", ".vue",
+        ".svelte",
     ];
     if !code_exts.iter().any(|ext| changed_file.ends_with(ext)) {
         return;
@@ -251,7 +257,10 @@ fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {
         .unwrap_or_default();
 
     if let Ok(spec_content) = fs::read_to_string(&spec_file) {
-        if spec_content.to_lowercase().contains(&basename.to_lowercase()) {
+        if spec_content
+            .to_lowercase()
+            .contains(&basename.to_lowercase())
+        {
             println!(
                 "[dev-flow] 代码文件 {} 已修改，SPEC.md 中有该模块的描述。",
                 changed_file

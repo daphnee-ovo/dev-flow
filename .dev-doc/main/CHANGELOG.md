@@ -5,3 +5,4 @@
 
 ## 2026-06-01
 - 00:45 fix: 更加符合规范
+- 01:24 fix: 修复codex context hook
