@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dow hooks save-changelog",
+            "command": "dow hooks save-changelog --codex-hook",
             "timeout": 30
           }
         ]

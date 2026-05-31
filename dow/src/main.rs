@@ -54,7 +54,7 @@ fn main() {
             HooksCommands::Guard { file } => hooks::guard::run(file.unwrap_or_default()),
             HooksCommands::PostWrite { file } => hooks::post_write::run(file),
             HooksCommands::PostBash { command } => hooks::post_bash::run(command),
-            HooksCommands::SaveChangelog => hooks::save_changelog::run(),
+            HooksCommands::SaveChangelog => hooks::save_changelog::run(codex_hook),
         },
         Commands::Setup(args) => commands::setup::run(args.agent, human),
         Commands::Update => commands::update::run(human),

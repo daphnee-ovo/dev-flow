@@ -8,13 +8,19 @@
 
 use crate::core::doc_root;
 use crate::error::DowError;
+use crate::output;
 use chrono::Local;
+use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub fn run() -> Result<i32, DowError> {
+#[derive(Serialize)]
+struct CodexStopOutput {}
+
+pub fn run(codex_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
+        print_codex_stop(codex_hook);
         return Ok(0);
     }
 
@@ -25,7 +31,10 @@ pub fn run() -> Result<i32, DowError> {
 
     let topic = match infer_topic(&doc_root_path, &changelog) {
         Some(t) => t,
-        None => return Ok(0),
+        None => {
+            print_codex_stop(codex_hook);
+            return Ok(0);
+        }
     };
 
     if !changelog.exists() {
@@ -37,6 +46,7 @@ pub fn run() -> Result<i32, DowError> {
 
     // 去重：topic 已存在于 CHANGELOG 中则跳过
     if content.contains(&topic) {
+        print_codex_stop(codex_hook);
         return Ok(0);
     }
 
@@ -52,8 +62,18 @@ pub fn run() -> Result<i32, DowError> {
     content.push_str(&format!("{}\n", entry));
     fs::write(&changelog, content).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    println!("[dev-flow] CHANGELOG 已更新：{} {}", time, topic);
+    if codex_hook {
+        print_codex_stop(true);
+    } else {
+        println!("[dev-flow] CHANGELOG 已更新：{} {}", time, topic);
+    }
     Ok(0)
+}
+
+fn print_codex_stop(codex_hook: bool) {
+    if codex_hook {
+        output::print_json(&CodexStopOutput {});
+    }
 }
 
 /// 推断 topic：优先 issue 标题 → task 标题 → 新 commit message

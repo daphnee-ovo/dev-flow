@@ -569,3 +569,28 @@ fn test_post_bash_accepts_codex_hook_global_arg_after_subcommand() {
 
     assert!(output.status.success());
 }
+
+#[test]
+fn test_save_changelog_codex_hook_outputs_stop_json() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "save-changelog", "--codex-hook"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json, serde_json::json!({}));
+    assert!(output.stderr.is_empty());
+
+    let has_changelog_entry = fs::read_dir(dir.join(".dev-doc"))
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().join("CHANGELOG.md"))
+        .filter_map(|path| fs::read_to_string(path).ok())
+        .any(|content| content.contains("feat: active work"));
+    assert!(has_changelog_entry);
+}

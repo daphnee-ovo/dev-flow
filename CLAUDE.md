@@ -59,7 +59,7 @@
 | `dow hooks context [--codex-hook]` | hook：注入上下文；Codex hook 使用协议 JSON envelope |
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |
-| `dow hooks save-changelog` | hook：保存 CHANGELOG |
+| `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG；Codex hook 使用 Stop 协议 JSON |
 | `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION（禁止直接编辑文件） |
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
@@ -91,7 +91,7 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 - `UserPromptSubmit`: Codex 使用 `dow hooks context --codex-hook`，Claude 使用 `dow hooks context -H`
 - `PreToolUse(Write|Edit|Bash)`: `dow hooks guard`
 - `PostToolUse(Write|Edit)`: `dow hooks post-write`
-- `Stop`: `dow hooks save-changelog`
+- `Stop`: Codex 使用 `dow hooks save-changelog --codex-hook`，Claude 使用 `dow hooks save-changelog`
 
 ## 多 Agent 支持
 

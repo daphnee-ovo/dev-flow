@@ -101,7 +101,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
     } else {
         // 预览前先触发 save_changelog，确保当前会话活动被记录
-        if let Err(e) = crate::hooks::save_changelog::run() {
+        if let Err(e) = crate::hooks::save_changelog::run(false) {
             eprintln!("[dev-flow] save_changelog 警告：{}", e.message);
         }
 
