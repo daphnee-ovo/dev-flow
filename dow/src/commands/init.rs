@@ -26,11 +26,19 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    let doc_root = crate::core::DOC_DIR;
-    let doc_root_path = std::path::Path::new(doc_root);
+    let base_dir = std::path::Path::new(crate::core::DOC_DIR);
+    fs::create_dir_all(base_dir)
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 创建目录结构
-    for dir in &["issue", "task", "archive"] {
+    // 解析多分支模式路径：.dev-doc/<branch>/
+    let branch = crate::core::doc_root::current_branch()
+        .unwrap_or_else(|| "main".to_string());
+    let doc_root_path = base_dir.join(&branch);
+    fs::create_dir_all(&doc_root_path)
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    // 创建目录结构（archive 已迁移到 SQLite，不再创建目录）
+    for dir in &["issue", "task"] {
         fs::create_dir_all(doc_root_path.join(dir))
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
@@ -86,7 +94,7 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         name: args.name,
         mode: args.mode,
         phase: phase.to_string(),
-        doc_root: doc_root.to_string(),
+        doc_root: doc_root_path.to_string_lossy().to_string(),
         version: "0.1.0".to_string(),
     };
 

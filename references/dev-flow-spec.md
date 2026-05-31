@@ -4,43 +4,27 @@
 
 ```
 .dev-doc/
-├── STATUS.yaml                              # 项目状态
-├── CHANGELOG.md                           # 追加式会话日志
-├── BRAINSTORM.md                          # 头脑风暴记录（持久，不归档）
-├── PRD.md                                 # 产品需求文档
-├── SPEC.md                                # 技术规范
-├── TEST.md                                # 测试报告
-├── task/                                  # 任务清单（多文件）
-│   ├── task_<YYYY-MM-DD>_<seq>.md              # 活跃任务
-│   └── done_task_<YYYY-MM-DD>_<seq>.md         # 已完成
-├── issue/                                 # 问题追踪
-│   ├── issue_<source>_<date>_<seq>.md          # 未关闭
-│   └── closed_issue_<source>_<date>_<seq>.md   # 已关闭
-└── archive/                               # 历史迭代
-    └── v<N>-<topic>/                      # 按版本号+主题
-        ├── PRD.md
-        ├── SPEC.md
-        ├── done_task_*.md
-        ├── TEST.md
-        ├── CHANGELOG.md
-        └── issue/
+├── archive.db                             # 归档数据库（SQLite）
+└── <branch>/                              # 多分支模式（如 main/、feature-x/）
+    ├── STATUS.yaml                        # 项目状态
+    ├── CHANGELOG.md                       # 追加式会话日志
+    ├── BRAINSTORM.md                      # 头脑风暴记录（持久，不归档）
+    ├── PRD.md                             # 产品需求文档
+    ├── SPEC.md                            # 技术规范
+    ├── TEST.md                            # 测试报告
+    ├── task/                              # 任务清单（多文件）
+    │   ├── task_<YYYY-MM-DD>_<seq>.md          # 活跃任务
+    │   └── done_task_<YYYY-MM-DD>_<seq>.md     # 已完成
+    └── issue/                             # 问题追踪
+        ├── issue_<source>_<date>_<seq>.md      # 未关闭
+        └── closed_issue_<source>_<date>_<seq>.md # 已关闭
 ```
 
-## 多工程模式
+## 多分支模式
 
-当项目有多分支并行开发时：
+所有项目默认使用多分支模式：`DOC_ROOT=.dev-doc/<当前分支名>`。`dow init` 自动检测当前 git 分支并创建对应子目录。
 
-```
-.dev-doc/
-├── main/
-│   ├── STATUS.yaml
-│   ├── ...
-├── feature-auth/
-│   ├── STATUS.yaml
-│   ├── ...
-```
-
-检测规则：如果 `.dev-doc/` 下存在包含 `STATUS.yaml` 的子目录，则进入多工程模式，`DOC_ROOT=.dev-doc/<当前分支名>`。
+检测规则：如果 `.dev-doc/` 下存在包含 `STATUS.yaml` 的子目录，则 `DOC_ROOT=.dev-doc/<当前分支名>`。
 
 ## 文件命名规范
 
@@ -204,7 +188,7 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 dow init --name <项目名> --mode <mode>
 ```
 
-自动创建 `.dev-doc/{issue,task,archive}`、`STATUS.yaml`、根目录 `VERSION`（多分支格式：`(<branch>)<semver>`）、`CHANGELOG.md`。
+自动创建 `.dev-doc/<branch>/{issue,task}`、`STATUS.yaml`、`CHANGELOG.md`、根目录 `VERSION`（多分支格式：`(<branch>)<semver>`）。归档使用 SQLite（`.dev-doc/archive.db`），不再创建 `archive/` 目录。
 
 ## 临时文件
 

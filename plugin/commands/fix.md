@@ -86,18 +86,6 @@ prompt: `你是一名高级开发工程师。你的任务是修复以下 issue�
 
 - **无法修复** → 保持 issue 打开状态，向用户报告原因和建议
 
-## P0 issue 关闭时自动 bump
-
-当一个包含 P0 severity 条目的 issue 文件被完全关闭时，自动执行 minor 版本 bump：
-
-```bash
-dow version --bump minor
-git add VERSION
-git commit -m "fix: Bump version for P0 issue fix"
-```
-
-判断条件：被关闭的 issue 文件中存在 `severity: P0` 的条目。非 P0 issue 关闭时不触发 bump。
-
 ## audit 模式
 
 当处于 `audit/<原模式>` 时（如 `audit/quick`），/fix 行为不变，但完成后提示不同：

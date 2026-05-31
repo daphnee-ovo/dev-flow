@@ -43,3 +43,7 @@ path = "../tests/test_dow_doc.rs"
 [[test]]
 name = "test_dow_branch"
 path = "../tests/test_dow_branch.rs"
+
+[[test]]
+name = "test_guard_phase"
+path = "../tests/test_guard_phase.rs"

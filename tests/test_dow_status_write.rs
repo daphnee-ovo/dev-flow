@@ -102,8 +102,8 @@ fn test_set_mode_valid() {
 
     assert!(output.status.success());
     assert_eq!(read_field(dir.path(), "mode"), "fast");
-    // fast 模式联动 phase 起点为 TASK
-    assert_eq!(read_field(dir.path(), "phase"), "TASK");
+    // mode 切换不再联动 phase（phase 保持不变）
+    assert_eq!(read_field(dir.path(), "phase"), "SPEC");
 }
 
 #[test]

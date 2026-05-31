@@ -174,10 +174,19 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         yaml::set(status_file, "mode", new_mode)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-        // 联动 phase 起点
-        let start_phase = mode_start_phase(new_mode);
-        yaml::set(status_file, "phase", start_phase)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        // mode 切换不联动 phase —— phase 由显式 --phase 或 /iterate 管理
+        // 仅校验当前 phase 在新 mode 下是否合法，不合法则警告但不修改
+        let current_phase = yaml::get(status_file, "phase")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let chain = phase_chain(new_mode);
+        if !chain.contains(&current_phase.as_str()) {
+            eprintln!(
+                "[dow] 警告: 当前阶段 {} 不在 {} 模式的流程链中（{}），建议手动调整",
+                current_phase, new_mode, chain.join(" → ")
+            );
+        }
     }
 
     // 设置 exec_mode

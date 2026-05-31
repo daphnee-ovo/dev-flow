@@ -1,6 +1,5 @@
 // dow/src/hooks/
 // ├── guard.rs  -- dow hooks guard（文件写入守护）
-//    合并 block-system-tmp.sh + block-non-dev-edit.sh
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
@@ -9,10 +8,132 @@ use crate::core::{doc_root, yaml};
 use crate::error::DowError;
 use serde_json;
 use std::io::Read as IoRead;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
-/// 输出 Claude Code PreToolUse deny JSON 并返回 exit 0
-/// Claude Code 要求 exit 0 + JSON permissionDecision:"deny" 才能阻断工具执行
+// ─── GuardPath: 规范化绝对路径 ───────────────────────────────────────────────
+
+struct GuardPath {
+    abs: PathBuf,
+}
+
+impl GuardPath {
+    fn new(raw: &str, project_root: &Path) -> Self {
+        let unified = raw.replace('\\', "/");
+        let raw_path = Path::new(&unified);
+
+        let joined = if raw_path.is_absolute() {
+            raw_path.to_path_buf()
+        } else {
+            project_root.join(raw_path)
+        };
+
+        let mut parts: Vec<Component> = Vec::new();
+        for comp in joined.components() {
+            match comp {
+                Component::ParentDir => { parts.pop(); }
+                Component::CurDir => {}
+                other => parts.push(other),
+            }
+        }
+
+        GuardPath { abs: parts.iter().collect() }
+    }
+
+    fn is_under(&self, dir: &Path) -> bool {
+        self.abs.starts_with(dir)
+    }
+
+    fn is_exact(&self, file: &Path) -> bool {
+        self.abs == file
+    }
+
+    /// 取相对于某目录的剩余路径
+    fn relative_to(&self, dir: &Path) -> Option<PathBuf> {
+        self.abs.strip_prefix(dir).ok().map(|p| p.to_path_buf())
+    }
+
+    fn extension(&self) -> Option<&str> {
+        self.abs.extension().and_then(|e| e.to_str())
+    }
+
+    fn file_name(&self) -> Option<&str> {
+        self.abs.file_name().and_then(|n| n.to_str())
+    }
+
+    fn exists(&self) -> bool {
+        self.abs.exists()
+    }
+
+    fn is_dir(&self) -> bool {
+        self.abs.is_dir()
+    }
+
+    fn display(&self) -> std::path::Display<'_> {
+        self.abs.display()
+    }
+}
+
+// ─── GuardContext: 预计算的项目路径 ──────────────────────────────────────────
+
+struct GuardContext {
+    root: PathBuf,
+    tmp_dir: PathBuf,
+    devdoc_dir: PathBuf,
+    docs_dir: PathBuf,
+    version_file: PathBuf,
+    ai_config_dirs: Vec<PathBuf>,
+}
+
+impl GuardContext {
+    fn new(root: PathBuf) -> Self {
+        let ai_names = [
+            ".claude", ".codex", ".codex-plugin",
+            ".agents", ".cursor", ".aider", ".continue",
+        ];
+        let ai_config_dirs: Vec<PathBuf> = ai_names.iter()
+            .map(|d| root.join(d))
+            .collect();
+        // .github/copilot 特殊处理
+        let mut dirs = ai_config_dirs;
+        dirs.push(root.join(".github/copilot"));
+
+        GuardContext {
+            tmp_dir: root.join("tmp"),
+            devdoc_dir: root.join(".dev-doc"),
+            docs_dir: root.join("docs"),
+            version_file: root.join("VERSION"),
+            ai_config_dirs: dirs,
+            root,
+        }
+    }
+
+    fn is_ai_config(&self, path: &GuardPath) -> bool {
+        self.ai_config_dirs.iter().any(|d| path.is_under(d))
+    }
+
+    fn current_branch_dir(&self) -> Option<PathBuf> {
+        let branch = doc_root::current_branch()?;
+        Some(self.devdoc_dir.join(branch))
+    }
+
+    fn read_phase_mode(&self) -> Option<(String, String)> {
+        let doc_root_path = doc_root::resolve(self.devdoc_dir.to_str().unwrap_or(".dev-doc"));
+        let status_file = doc_root_path.join("STATUS.yaml");
+        if !status_file.exists() {
+            return None;
+        }
+        let phase = yaml::get(&status_file, "phase").ok().flatten().unwrap_or_default();
+        let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
+        Some((phase, mode))
+    }
+
+    fn doc_root_path(&self) -> PathBuf {
+        doc_root::resolve(self.devdoc_dir.to_str().unwrap_or(".dev-doc"))
+    }
+}
+
+// ─── Hook 输出 ───────────────────────────────────────────────────────────────
+
 fn deny(reason: &str) -> Result<i32, DowError> {
     let output = serde_json::json!({
         "hookSpecificOutput": {
@@ -25,7 +146,6 @@ fn deny(reason: &str) -> Result<i32, DowError> {
     Ok(0)
 }
 
-/// 输出 ask JSON，触发用户权限确认（非危险但超出项目范围的写入）
 fn ask(reason: &str) -> Result<i32, DowError> {
     let output = serde_json::json!({
         "hookSpecificOutput": {
@@ -38,95 +158,357 @@ fn ask(reason: &str) -> Result<i32, DowError> {
     Ok(0)
 }
 
-pub fn run(file: String) -> Result<i32, DowError> {
-    // 收集需要检查的文件路径列表
-    let targets = resolve_targets(&file);
+// ─── 主入口 ──────────────────────────────────────────────────────────────────
 
+pub fn run(file: String) -> Result<i32, DowError> {
+    let targets = resolve_targets(&file);
     if targets.is_empty() {
         return Ok(0);
     }
 
-    let project_root = std::env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let project_root = std::env::current_dir().unwrap_or_default();
+    let ctx = GuardContext::new(project_root);
 
-    for target in &targets {
-        // 路径穿越检测：resolve 后判断是否在项目目录内
-        let resolved = resolve_absolute(target);
-        if !is_within_project(&resolved) {
-            // 危险系统路径 → 直接 deny
-            if is_dangerous_path(&resolved) {
+    for raw_target in &targets {
+        let path = GuardPath::new(raw_target, &ctx.root);
+
+        // 1. 项目边界检查
+        if !path.is_under(&ctx.root) {
+            if is_dangerous_system_path(&path) {
                 return deny(&format!(
-                    "[dev-flow] 禁止写入系统敏感路径：{}",
-                    target
+                    "[dev-flow] 禁止写入系统敏感路径：{}", raw_target
                 ));
             }
-            // 非危险项目外路径 → 触发权限确认
             return ask(&format!(
-                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。",
-                target
+                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。", raw_target
             ));
         }
 
-        // 将绝对路径转为相对路径（后续检查统一使用相对路径）
-        let rel_target = if target.starts_with(&project_root) {
-            target[project_root.len()..].trim_start_matches('/').to_string()
-        } else {
-            target.to_string()
-        };
-        let rel_target = rel_target.as_str();
-
-        // block-version-direct-write: 禁止 agent 直接修改 VERSION 文件
-        if is_version_file(rel_target) {
+        // 2. VERSION 保护
+        if path.is_exact(&ctx.version_file) {
             return deny(
                 "[dev-flow] 禁止直接修改 VERSION 文件。请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor`。"
             );
         }
 
-        // block-status-direct-write: 禁止 agent 直接创建/修改 STATUS.yaml
-        if is_status_file(rel_target) {
+        // 3. STATUS.yaml 保护
+        if path.file_name() == Some("STATUS.yaml") && path.is_under(&ctx.devdoc_dir) {
             return deny(
                 "[dev-flow] 禁止直接创建或修改 STATUS.yaml。请使用 `dow status --phase/--mode/--name` 或 `dow init`。"
             );
         }
 
-        // block-devdoc-direct-create: 禁止 agent 手动创建 .dev-doc 文档文件
-        if let Some(msg) = check_devdoc_direct_create(rel_target) {
-            return deny(&msg);
-        }
-
-        // block-cross-branch: 拦截写入其他分支的 .dev-doc 目录
-        if let Some(reason) = check_cross_branch_write(rel_target) {
+        // 4. .dev-doc 文件创建保护
+        if let Some(reason) = check_devdoc_direct_create(&path, &ctx) {
             return deny(&reason);
         }
 
-        // 非 DEV/TEST 阶段：只允许写入 .dev-doc/<branch>/ 已存在文件和 tmp/
-        if let Some(reason) = check_non_dev_write(rel_target) {
+        // 5. 跨分支写入保护
+        if let Some(reason) = check_cross_branch(&path, &ctx) {
             return deny(&reason);
+        }
+
+        // 6. 阶段性写入控制
+        if let Some(decision) = check_phase_write(&path, &ctx) {
+            return match decision {
+                PhaseDecision::Deny(reason) => deny(&reason),
+                PhaseDecision::Ask(reason) => ask(&reason),
+            };
         }
     }
 
     Ok(0)
 }
 
-/// 从 hook 输入中提取写入目标路径
-/// 支持三种输入方式：
-/// 1. file 参数为 JSON 文件路径（TOOL_INPUT_FILE_PATH）→ 读取并解析
-/// 2. file 参数为空 → 从 stdin 读取 hook JSON
-/// 3. file 参数为普通文件路径 → 直接作为目标（兼容旧方式）
+enum PhaseDecision {
+    Deny(String),
+    Ask(String),
+}
+
+// ─── 检查函数 ────────────────────────────────────────────────────────────────
+
+fn is_dangerous_system_path(path: &GuardPath) -> bool {
+    let prefixes: &[&str] = &[
+        "/tmp", "/var/tmp", "/dev", "/etc", "/usr",
+        "/bin", "/sbin", "/boot", "/proc", "/sys",
+        "/root", "/System", "/Library",
+    ];
+    prefixes.iter().any(|p| path.is_under(Path::new(p)))
+}
+
+fn check_cross_branch(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
+    if !path.is_under(&ctx.devdoc_dir) {
+        return None;
+    }
+
+    let rel = path.relative_to(&ctx.devdoc_dir)?;
+    let rel_str = rel.to_string_lossy();
+
+    // 直接在 .dev-doc/ 下的文件（如 archive.db）
+    if !rel_str.contains('/') && !rel_str.contains('\\') {
+        return None;
+    }
+
+    let current = doc_root::current_branch()?;
+    let current_branch_dir = ctx.devdoc_dir.join(&current);
+
+    // 在当前分支目录下 → 允许
+    if path.is_under(&current_branch_dir) {
+        return None;
+    }
+
+    // 逐级检查是否属于其他已知分支目录
+    let parts: Vec<&str> = rel_str.split('/').collect();
+    let mut candidate = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            candidate.push('/');
+        }
+        candidate.push_str(part);
+
+        if i == parts.len() - 1 {
+            break;
+        }
+
+        let branch_path = ctx.devdoc_dir.join(&candidate);
+        if branch_path.join("STATUS.yaml").exists() {
+            return Some(format!(
+                "[dev-flow] BLOCKED: 当前分支为 `{}`，禁止写入其他分支的文档目录：{}\n→ 请确认你已切换到正确的分支，或使用 `git checkout {}` 切换。",
+                current, path.display(), candidate
+            ));
+        }
+    }
+
+    None
+}
+
+fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecision> {
+    if !ctx.devdoc_dir.is_dir() {
+        return None;
+    }
+
+    let (phase, mode) = ctx.read_phase_mode()?;
+
+    // DEV/TEST 阶段
+    if phase == "DEV" || phase == "TEST" {
+        if mode.starts_with("audit/") {
+            return None;
+        }
+        // 白名单
+        if path.is_under(&ctx.devdoc_dir)
+            || path.is_under(&ctx.tmp_dir)
+            || path.is_under(&ctx.docs_dir)
+            || ctx.is_ai_config(path)
+        {
+            return None;
+        }
+        // DEV 无活跃工作 → deny
+        if phase == "DEV" && !has_active_work(&ctx.doc_root_path()) {
+            return Some(PhaseDecision::Deny(format!(
+                "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
+                → /task 创建新任务\n\
+                → /issue 创建 issue\n\
+                → /test 进入测试阶段",
+                path.display()
+            )));
+        }
+        return None;
+    }
+
+    // 非 DEV/TEST 阶段（PRD/SPEC/TASK 等）
+
+    // 白名单 1: tmp（代码文件需确认）
+    if path.is_under(&ctx.tmp_dir) {
+        if is_code_file(path) {
+            return Some(PhaseDecision::Ask(format!(
+                "[dev-flow] 当前阶段为 {}，tmp/ 下写入代码文件：{}。确认是探索性 demo 吗？",
+                phase, path.display()
+            )));
+        }
+        return None;
+    }
+
+    // 白名单 2: AI 配置
+    if ctx.is_ai_config(path) {
+        return None;
+    }
+
+    // 白名单 3: docs（禁止代码文件）
+    if path.is_under(&ctx.docs_dir) {
+        if is_code_file(path) {
+            return Some(PhaseDecision::Deny(format!(
+                "[dev-flow] 当前阶段为 {}，docs/ 下不允许写入代码文件：{}。代码文件请在 DEV 阶段创建。",
+                phase, path.display()
+            )));
+        }
+        return None;
+    }
+
+    // 白名单 4: .dev-doc 工作流文件
+    if path.is_under(&ctx.devdoc_dir) {
+        if path.exists() || path.is_dir() {
+            return None;
+        }
+        if is_valid_devdoc_file(path, ctx) {
+            return None;
+        }
+        return Some(PhaseDecision::Deny(format!(
+            "[dev-flow] .dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
+            path.display()
+        )));
+    }
+
+    // 其余 → deny
+    Some(PhaseDecision::Deny(format!(
+        "[dev-flow] 当前阶段为 {}，只允许写入 .dev-doc/、docs/ 和 tmp/。要写入 {} 请先完成规划并进入 DEV 阶段：创建任务（/task）或创建 issue（/issue）后即可进入 DEV。（探索性代码、demo 可放 tmp/ 下）",
+        phase, path.display()
+    )))
+}
+
+fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
+    if !path.is_under(&ctx.devdoc_dir) {
+        return None;
+    }
+
+    // 需要 branch 目录下的相对路径
+    let branch_dir = ctx.current_branch_dir()?;
+    let rel = path.relative_to(&branch_dir)?;
+    let rel_str = rel.to_string_lossy().to_string();
+
+    let protected_singles = [
+        ("PRD.md", "prd"),
+        ("SPEC.md", "spec"),
+        ("TEST.md", "test"),
+        ("BRAINSTORM.md", "brainstorm"),
+        ("CHANGELOG.md", "changelog"),
+    ];
+
+    for (filename, doc_type) in &protected_singles {
+        if rel_str == *filename {
+            if !path.exists() {
+                return Some(format!(
+                    "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {}`",
+                    path.display(), doc_type
+                ));
+            }
+            return None;
+        }
+    }
+
+    // task/ 和 issue/ 下的新文件
+    if (rel_str.starts_with("task/task_") || rel_str.starts_with("issue/issue_"))
+        && rel_str.ends_with(".md")
+        && is_standard_doc_filename(&rel_str)
+    {
+        if !path.exists() {
+            let doc_type = if rel_str.starts_with("task/") { "task" } else { "issue" };
+            return Some(format!(
+                "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {} [-n N]`",
+                path.display(), doc_type
+            ));
+        }
+    }
+
+    None
+}
+
+// ─── 辅助函数 ────────────────────────────────────────────────────────────────
+
+fn has_active_work(doc_root: &Path) -> bool {
+    use std::fs;
+
+    let task_dir = doc_root.join("task");
+    if crate::core::task_store::has_active_work(&task_dir) {
+        return true;
+    }
+
+    let issue_dir = doc_root.join("issue");
+    if issue_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with("issue_") || !name.ends_with(".md") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    if content.lines().any(|l| l.starts_with("- [ ]")) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    false
+}
+
+fn is_code_file(path: &GuardPath) -> bool {
+    matches!(path.extension(),
+        Some("py" | "js" | "ts" | "tsx" | "jsx" | "rs" | "go" | "java" | "rb" | "php"
+            | "vue" | "svelte" | "sh" | "bash" | "zsh"
+            | "cpp" | "c" | "h" | "hpp" | "cc" | "cxx"
+            | "kt" | "kts" | "swift" | "dart" | "m" | "mm"
+            | "scala" | "lua" | "sql" | "pl" | "pm" | "r"
+            | "cs" | "fs" | "ex" | "exs" | "erl" | "zig" | "nim"
+            | "ps1" | "psm1" | "bat" | "cmd")
+    )
+}
+
+fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
+    let branch_dir = match ctx.current_branch_dir() {
+        Some(d) => d,
+        None => return false,
+    };
+    let rel = match path.relative_to(&branch_dir) {
+        Some(r) => r,
+        None => return false,
+    };
+    let rel_str = rel.to_string_lossy().to_string();
+
+    let valid_singles = [
+        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
+    ];
+    if valid_singles.contains(&rel_str.as_str()) {
+        return true;
+    }
+
+    if rel_str.starts_with("task/") {
+        let filename = &rel_str[5..];
+        return (filename.starts_with("task_") || filename.starts_with("done_task_"))
+            && filename.ends_with(".md");
+    }
+
+    if rel_str.starts_with("issue/") {
+        let filename = &rel_str[6..];
+        return (filename.starts_with("issue_") || filename.starts_with("closed_issue_"))
+            && filename.ends_with(".md");
+    }
+
+    false
+}
+
+fn is_standard_doc_filename(rel: &str) -> bool {
+    let parts: Vec<&str> = rel.split('/').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let filename = parts[1];
+    filename.chars().filter(|c| *c == '-').count() >= 2
+        && filename.contains(|c: char| c.is_ascii_digit())
+}
+
+// ─── 输入解析（不变） ────────────────────────────────────────────────────────
+
 fn resolve_targets(file: &str) -> Vec<String> {
-    // 尝试读取 JSON 文件（hook 传入 TOOL_INPUT_FILE_PATH）
     if !file.is_empty() {
         if let Ok(content) = std::fs::read_to_string(file) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                 return extract_targets_from_json(&json);
             }
         }
-        // 非 JSON 文件或不存在：视为直接文件路径（兼容旧方式）
         return vec![file.to_string()];
     }
 
-    // 从 stdin 读取 hook JSON
     let mut stdin_buf = String::new();
     if std::io::stdin().read_to_string(&mut stdin_buf).is_err() || stdin_buf.is_empty() {
         let tool_input = std::env::var("TOOL_INPUT").unwrap_or_default();
@@ -144,7 +526,6 @@ fn resolve_targets(file: &str) -> Vec<String> {
     extract_targets_from_json(&json)
 }
 
-/// 从 hook JSON 中提取写入目标
 fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
     let tool_input = json.get("tool_input").unwrap_or(json);
     let tool_name = json.get("tool_name").and_then(|v| v.as_str()).unwrap_or("");
@@ -177,24 +558,20 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
     }
 }
 
-/// 从 Bash 命令中提取可能的写入目标路径
 fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
     let mut targets = Vec::new();
 
-    // 匹配重定向写入：> file、>> file
-    // 跳过第一个片段（> 之前的命令部分），排除 fd redirect (2>, &>)
+    // 重定向写入：> file、>> file
     let redirect_parts: Vec<&str> = cmd.split('>').collect();
     for (i, part) in redirect_parts.iter().enumerate().skip(1) {
         if part.is_empty() {
             continue;
         }
-        // 检查 > 前是否为 fd redirect（如 2>/dev/null、1>/dev/null、&>/dev/null）
         let prev = redirect_parts[i - 1];
         let prev_trimmed = prev.trim_end();
         if prev_trimmed.ends_with('&') {
             continue;
         }
-        // fd redirect: > 前紧邻数字，且该数字前为空白或行首
         if let Some(last_char) = prev_trimmed.chars().last() {
             if last_char.is_ascii_digit() {
                 let before_digit = &prev_trimmed[..prev_trimmed.len() - 1];
@@ -215,7 +592,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // 匹配 tee 写入：| tee file、| tee -a file
+    // tee 写入
     if cmd.contains("tee") {
         let segments: Vec<&str> = cmd.split("tee").collect();
         for segment in segments.iter().skip(1) {
@@ -235,7 +612,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // 匹配 cp/mv 目标：cp src dest、mv src dest
+    // cp/mv 目标
     for prefix in &["cp ", "mv "] {
         if let Some(pos) = cmd.find(prefix) {
             let args_str = &cmd[pos + prefix.len()..];
@@ -247,7 +624,6 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
                 .split_whitespace()
                 .filter(|t| !t.starts_with('-'))
                 .collect();
-            // 最后一个非 flag 参数是目标
             if let Some(dest) = tokens.last() {
                 let clean = dest.trim_matches('"').trim_matches('\'');
                 if looks_like_path(clean) {
@@ -257,15 +633,16 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // 匹配 sed -i / perl -i 原地修改：最后一个非 flag 参数是目标文件
+    // sed -i / perl -i
     for prefix in &["sed ", "perl "] {
         if let Some(pos) = cmd.find(prefix) {
             let args_str = &cmd[pos + prefix.len()..];
-            // 检查是否含 -i 标志（原地修改）
             let tokens: Vec<&str> = args_str.split_whitespace().collect();
-            let has_inplace = tokens.iter().any(|t| *t == "-i" || t.starts_with("-i.") || t.starts_with("-i'") || *t == "-pi" || *t == "-pie");
+            let has_inplace = tokens.iter().any(|t| {
+                *t == "-i" || t.starts_with("-i.") || t.starts_with("-i'")
+                    || *t == "-pi" || *t == "-pie"
+            });
             if has_inplace {
-                // 最后一个非 flag、非表达式的 token 通常是文件
                 if let Some(last) = tokens.last() {
                     let clean = last.trim_matches('"').trim_matches('\'');
                     if looks_like_path(clean) {
@@ -276,7 +653,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // 匹配 dd of=<file>
+    // dd of=<file>
     if cmd.contains("dd ") || cmd.starts_with("dd ") {
         for token in cmd.split_whitespace() {
             if let Some(stripped) = token.strip_prefix("of=") {
@@ -295,351 +672,9 @@ fn looks_like_path(s: &str) -> bool {
     if s.is_empty() || s.starts_with('-') {
         return false;
     }
-    // 已知受保护的无扩展名文件
     let protected_names = ["VERSION", "Makefile", "Dockerfile", "CHANGELOG"];
     if protected_names.contains(&s) {
         return true;
     }
     s.contains('/') || s.contains('.') || s.starts_with(".dev-doc")
-}
-
-fn resolve_absolute(file: &str) -> String {
-    let path = Path::new(file);
-    let abs = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        std::env::current_dir().unwrap_or_default().join(path)
-    };
-    let mut components: Vec<std::path::Component> = Vec::new();
-    for comp in abs.components() {
-        match comp {
-            std::path::Component::ParentDir => { components.pop(); }
-            std::path::Component::CurDir => {}
-            other => components.push(other),
-        }
-    }
-    let resolved: std::path::PathBuf = components.iter().collect();
-    resolved.to_string_lossy().to_string()
-}
-
-fn is_within_project(resolved_path: &str) -> bool {
-    let project_root = std::env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default();
-    resolved_path.starts_with(&project_root)
-}
-
-/// 危险系统路径：直接 deny，不允许用户 override
-fn is_dangerous_path(resolved: &str) -> bool {
-    let prefixes = [
-        "/tmp/", "/var/tmp/", "/dev/", "/etc/", "/usr/",
-        "/bin/", "/sbin/", "/boot/", "/proc/", "/sys/",
-        "/root/", "/System/", "/Library/",
-    ];
-    prefixes.iter().any(|p| resolved.starts_with(p))
-}
-
-fn check_cross_branch_write(file: &str) -> Option<String> {
-    // 只检查 .dev-doc/ 内的写入
-    let normalized = file.replace('\\', "/");
-    if !normalized.starts_with(".dev-doc/") {
-        return None;
-    }
-
-    let rest = &normalized[".dev-doc/".len()..];
-
-    // 直接在 .dev-doc/ 下的文件（如 archive.db）不属于分支目录
-    if !rest.contains('/') {
-        return None;
-    }
-
-    // 获取当前分支（分支名可能含 `/`，如 refactor/tui）
-    let current = doc_root::current_branch()?;
-    let current_prefix = format!(".dev-doc/{}/", current);
-
-    // 文件在当前分支目录下 → 允许
-    if normalized.starts_with(&current_prefix) {
-        return None;
-    }
-
-    // 不在当前分支前缀下 → 逐级检查是否属于其他已知分支目录（含 STATUS.yaml）
-    let parts: Vec<&str> = rest.split('/').collect();
-    let mut candidate = String::new();
-    for (i, part) in parts.iter().enumerate() {
-        if i > 0 {
-            candidate.push('/');
-        }
-        candidate.push_str(part);
-
-        // 最后一段可能是文件名，不检查
-        if i == parts.len() - 1 {
-            break;
-        }
-
-        let branch_path = Path::new(".dev-doc").join(&candidate);
-        if branch_path.join("STATUS.yaml").exists() {
-            return Some(format!(
-                "[dev-flow] BLOCKED: 当前分支为 `{}`，禁止写入其他分支的文档目录：{}\n→ 请确认你已切换到正确的分支，或使用 `git checkout {}` 切换。",
-                current, file, candidate
-            ));
-        }
-    }
-
-    // 未命中任何已知分支目录 → 允许（可能是新分支初始化等情况）
-    None
-}
-
-/// 非 DEV/TEST 阶段写入白名单检查 + DEV 阶段无活跃工作检查
-/// 允许：.dev-doc/<current-branch>/ 已存在文件、项目内 tmp/
-/// 其余位置一律 deny
-fn check_non_dev_write(file: &str) -> Option<String> {
-    if !Path::new(".dev-doc").is_dir() {
-        return None;
-    }
-
-    let doc_root_path = doc_root::resolve(".dev-doc");
-    let status_file = doc_root_path.join("STATUS.yaml");
-    if !status_file.exists() {
-        return None;
-    }
-
-    let phase = yaml::get(&status_file, "phase").ok().flatten().unwrap_or_default();
-    let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
-
-    // DEV/TEST 阶段：检查是否有活跃工作
-    if phase == "DEV" || phase == "TEST" {
-        // audit 模式不限制
-        if mode.starts_with("audit/") {
-            return None;
-        }
-        // 白名单：.dev-doc/、tmp/、AI config、docs/ 写入始终允许
-        if file.starts_with(".dev-doc/") || file.starts_with(".dev-doc\\")
-            || file.starts_with("tmp/") || file.starts_with("tmp\\")
-        {
-            return None;
-        }
-        let ai_config_prefixes = [
-            ".claude/", ".codex/", ".codex-plugin/",
-            ".agents/", ".cursor/", ".github/copilot/",
-            ".aider/", ".continue/",
-        ];
-        if ai_config_prefixes.iter().any(|p| file.starts_with(p)) {
-            return None;
-        }
-        if is_docs_path(file) {
-            return None;
-        }
-        // DEV 阶段：无待完成 task 且无 open issue 时拦截代码写入
-        if phase == "DEV" && !has_active_work(&doc_root_path) {
-            return Some(format!(
-                "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
-                → /task 创建新任务\n\
-                → /issue 创建 issue\n\
-                → /test 进入测试阶段",
-                file
-            ));
-        }
-        return None;
-    }
-
-    // 白名单 1：项目内 tmp/ 目录
-    if file.starts_with("tmp/") || file.starts_with("tmp\\") {
-        return None;
-    }
-
-    // 白名单 2：AI 工具配置目录
-    let ai_config_prefixes = [
-        ".claude/", ".codex/", ".codex-plugin/",
-        ".agents/", ".cursor/", ".github/copilot/",
-        ".aider/", ".continue/",
-    ];
-    if ai_config_prefixes.iter().any(|p| file.starts_with(p)) {
-        return None;
-    }
-
-    // 白名单 3：任意层级 docs/ 目录（docs/、xxx/docs/、...）
-    if is_docs_path(file) {
-        return None;
-    }
-
-    // 白名单 4：.dev-doc/<branch>/ 内的合法工作流文件
-    if file.starts_with(".dev-doc/") || file.starts_with(".dev-doc\\") {
-        // 已存在的文件允许编辑（新建文件已被 check_devdoc_direct_create 拦截）
-        if Path::new(file).exists() {
-            return None;
-        }
-        // .dev-doc 下的目录本身允许
-        if Path::new(file).is_dir() {
-            return None;
-        }
-        // 新文件：检查是否属于 dev-flow 工作流管理范围
-        if is_valid_devdoc_file(file) {
-            return None;
-        }
-        return Some(format!(
-            "[dev-flow] .dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
-            file
-        ));
-    }
-
-    // 其余位置：非 DEV 阶段禁止写入
-    Some(format!(
-        "[dev-flow] 当前阶段为 {}，只允许写入 .dev-doc/、docs/ 和 tmp/。要写入 {} 请先完成规划并进入 DEV 阶段：创建任务（/task）或创建 issue（/issue）后即可进入 DEV。（探索性代码、demo 可放 tmp/ 下）",
-        phase, file
-    ))
-}
-
-/// DEV 阶段是否有活跃工作（未完成 task 或 open issue）
-fn has_active_work(doc_root: &std::path::Path) -> bool {
-    use std::fs;
-
-    // 检查 active task 文件中是否有未完成项
-    let task_dir = doc_root.join("task");
-    if crate::core::task_store::has_active_work(&task_dir) {
-        return true;
-    }
-
-    // 检查 open issues
-    let issue_dir = doc_root.join("issue");
-    if issue_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&issue_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with("issue_") || !name.ends_with(".md") {
-                    continue;
-                }
-                if let Ok(content) = fs::read_to_string(entry.path()) {
-                    if content.lines().any(|l| l.starts_with("- [ ]")) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    false
-}
-
-fn is_version_file(file: &str) -> bool {
-    let normalized = file.replace('\\', "/");
-    normalized == "VERSION"
-        || normalized.ends_with("/VERSION")
-}
-
-fn is_status_file(file: &str) -> bool {
-    let normalized = file.replace('\\', "/");
-    normalized.ends_with("STATUS.yaml")
-        && (normalized.starts_with(".dev-doc/") || normalized.contains("/.dev-doc/"))
-}
-
-/// 禁止 agent 直接创建 .dev-doc 下应通过 dow doc 创建的文件
-fn check_devdoc_direct_create(file: &str) -> Option<String> {
-    let normalized = file.replace('\\', "/");
-
-    // 只检查 .dev-doc/ 内的文件
-    if !normalized.starts_with(".dev-doc/") {
-        return None;
-    }
-
-    // 提取 .dev-doc/<branch>/ 之后的相对路径
-    let parts: Vec<&str> = normalized.splitn(3, '/').collect();
-    if parts.len() < 3 {
-        return None;
-    }
-    let rel = parts[2]; // <branch> 之后的部分
-
-    // 被保护的单文件文档（必须通过 dow doc 创建）
-    let protected_singles = [
-        ("PRD.md", "prd"),
-        ("SPEC.md", "spec"),
-        ("TEST.md", "test"),
-        ("BRAINSTORM.md", "brainstorm"),
-        ("CHANGELOG.md", "changelog"),
-    ];
-
-    for (filename, doc_type) in &protected_singles {
-        if rel == *filename {
-            let path = Path::new(file);
-            if !path.exists() {
-                return Some(format!(
-                    "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {}`",
-                    file, doc_type
-                ));
-            }
-            // 已存在的文件允许编辑（内容填充）
-            return None;
-        }
-    }
-
-    // task/ 和 issue/ 下的新文件（必须通过 dow doc 创建）
-    // 匹配标准命名：task_YYYY-MM-DD_N.md / issue_<source>_YYYY-MM-DD_N.md
-    if (rel.starts_with("task/task_") || rel.starts_with("issue/issue_"))
-        && rel.ends_with(".md")
-        && is_standard_doc_filename(rel)
-    {
-        let path = Path::new(file);
-        if !path.exists() {
-            let doc_type = if rel.starts_with("task/") { "task" } else { "issue" };
-            return Some(format!(
-                "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {} [-n N]`",
-                file, doc_type
-            ));
-        }
-    }
-
-    None
-}
-
-/// 检查是否为标准 dow doc 命名模式（含日期格式 YYYY-MM-DD）
-fn is_standard_doc_filename(rel: &str) -> bool {
-    // task_2026-05-29_1.md 或 issue_test_2026-05-29_1.md
-    let parts: Vec<&str> = rel.split('/').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    let filename = parts[1];
-    // 检查是否包含日期模式 NNNN-NN-NN
-    filename.chars().filter(|c| *c == '-').count() >= 2
-        && filename.contains(|c: char| c.is_ascii_digit())
-}
-
-/// 判断路径是否包含 docs/ 段（任意层级）
-fn is_docs_path(file: &str) -> bool {
-    let normalized = file.replace('\\', "/");
-    normalized.starts_with("docs/") || normalized.contains("/docs/")
-}
-
-/// 判断 .dev-doc/ 内新文件是否属于 dev-flow 工作流管理范围
-fn is_valid_devdoc_file(file: &str) -> bool {
-    let normalized = file.replace('\\', "/");
-    // 提取 .dev-doc/<branch>/ 之后的相对路径
-    let parts: Vec<&str> = normalized.splitn(3, '/').collect();
-    if parts.len() < 3 {
-        return false;
-    }
-    let rel = parts[2];
-
-    // 合法的顶层文档
-    let valid_singles = [
-        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
-    ];
-    if valid_singles.contains(&rel) {
-        return true;
-    }
-
-    // task/ 下：task_YYYY-MM-DD_N.md 或 done_task_YYYY-MM-DD_N.md
-    if rel.starts_with("task/") {
-        let filename = &rel[5..];
-        return (filename.starts_with("task_") || filename.starts_with("done_task_"))
-            && filename.ends_with(".md");
-    }
-
-    // issue/ 下：issue_*_YYYY-MM-DD_N.md 或 closed_issue_*_YYYY-MM-DD_N.md
-    if rel.starts_with("issue/") {
-        let filename = &rel[6..];
-        return (filename.starts_with("issue_") || filename.starts_with("closed_issue_"))
-            && filename.ends_with(".md");
-    }
-
-    false
 }
