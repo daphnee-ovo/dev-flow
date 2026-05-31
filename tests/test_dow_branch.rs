@@ -93,6 +93,30 @@ fn test_context_doc_root_matches_branch() {
 }
 
 #[test]
+fn test_context_codex_hook_wraps_context_json() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+    let branch = default_branch(&dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context", "--codex-hook"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let hook_output = &json["hookSpecificOutput"];
+    assert_eq!(hook_output["hookEventName"], "UserPromptSubmit");
+
+    let context_json = hook_output["additionalContext"].as_str().unwrap();
+    let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
+    assert_eq!(context["branch"], branch);
+    assert_eq!(context["mode"], "quick");
+    assert_eq!(context["phase"], "DEV");
+}
+
+#[test]
 fn test_guard_blocks_cross_branch_write() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
@@ -325,6 +349,33 @@ fn test_context_blocks_when_no_task_files() {
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["decision"], "block");
+}
+
+#[test]
+fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "context", "--codex-hook"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["decision"], "block");
+    assert_eq!(
+        json["hookSpecificOutput"]["hookEventName"],
+        "UserPromptSubmit"
+    );
+
+    let context_json = json["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap();
+    let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
+    assert_eq!(context["blocked"], true);
+    assert!(context["reason"].as_str().unwrap().contains("/task"));
 }
 
 #[test]

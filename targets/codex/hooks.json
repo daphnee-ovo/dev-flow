@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dow hooks context -H",
-            "timeout": 10000
+            "command": "dow hooks context --codex-hook",
+            "timeout": 10
           }
         ]
       }
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 5000
+            "timeout": 5
           }
         ]
       },
@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "dow hooks guard ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 5000
+            "timeout": 5
           }
         ]
       }
@@ -41,7 +41,7 @@
           {
             "type": "command",
             "command": "dow hooks post-write ${TOOL_INPUT_FILE_PATH}",
-            "timeout": 10000
+            "timeout": 10
           }
         ]
       }
@@ -52,7 +52,7 @@
           {
             "type": "command",
             "command": "dow hooks save-changelog",
-            "timeout": 30000
+            "timeout": 30
           }
         ]
       }

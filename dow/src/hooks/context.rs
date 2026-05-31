@@ -3,6 +3,7 @@
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
+// - [CODEX_HOOK_ISSUE.md](../../../CODEX_HOOK_ISSUE.md)
 
 use crate::core::{doc_root, version, yaml};
 use crate::error::DowError;
@@ -33,6 +34,22 @@ struct ContextOutput {
     last_changelog: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexUserPromptSubmitOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decision: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
+    hook_specific_output: CodexUserPromptSubmitHookSpecificOutput,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexUserPromptSubmitHookSpecificOutput {
+    hook_event_name: &'static str,
+    additional_context: String,
+}
 
 #[derive(Serialize)]
 struct TaskStats {
@@ -58,7 +75,7 @@ struct CurrentItems {
     items: Vec<String>,
 }
 
-pub fn run(human: bool) -> Result<i32, DowError> {
+pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
@@ -92,6 +109,8 @@ pub fn run(human: bool) -> Result<i32, DowError> {
                 → /test 进入测试阶段";
             if human {
                 println!("{}", reason);
+            } else if codex_hook {
+                print_codex_block(reason)?;
             } else {
                 let block_json = serde_json::json!({
                     "decision": "block",
@@ -133,7 +152,9 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         last_changelog,
     };
 
-    if human {
+    if codex_hook {
+        print_codex_context(&output_data)?;
+    } else if human {
         print_human(&output_data);
     } else {
         output::print_json(&output_data);
@@ -414,6 +435,39 @@ fn read_version_info() -> (String, String) {
         .unwrap_or_else(|_| "no-tag".to_string());
 
     (ver, tag_status)
+}
+
+fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
+    let context_json = serde_json::to_string_pretty(data)
+        .map_err(|e| DowError::new(format!("序列化 Codex hook 上下文失败: {}", e), 1))?;
+    let output = CodexUserPromptSubmitOutput {
+        decision: None,
+        reason: None,
+        hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
+            hook_event_name: "UserPromptSubmit",
+            additional_context: context_json,
+        },
+    };
+    output::print_json(&output);
+    Ok(())
+}
+
+fn print_codex_block(reason: &str) -> Result<i32, DowError> {
+    let context_json = serde_json::to_string_pretty(&serde_json::json!({
+        "blocked": true,
+        "reason": reason
+    }))
+    .map_err(|e| DowError::new(format!("序列化 Codex hook 阻断上下文失败: {}", e), 1))?;
+    let output = CodexUserPromptSubmitOutput {
+        decision: Some("block"),
+        reason: Some(reason.to_string()),
+        hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
+            hook_event_name: "UserPromptSubmit",
+            additional_context: context_json,
+        },
+    };
+    output::print_json(&output);
+    Ok(0)
 }
 
 fn print_human(data: &ContextOutput) {

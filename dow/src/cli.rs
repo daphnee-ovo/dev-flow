@@ -66,6 +66,10 @@ pub enum Commands {
 
     /// Hook 子命令
     Hooks {
+        /// 输出 Codex hook 协议 JSON
+        #[arg(long, global = true)]
+        codex_hook: bool,
+
         #[command(subcommand)]
         command: HooksCommands,
     },
