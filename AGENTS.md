@@ -95,6 +95,7 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 
 - Codex 插件入口：`.codex-plugin/plugin.json`
 - Codex skill 入口：`skills/dev-flow/SKILL.md`
+- Codex 不支持直接注册 slash command；组装时会把 `plugin/commands/<command>.md` 转换为 `skills/<command>/SKILL.md`，并使用 skill 语义的触发描述
 - Codex hooks 入口：`hooks.json`（调用 `scripts/bin/dow hooks ...`）
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`

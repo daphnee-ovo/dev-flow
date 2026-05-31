@@ -148,8 +148,12 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
         return Ok(issues);
     }
 
-    let required_dirs = ["skills", "commands", "agents"];
-    for dir in &required_dirs {
+    let required_dirs: &[&str] = match agent {
+        "claude" => &["skills", "commands", "agents"],
+        "codex" => &["skills", "agents"],
+        _ => &[],
+    };
+    for dir in required_dirs {
         if !target.join(dir).exists() {
             issues.push(format!("缺少目录: {}/{}", target.display(), dir));
         }

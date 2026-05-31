@@ -98,6 +98,7 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 - 严禁更新 A agent 相关内容的时候导致 B agent的支持被破坏
 - 共享内容（skills、commands、agents）放 `plugin/`
 - agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
+- Codex 不支持直接注册 slash command；`assemble.sh codex` 会把 `plugin/commands/<command>.md` 转换为 `skills/<command>/SKILL.md`，并使用 skill 语义的触发描述
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
 

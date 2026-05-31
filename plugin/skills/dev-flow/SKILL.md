@@ -15,6 +15,7 @@ description: "项目全流程管理。命令：/init（项目初始化）、/bra
 
 ## Codex 运行约定
 
+- Codex 不支持直接注册 slash command；`init`、`status` 等流程在 Codex 包中由 `skills/<command>/SKILL.md` 承载和触发。
 - 当命令要求"独立 agent"或"subagent"时，在 Codex 中使用 `spawn_agent`。这是 dev-flow 命令的显式子代理请求。
 - 当命令要求更新项目级 agent 指令时，Codex 项目优先更新 `AGENTS.md`，Claude Code 项目优先更新 `CLAUDE.md`；如果两者都存在，保持两者同步。
 - Codex 文件编辑使用当前可用编辑工具完成；不要把 Claude Code 的 `Agent({...})` 示例当作必须逐字执行的 API。

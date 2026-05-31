@@ -7,3 +7,4 @@
 - 00:45 fix: 更加符合规范
 - 01:24 fix: 修复codex context hook
 - 02:05 fix: improve codex hook integration
+- 02:14 fix: output codex stop hook json
