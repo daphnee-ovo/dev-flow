@@ -131,6 +131,7 @@ nums: <任务总数>
 
 ## 完成规则
 
+- 完成任务后需手动将 `[ ]` 改为 `[x]`，但不需要手动重命名文件（hook 自动完成）
 - 文件内所有 checkbox 均为 `[x]` → hook 自动重命名为 `done_` 前缀
 - `/iterate` 时 `done_task_*.md` 自动归档到 `dev-doc/archive.db`（SQLite），源文件删除
 - `/iterate` 前会阻断未完成 task；能进入归档时，active task 文件已经全部完成并会随 done_task 一起归档

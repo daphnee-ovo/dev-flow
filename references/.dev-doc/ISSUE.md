@@ -46,6 +46,7 @@ nums: <issue 总数>
 
 ## 完成规则
 
+- 修复 issue 后需手动将 `[ ]` 改为 `[x]` 并填写 fix 字段，但不需要手动重命名文件（hook 自动完成）
 - 文件内所有 checkbox 均为 `[x]` → `dow hooks post-write` 自动重命名为 `closed_` 前缀
 - `/iterate` 时 `closed_issue_*.md` 自动归档到 `dev-doc/archive.db`（SQLite），源文件删除
 - 未关闭的 issue 文件留在当前目录带入下一轮迭代

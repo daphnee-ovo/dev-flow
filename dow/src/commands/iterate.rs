@@ -87,7 +87,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
 
     // --confirm 模式：验证 token 后执行
     if args.confirm {
-        let tokens = generate_tokens_with_window();
+        let tokens = generate_tokens_with_window(&args);
         let found = tokens.iter().any(|t| {
             let env_key = format!("DOW_ITERATE_{}", t);
             std::env::var(&env_key).is_ok()
@@ -106,7 +106,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
 
         // 生成 token（预览模式）
-        let token = generate_token_for_minute(0);
+        let token = generate_token_for_minute(0, &args);
         // 默认：输出预览
         let commit_files = list_pending_changes(&args.files);
         let should_tag = args.bump != "patch" || args.tag;
@@ -490,7 +490,7 @@ fn print_human_preview(result: &IterateOutput) {
     }
 }
 
-fn generate_token_for_minute(offset: i64) -> String {
+fn generate_token_for_minute(offset: i64, args: &IterateArgs) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -503,13 +503,17 @@ fn generate_token_for_minute(offset: i64) -> String {
     let mut hasher = DefaultHasher::new();
     cwd.hash(&mut hasher);
     minute_key.hash(&mut hasher);
+    args.topic.hash(&mut hasher);
+    args.r#type.hash(&mut hasher);
+    args.bump.hash(&mut hasher);
+    args.files.hash(&mut hasher);
     let hash = hasher.finish();
     format!("{:016x}", hash)[..8].to_string()
 }
 
 // 返回当前分钟 + 前4分钟的 token（5分钟有效窗口）
-fn generate_tokens_with_window() -> Vec<String> {
-    (0..=4).map(|i| generate_token_for_minute(-i)).collect()
+fn generate_tokens_with_window(args: &IterateArgs) -> Vec<String> {
+    (0..=4).map(|i| generate_token_for_minute(-i, args)).collect()
 }
 
 fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
