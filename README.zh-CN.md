@@ -23,7 +23,8 @@
 | Agent | 状态 | 安装 |
 |-------|------|------|
 | **Claude Code** | 已支持 | `dow setup --agent claude` |
-| **Codex CLI** | 测试中 | `dow setup --agent codex` |
+| **Codex CLI** | 已支持 | `dow setup --agent codex` |
+| **Kiro CLI** | 测试中 | `dow setup --agent kiro` |
 
 ---
 
