@@ -75,7 +75,7 @@ struct CurrentItems {
     items: Vec<String>,
 }
 
-pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
+pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
@@ -115,6 +115,12 @@ pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
                 println!("{}", reason);
             } else if codex_hook {
                 print_codex_block(reason)?;
+            } else if kiro_hook {
+                let block_json = serde_json::json!({
+                    "decision": "block",
+                    "reason": reason
+                });
+                println!("{}", serde_json::to_string_pretty(&block_json).unwrap());
             } else {
                 let block_json = serde_json::json!({
                     "decision": "block",
@@ -158,6 +164,8 @@ pub fn run(human: bool, codex_hook: bool) -> Result<i32, DowError> {
 
     if codex_hook {
         print_codex_context(&output_data)?;
+    } else if kiro_hook {
+        output::print_json(&output_data);
     } else if human {
         print_human(&output_data);
     } else {

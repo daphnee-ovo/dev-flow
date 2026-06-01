@@ -65,6 +65,7 @@ pub fn agent_plugin_dir(agent: &str) -> Option<PathBuf> {
     match agent {
         "claude" => Some(home.join(".claude").join("plugins").join("dev-flow")),
         "codex" => Some(home.join(".codex").join("plugins").join("plugins").join("dev-flow")),
+        "kiro" => Some(home.join(".kiro").join("skills")),
         _ => None,
     }
 }
@@ -85,6 +86,7 @@ pub fn agent_global_instructions(agent: &str) -> Option<PathBuf> {
     match agent {
         "claude" => Some(home.join(".claude").join("CLAUDE.md")),
         "codex" => Some(home.join(".codex").join("AGENTS.md")),
+        "kiro" => Some(home.join(".kiro").join("steering").join("steering.md")),
         _ => None,
     }
 }

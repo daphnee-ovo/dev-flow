@@ -90,6 +90,9 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
+    // 检测 kiro 环境并注入 steering
+    inject_kiro_steering_if_needed(&args.name);
+
     let result = InitOutput {
         name: args.name,
         mode: args.mode,
@@ -110,4 +113,28 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     }
 
     Ok(0)
+}
+
+fn inject_kiro_steering_if_needed(project_name: &str) {
+    let home = match std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    let kiro_dir = std::path::PathBuf::from(&home).join(".kiro");
+    if !kiro_dir.is_dir() {
+        return;
+    }
+
+    let steering_dir = kiro_dir.join("steering");
+    let _ = fs::create_dir_all(&steering_dir);
+
+    let steering_file = steering_dir.join("dev-flow.md");
+    let content = format!(
+        "---\ninclusion: auto\n---\n\n# Dev-Flow Project: {}\n\n\
+        This project uses dev-flow for lifecycle management.\n\
+        Use dev-flow skills (dev-flow-init, dev-flow-status, dev-flow-task, etc.) to manage workflow.\n\
+        Hooks are configured in `.kiro/hooks/` for guard, context injection, and changelog.\n",
+        project_name
+    );
+    let _ = fs::write(&steering_file, content);
 }

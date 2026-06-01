@@ -99,8 +99,10 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 - 共享内容（skills、commands、agents）放 `plugin/`
 - agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
 - Codex 不支持直接注册 slash command；`assemble.sh codex` 会把 `plugin/commands/<command>.md` 转换为 `skills/<command>/SKILL.md`，并使用 skill 语义的触发描述
-- 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`
-- `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`
+- Kiro 同样不支持 slash command；`assemble.sh kiro` 会转换为 `skills/dev-flow-<command>/SKILL.md`，agents 转为 JSON 格式
+- Kiro hooks 是每个 hook 独立 JSON 文件放 `.kiro/hooks/`，格式为 `{name, when: {type, toolTypes?}, then: {type: "runCommand", command}}`
+- 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`，Kiro 使用 subagent
+- `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`，Kiro 优先写 `.kiro/steering/`
 
 ## 开发辅助工具（devtools/）
 

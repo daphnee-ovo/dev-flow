@@ -10,7 +10,7 @@ use serde_json;
 use std::io::Read as IoRead;
 use std::path::Path;
 
-pub fn run(command: Option<String>) -> Result<i32, DowError> {
+pub fn run(command: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }

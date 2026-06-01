@@ -5,7 +5,7 @@ use dialoguer::MultiSelect;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::{agent_registry, config::DowConfig, platform};
 use crate::error::DowError;
@@ -64,7 +64,7 @@ fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
                 Ok(vec![name.to_string()])
             } else {
                 Err(DowError::new(
-                    &format!("不支持的 agent: {}（可选: claude, codex, all）", name),
+                    &format!("不支持的 agent: {}（可选: claude, codex, kiro, all）", name),
                     1,
                 ))
             }
@@ -142,8 +142,87 @@ fn register_with_agent(agent: &str) {
                 }
             }
         }
+        "kiro" => {
+            if let Some(plugin_dir) = platform::agent_plugin_dir("kiro") {
+                if let Err(e) = register_kiro_plugin(&plugin_dir) {
+                    eprintln!("Kiro 插件注册失败: {}", e);
+                }
+            }
+        }
         _ => {}
     }
+}
+
+fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
+    let bundle = platform::bundle_dir().join("kiro");
+    if !bundle.is_dir() {
+        return Err("kiro bundle 不存在，请先运行 assemble".to_string());
+    }
+
+    // 部署 skills 到 ~/.kiro/skills/ — 每个 skill 独立目录
+    // 命名策略：直接用 command name，若目标已存在非 dev-flow 管理的同名 skill 则加 dow- 前缀
+    let skills_src = bundle.join("skills");
+    let mut conflicts: Vec<(String, String)> = Vec::new();
+    if skills_src.is_dir() {
+        fs::create_dir_all(plugin_dir)
+            .map_err(|e| format!("创建 kiro skills 目录失败: {}", e))?;
+        if let Ok(entries) = fs::read_dir(&skills_src) {
+            for entry in entries.flatten() {
+                if !entry.path().is_dir() {
+                    continue;
+                }
+                let skill_name = entry.file_name();
+                let name_str = skill_name.to_string_lossy().to_string();
+                let dst_skill = plugin_dir.join(&skill_name);
+                let is_ours = dst_skill.join(".dev-flow-managed").exists();
+                let final_dst = if dst_skill.exists() && !is_ours {
+                    let prefixed = format!("dow-{}", name_str);
+                    conflicts.push((name_str, prefixed.clone()));
+                    plugin_dir.join(prefixed)
+                } else {
+                    dst_skill
+                };
+                if final_dst.exists() {
+                    let _ = fs::remove_dir_all(&final_dst);
+                }
+                agent_registry::copy_dir_recursive(&entry.path(), &final_dst)
+                    .map_err(|e| format!("部署 kiro skill {:?} 失败: {}", skill_name, e))?;
+            }
+        }
+    }
+    if !conflicts.is_empty() {
+        eprintln!("[dow] kiro skill 命名冲突：");
+        for (orig, renamed) in &conflicts {
+            eprintln!("  {} → {}（已有同名 skill）", orig, renamed);
+        }
+    }
+
+    // 部署 agents 到 ~/.kiro/agents/<name>.json（扁平文件）
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let agents_src = bundle.join("agents");
+    let agents_dst = PathBuf::from(&home).join(".kiro").join("agents");
+    if agents_src.is_dir() {
+        fs::create_dir_all(&agents_dst)
+            .map_err(|e| format!("创建 kiro agents 目录失败: {}", e))?;
+        if let Ok(entries) = fs::read_dir(&agents_src) {
+            for entry in entries.flatten() {
+                let src_path = entry.path();
+                if src_path.extension().and_then(|e| e.to_str()) != Some("json") {
+                    continue;
+                }
+                let file_name = entry.file_name();
+                let dst_file = agents_dst.join(&file_name);
+                fs::copy(&src_path, &dst_file)
+                    .map_err(|e| format!("部署 kiro agent {:?} 失败: {}", file_name, e))?;
+            }
+        }
+    }
+
+    eprintln!("[dow] 提示：运行 /agent set-default dev-flow 可将 dev-flow 设为 kiro-cli 默认 agent");
+
+    Ok(())
 }
 
 fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {

@@ -18,7 +18,7 @@ use std::process::Command;
 #[derive(Serialize)]
 struct CodexStopOutput {}
 
-pub fn run(codex_hook: bool) -> Result<i32, DowError> {
+pub fn run(codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
         print_codex_stop(codex_hook);
         return Ok(0);

@@ -1,0 +1,44 @@
+{
+  "name": "dev-flow",
+  "description": "Dev-flow lifecycle management agent with hooks for guard, context injection, and changelog",
+  "tools": ["fs_read", "fs_write", "execute_bash", "use_aws"],
+  "hooks": {
+    "userPromptSubmit": [
+      {
+        "command": "dow hooks context --kiro-hook",
+        "timeout_ms": 10000,
+        "cache_ttl_seconds": 0
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "fs_write",
+        "command": "dow hooks guard --kiro-hook",
+        "timeout_ms": 10000
+      },
+      {
+        "matcher": "execute_bash",
+        "command": "dow hooks guard --kiro-hook",
+        "timeout_ms": 10000
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "fs_write",
+        "command": "dow hooks post-write --kiro-hook",
+        "timeout_ms": 10000
+      },
+      {
+        "matcher": "execute_bash",
+        "command": "dow hooks post-bash --kiro-hook",
+        "timeout_ms": 10000
+      }
+    ],
+    "stop": [
+      {
+        "command": "dow hooks save-changelog --kiro-hook",
+        "timeout_ms": 15000
+      }
+    ]
+  }
+}

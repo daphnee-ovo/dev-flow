@@ -12,7 +12,7 @@ use std::fs;
 use std::io::Read as IoRead;
 use std::path::Path;
 
-pub fn run(file: Option<String>) -> Result<i32, DowError> {
+pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
     // 从命令行参数、stdin hook JSON、或环境变量获取文件路径
     let changed_file = file
         .or_else(|| read_file_path_from_stdin())

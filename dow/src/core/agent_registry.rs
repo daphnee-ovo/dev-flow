@@ -35,6 +35,10 @@ pub const SUPPORTED_AGENTS: &[AgentInfo] = &[
         name: "codex",
         display_name: "Codex",
     },
+    AgentInfo {
+        name: "kiro",
+        display_name: "Kiro",
+    },
 ];
 
 pub fn deploy_plugin(agent: &str, bundle_dir: &Path) -> Result<(), String> {
@@ -211,7 +215,7 @@ fn which_command(cmd: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| format!("创建目录 {} 失败: {}", dst.display(), e))?;
 
     for entry in fs::read_dir(src).map_err(|e| format!("读取目录 {} 失败: {}", src.display(), e))?

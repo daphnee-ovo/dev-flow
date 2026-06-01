@@ -70,6 +70,10 @@ pub enum Commands {
         #[arg(long, global = true)]
         codex_hook: bool,
 
+        /// 输出 Kiro hook 协议 JSON
+        #[arg(long, global = true)]
+        kiro_hook: bool,
+
         #[command(subcommand)]
         command: HooksCommands,
     },

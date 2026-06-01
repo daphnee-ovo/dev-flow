@@ -98,6 +98,7 @@ impl GuardContext {
             ".cursor",
             ".aider",
             ".continue",
+            ".kiro",
         ];
         let ai_config_dirs: Vec<PathBuf> = ai_names.iter().map(|d| root.join(d)).collect();
         // .github/copilot 特殊处理
@@ -147,7 +148,12 @@ impl GuardContext {
 
 // ─── Hook 输出 ───────────────────────────────────────────────────────────────
 
-fn deny(reason: &str) -> Result<i32, DowError> {
+fn deny(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
+    if kiro_hook {
+        // kiro-cli: exit code 2 + stderr = 阻止工具执行
+        eprintln!("{}", reason);
+        return Ok(2);
+    }
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -159,7 +165,12 @@ fn deny(reason: &str) -> Result<i32, DowError> {
     Ok(0)
 }
 
-fn ask(reason: &str) -> Result<i32, DowError> {
+fn ask(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
+    if kiro_hook {
+        // kiro-cli: exit code 2 阻止（kiro 没有 ask 中间态，只有 allow/block）
+        eprintln!("{}", reason);
+        return Ok(2);
+    }
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -173,7 +184,7 @@ fn ask(reason: &str) -> Result<i32, DowError> {
 
 // ─── 主入口 ──────────────────────────────────────────────────────────────────
 
-pub fn run(file: String) -> Result<i32, DowError> {
+pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
     let targets = resolve_targets(&file);
     if targets.is_empty() {
         return Ok(0);
@@ -188,43 +199,45 @@ pub fn run(file: String) -> Result<i32, DowError> {
         // 1. 项目边界检查
         if !path.is_under(&ctx.root) {
             if is_dangerous_system_path(&path) {
-                return deny(&format!("[dev-flow] 禁止写入系统敏感路径：{}", raw_target));
+                return deny(&format!("[dev-flow] 禁止写入系统敏感路径：{}", raw_target), kiro_hook);
             }
             return ask(&format!(
                 "[dev-flow] 写入目标在项目外：{}。请确认是否允许。",
                 raw_target
-            ));
+            ), kiro_hook);
         }
 
         // 2. VERSION 保护
         if path.is_exact(&ctx.version_file) {
             return deny(
-                "[dev-flow] 禁止直接修改 VERSION 文件。请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor`。"
+                "[dev-flow] 禁止直接修改 VERSION 文件。请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor`。",
+                kiro_hook,
             );
         }
 
         // 3. STATUS.yaml 保护
         if path.file_name() == Some("STATUS.yaml") && path.is_under(&ctx.devdoc_dir) {
             return deny(
-                "[dev-flow] 禁止直接创建或修改 STATUS.yaml。请使用 `dow status --phase/--mode/--name` 或 `dow init`。"
+                "[dev-flow] 禁止直接创建或修改 STATUS.yaml。请使用 `dow status --phase/--mode/--name` 或 `dow init`。",
+                kiro_hook,
             );
         }
 
         // 4. .dev-doc 文件创建保护
         if let Some(reason) = check_devdoc_direct_create(&path, &ctx) {
-            return deny(&reason);
+            return deny(&reason, kiro_hook);
         }
 
         // 5. 跨分支写入保护
         if let Some(reason) = check_cross_branch(&path, &ctx) {
-            return deny(&reason);
+            return deny(&reason, kiro_hook);
         }
 
         // 6. 阶段性写入控制
         if let Some(decision) = check_phase_write(&path, &ctx) {
             return match decision {
-                PhaseDecision::Deny(reason) => deny(&reason),
-                PhaseDecision::Ask(reason) => ask(&reason),
+                PhaseDecision::Deny(reason) => deny(&reason, kiro_hook),
+                PhaseDecision::Ask(reason) => ask(&reason, kiro_hook),
             };
         }
     }
@@ -593,14 +606,18 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
     let tool_name = json.get("tool_name").and_then(|v| v.as_str()).unwrap_or("");
 
     match tool_name {
-        "Write" | "Edit" => {
-            if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+        "Write" | "Edit" | "fs_write" => {
+            if let Some(path) = tool_input
+                .get("file_path")
+                .or_else(|| tool_input.get("path"))
+                .and_then(|v| v.as_str())
+            {
                 vec![path.to_string()]
             } else {
                 vec![]
             }
         }
-        "Bash" => {
+        "Bash" | "execute_bash" => {
             let command = tool_input
                 .get("command")
                 .and_then(|v| v.as_str())
@@ -609,7 +626,11 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
             extract_write_targets_from_command(&command)
         }
         _ => {
-            if let Some(path) = tool_input.get("file_path").and_then(|v| v.as_str()) {
+            if let Some(path) = tool_input
+                .get("file_path")
+                .or_else(|| tool_input.get("path"))
+                .and_then(|v| v.as_str())
+            {
                 vec![path.to_string()]
             } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
                 extract_write_targets_from_command(cmd)
