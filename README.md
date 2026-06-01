@@ -22,7 +22,8 @@ Small, focused, and opinionated. dev-flow gives coding agents structure — ligh
 | Agent | Status | Install |
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
-| **Codex CLI** | Testing | `dow setup --agent codex` |
+| **Codex CLI** | Supported | `dow setup --agent codex` |
+| **Kiro CLI** | Testing | `dow setup --agent kiro` |
 
 ---
 
