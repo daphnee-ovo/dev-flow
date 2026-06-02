@@ -1,7 +1,7 @@
 // dow/src/commands/self_check.rs
 // dow self-check 子命令 — 安装状态诊断
 
-use crate::core::{agent_registry, config::DowConfig, platform};
+use crate::core::{agent_registry, config::DowConfig, github, platform};
 use crate::error::DowError;
 
 pub fn run(_human: bool) -> Result<i32, DowError> {
@@ -50,14 +50,35 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     }
     eprintln!();
 
-    // 版本检查状态
-    if let Some(ref last) = config.last_version_check {
-        eprintln!("上次版本检查: {}", last);
-    } else {
-        eprintln!("上次版本检查: 从未");
-    }
-    if let Some(ref remote) = config.latest_remote_version {
-        eprintln!("远程最新版本: v{}", remote);
+    // 实时获取远程最新版本
+    eprint!("远程最新版本: ");
+    match github::check_latest_version() {
+        Ok(release) => {
+            eprintln!("v{}", release.version);
+            match github::compare_versions(current_version, &release.version) {
+                std::cmp::Ordering::Less => {
+                    eprintln!("  → 有新版本可用，运行 `dow update` 升级");
+                }
+                std::cmp::Ordering::Equal => {
+                    eprintln!("  → 已是最新");
+                }
+                std::cmp::Ordering::Greater => {
+                    eprintln!("  → 本地版本超前（开发中）");
+                }
+            }
+            // 更新缓存
+            let mut config = config;
+            config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
+            config.latest_remote_version = Some(release.version);
+            config.latest_release_notes = release.notes;
+            let _ = config.save();
+        }
+        Err(e) => {
+            eprintln!("查询失败 ({})", e);
+            if let Some(ref cached) = config.latest_remote_version {
+                eprintln!("  缓存版本: v{}", cached);
+            }
+        }
     }
 
     Ok(0)

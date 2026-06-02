@@ -6,6 +6,7 @@
 
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 const GITHUB_REPO: &str = "daphnee-ovo/dev-flow";
 const API_BASE: &str = "https://api.github.com";
@@ -17,6 +18,25 @@ pub struct ReleaseInfo {
     pub notes: Option<String>,
 }
 
+fn resolve_github_token() -> Option<String> {
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+    let output = Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+    None
+}
+
 pub fn check_latest_version() -> Result<ReleaseInfo, String> {
     let url = format!("{}/repos/{}/releases/latest", API_BASE, GITHUB_REPO);
 
@@ -26,7 +46,12 @@ pub fn check_latest_version() -> Result<ReleaseInfo, String> {
         .build()
         .map_err(|e| format!("HTTP 客户端创建失败: {}", e))?;
 
-    let resp = client.get(&url)
+    let mut request = client.get(&url);
+    if let Some(token) = resolve_github_token() {
+        request = request.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let resp = request
         .send()
         .map_err(|e| format!("请求 GitHub API 失败: {}", e))?;
 

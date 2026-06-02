@@ -68,6 +68,7 @@ jobs:
           fi
           cp -r dist/claude _package/bundle/claude
           cp -r dist/codex _package/bundle/codex
+          cp -r dist/kiro _package/bundle/kiro
           tar -czf "dow-${TAG}-${{ matrix.platform }}.tar.gz" -C _package .
         shell: bash
 
