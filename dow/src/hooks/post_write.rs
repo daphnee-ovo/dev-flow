@@ -88,7 +88,7 @@ pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
     // 2. 任务完成度检测（仅 DEV 阶段）
     if phase == "DEV" {
         check_task_completion(&doc_root_path, &status_file);
-        check_issue_completion(&doc_root_path);
+        check_issue_completion(&doc_root_path, &status_file, &mode);
     }
 
     // 3. 代码变更同步提醒
@@ -187,11 +187,16 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
     }
 }
 
-fn check_issue_completion(doc_root: &Path) {
+fn check_issue_completion(doc_root: &Path, status_file: &Path, mode: &str) {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
+        if mode.starts_with("audit/") {
+            exit_audit_mode(status_file, mode);
+        }
         return;
     }
+
+    let mut has_open_issue = false;
     if let Ok(issue_entries) = fs::read_dir(&issue_dir) {
         for entry in issue_entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -214,10 +219,31 @@ fn check_issue_completion(doc_root: &Path) {
                             println!("[dev-flow] Issue 全部关闭：{}", new_name);
                         }
                     }
+                } else {
+                    has_open_issue = true;
                 }
             }
         }
     }
+
+    // audit 模式下无 open issue → 自动退出 audit
+    if !has_open_issue && mode.starts_with("audit/") {
+        exit_audit_mode(status_file, mode);
+    }
+}
+
+fn exit_audit_mode(status_file: &Path, mode: &str) {
+    let original_mode = mode.strip_prefix("audit/").unwrap_or("fast");
+    if let Err(e) = yaml::set(status_file, "mode", original_mode) {
+        eprintln!("[dow] 警告: 退出 audit 模式失败: {}", e);
+    }
+    if let Err(e) = yaml::touch_updated(status_file) {
+        eprintln!("[dow] 警告: 更新时间戳失败: {}", e);
+    }
+    println!(
+        "[dev-flow] 所有 issue 已关闭，自动退出 audit 模式（恢复为：{}）",
+        original_mode
+    );
 }
 
 /// 从 stdin 读取 Claude Code hook JSON，提取 tool_input.file_path

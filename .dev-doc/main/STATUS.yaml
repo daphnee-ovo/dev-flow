@@ -1,6 +1,6 @@
 name: dev-flow
 phase: DEV
-mode: audit/fast
+mode: fast
 goals_minor: dow 完善与优化
-updated: 2026-05-31 14:44
+updated: 2026-06-02 11:26
 started: 2026-05-26 16:58
