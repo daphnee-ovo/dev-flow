@@ -20,6 +20,9 @@ Small, focused, and opinionated. dev-flow gives coding agents structure — ligh
 ### One-Line Install
 
 ```bash
+# macOS arm64
+brew install daphnee-ovo/tap/dev-flow
+
 # Linux / macOS / WSL
 curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
 
@@ -27,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-The installer downloads `dow` (the CLI), then launches interactive setup to register dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
+Homebrew currently supports macOS arm64. The install scripts support Linux, macOS, WSL, and Windows. Setup registers dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
 
 ### First Run
 
@@ -45,6 +48,8 @@ Then ask your coding agent:
 dev-flow creates a `.dev-doc/` workspace, tracks the current phase in `STATUS.yaml`, generates structured task files, and uses hooks to remind or block the agent when workflow rules are violated.
 
 See [examples/quickstart-demo.md](examples/quickstart-demo.md) for a concrete before/after walkthrough.
+
+If you installed with Homebrew, run `dow setup` once before using `/init`.
 
 ---
 

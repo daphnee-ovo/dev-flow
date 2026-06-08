@@ -21,6 +21,9 @@
 ### 一条命令安装
 
 ```bash
+# macOS arm64
+brew install daphnee-ovo/tap/dev-flow
+
 # Linux / macOS / WSL
 curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
 
@@ -28,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-安装脚本会下载 `dow` CLI，然后启动交互式设置引导，把 dev-flow 注册到对应 agent（Claude Code、Codex 或两者）。具体项目初始化是在目标项目里执行 `/init`。
+Homebrew 目前支持 macOS arm64。安装脚本支持 Linux、macOS、WSL 和 Windows。setup 会把 dev-flow 注册到对应 agent（Claude Code、Codex 或两者）。具体项目初始化是在目标项目里执行 `/init`。
 
 ### 基本流程
 
@@ -46,6 +49,8 @@ cd your-project
 dev-flow 会创建 `.dev-doc/` 工作区，在 `STATUS.yaml` 里记录当前阶段，生成结构化 task 文件，并通过 hooks 在 agent 违反流程规则时提醒或拦截。
 
 完整示例见 [examples/quickstart-demo.md](examples/quickstart-demo.md)。
+
+如果用 Homebrew 安装，使用 `/init` 前先运行一次 `dow setup`。
 
 ---
 
