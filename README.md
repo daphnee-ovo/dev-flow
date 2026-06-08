@@ -15,11 +15,60 @@
 Small, focused, and opinionated. dev-flow gives coding agents structure — lightweight documents, disciplined phases, and hard constraints that turn raw coding ability into reliable engineering delivery.
 </div>
 
+## Quick Start
+
+### One-Line Install
+
+```bash
+# Linux / macOS / WSL
+curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
+```
+
+The installer downloads `dow` (the CLI), then launches interactive setup to register dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
+
+### First Run
+
+```bash
+cd your-project
+```
+
+Then ask your coding agent:
+
+```text
+/init
+/task
+```
+
+dev-flow creates a `.dev-doc/` workspace, tracks the current phase in `STATUS.yaml`, generates structured task files, and uses hooks to remind or block the agent when workflow rules are violated.
+
+See [examples/quickstart-demo.md](examples/quickstart-demo.md) for a concrete before/after walkthrough.
+
+---
+
+## Why dev-flow
+
+Coding agents are good at editing code, but weak at keeping requirements, implementation, tests, and delivery state aligned over a long task. dev-flow adds a small workflow layer around Claude Code and Codex CLI:
+
+- clarify requirements before changing code
+- split design, task planning, implementation, and QA into explicit phases
+- keep `.dev-doc/` synchronized with the real project state
+- use hooks to stop agents from skipping checks, writing to unsafe temp paths, or losing changelog context
+- archive each delivery so later iterations have traceable history
+
+Use it when an agent is doing feature work, refactors, audits, or multi-step fixes that need more discipline than a single prompt.
+
+## When Not To Use It
+
+dev-flow is intentionally opinionated. It is probably too much for one-line edits, throwaway scripts, or projects where you do not want workflow files in the repository. It is useful when the cost of agent drift is higher than the cost of lightweight process.
+
 ---
 
 ## Supported Agents
 
-| Agent | Status | Install |
+| Agent | Status | Manual setup |
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
 | **Codex CLI** | Supported | `dow setup --agent codex` |
@@ -40,33 +89,6 @@ Core principles:
 - **Goal-necessary** — every capability must answer whether it serves the current goal. Keep necessary constraints; do not import ceremony.
 - **Synchronized** — process documents must stay aligned with the real project state: code, tasks, versions, tests, and iterations. Once management docs drift, they become noise.
 - **Mode-aware** — rapid validation and long-term engineering need different gates. MVP work can focus on running functionality and obvious bugs; standard development can raise testing, review, and release requirements.
-
-## Quick Start
-
-### One-Line Install
-
-```bash
-# Linux / macOS / WSL
-curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
-```
-
-The installer downloads `dow` (the CLI), then launches an interactive setup to register with your preferred agent (Claude Code, Codex, or both).
-
-
-### First Run
-
-```
-/init          → Initialize project, select development mode
-/brainstorm    → Collaborative requirement exploration (optional)
-/prd           → Produce requirements document
-/spec          → Produce technical specification
-/task          → Break down task list
-               → Development (auto-triggers /devtest on task completion)
-/test          → Full test suite
-```
 
 ---
 
@@ -212,6 +234,7 @@ dev-flow/
 ├── install/                    # One-line install scripts
 │   ├── install.sh              # curl | bash
 │   └── install.ps1             # irm | iex
+├── examples/                   # Quickstart and workflow walkthroughs
 ├── devtools/                   # Development helpers
 │   ├── assemble.sh             # Assemble dist/<agent>/
 │   └── deploy-local.sh         # Build + deploy locally

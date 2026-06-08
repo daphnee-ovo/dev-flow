@@ -16,11 +16,60 @@
 
 </div>
 
+## 快速开始
+
+### 一条命令安装
+
+```bash
+# Linux / macOS / WSL
+curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
+```
+
+安装脚本会下载 `dow` CLI，然后启动交互式设置引导，把 dev-flow 注册到对应 agent（Claude Code、Codex 或两者）。具体项目初始化是在目标项目里执行 `/init`。
+
+### 基本流程
+
+```bash
+cd your-project
+```
+
+然后对 coding agent 输入：
+
+```text
+/init
+/task
+```
+
+dev-flow 会创建 `.dev-doc/` 工作区，在 `STATUS.yaml` 里记录当前阶段，生成结构化 task 文件，并通过 hooks 在 agent 违反流程规则时提醒或拦截。
+
+完整示例见 [examples/quickstart-demo.md](examples/quickstart-demo.md)。
+
+---
+
+## 为什么需要 dev-flow
+
+Coding agent 很会改代码，但长任务里容易丢需求、跳验证、忘同步文档，或者把实现状态和交付状态混在一起。dev-flow 给 Claude Code 和 Codex CLI 加一层轻量工作流：
+
+- 改代码前先明确需求和边界
+- 把设计、任务拆解、实现、QA 拆成明确阶段
+- 让 `.dev-doc/` 和真实项目状态保持同步
+- 用 hooks 阻止 agent 跳过检查、写入不安全临时目录、丢失 changelog 上下文
+- 每次交付都归档，后续迭代可以追溯
+
+适合 feature、重构、审计、多步修复这类需要工程纪律的 agent 任务。
+
+## 不适合的场景
+
+dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望仓库里出现流程文件的项目，不一定需要它。当 agent 跑偏的成本高于轻量流程成本时，它才值得引入。
+
 ---
 
 ## 支持的 Agent
 
-| Agent | 状态 | 安装 |
+| Agent | 状态 | 手动 setup |
 |-------|------|------|
 | **Claude Code** | 已支持 | `dow setup --agent claude` |
 | **Codex CLI** | 已支持 | `dow setup --agent codex` |
@@ -41,34 +90,6 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 - **目标必要性** — 每个能力都要回答“它是否服务于当前目标”。必要的约束必须保留；不必要的仪式不能引入。
 - **同步性** — 流程文档必须和真实项目状态同步，包括代码、任务、版本、测试和迭代。管理文档一旦脱离实际进度，就会从帮助变成噪音。
 - **模式适配** — 快速验证和长期工程不是同一种流程。MVP 可以先跑通、测明显问题；标准开发可以再提高测试、review 和发布门禁。
-
-## 快速开始
-
-### 一条命令安装
-
-```bash
-# Linux / macOS / WSL
-curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
-```
-
-安装脚本会下载 `dow` CLI，然后启动交互式设置引导，选择要注册的 agent（Claude Code、Codex 或两者）。
-
-
-### 基本流程
-
-```
-/init          → 初始化项目，选择开发模式
-/brainstorm    → 协作式需求探索（可选）
-/prd           → 产出需求文档
-/spec          → 产出技术规范
-/task          → 拆解任务清单
-               → 开发（完成任务后自动触发 /devtest）
-/test          → 全量测试
-
-```
 
 ---
 
@@ -214,6 +235,7 @@ dev-flow/
 ├── install/                    # 一条命令安装脚本
 │   ├── install.sh              # curl | bash
 │   └── install.ps1             # irm | iex
+├── examples/                   # 快速开始和流程示例
 ├── devtools/                   # 开发辅助
 │   ├── assemble.sh             # 组装 dist/<agent>/
 │   └── deploy-local.sh         # 编译 + 本地部署
