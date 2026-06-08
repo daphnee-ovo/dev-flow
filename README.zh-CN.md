@@ -21,7 +21,7 @@
 ### 一条命令安装
 
 ```bash
-# macOS arm64
+# macOS arm64 / Linux x86_64 / Linux aarch64
 brew install daphnee-ovo/tap/dev-flow
 
 # Linux / macOS / WSL
@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-Homebrew 目前支持 macOS arm64。安装脚本支持 Linux、macOS、WSL 和 Windows。setup 会把 dev-flow 注册到对应 agent（Claude Code、Codex 或两者）。具体项目初始化是在目标项目里执行 `/init`。
+Homebrew 目前支持 macOS arm64、Linux x86_64 和 Linux aarch64。安装脚本支持 Linux、macOS、WSL 和 Windows。setup 会把 dev-flow 注册到对应 agent（Claude Code、Codex 或两者）。具体项目初始化是在目标项目里执行 `/init`。
 
 ### 基本流程
 

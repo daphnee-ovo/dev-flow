@@ -20,7 +20,7 @@ Small, focused, and opinionated. dev-flow gives coding agents structure — ligh
 ### One-Line Install
 
 ```bash
-# macOS arm64
+# macOS arm64 / Linux x86_64 / Linux aarch64
 brew install daphnee-ovo/tap/dev-flow
 
 # Linux / macOS / WSL
@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-Homebrew currently supports macOS arm64. The install scripts support Linux, macOS, WSL, and Windows. Setup registers dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
+Homebrew currently supports macOS arm64, Linux x86_64, and Linux aarch64. The install scripts support Linux, macOS, WSL, and Windows. Setup registers dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
 
 ### First Run
 
