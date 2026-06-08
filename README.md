@@ -47,7 +47,7 @@ Then ask your coding agent:
 
 dev-flow creates a `.dev-doc/` workspace, tracks the current phase in `STATUS.yaml`, generates structured task files, and uses hooks to remind or block the agent when workflow rules are violated.
 
-See [examples/quickstart-demo.md](examples/quickstart-demo.md) for a concrete before/after walkthrough.
+See [examples/quickstart-demo.md](examples/quickstart-demo.md) for a concrete before/after walkthrough, or inspect [examples/sample-project](examples/sample-project/) for static `.dev-doc` output.
 
 If you installed with Homebrew, run `dow setup` once before using `/init`.
 

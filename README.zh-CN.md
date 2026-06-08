@@ -48,7 +48,7 @@ cd your-project
 
 dev-flow 会创建 `.dev-doc/` 工作区，在 `STATUS.yaml` 里记录当前阶段，生成结构化 task 文件，并通过 hooks 在 agent 违反流程规则时提醒或拦截。
 
-完整示例见 [examples/quickstart-demo.md](examples/quickstart-demo.md)。
+完整示例见 [examples/quickstart-demo.md](examples/quickstart-demo.md)，也可以直接查看 [examples/sample-project](examples/sample-project/) 里的静态 `.dev-doc` 产物。
 
 如果用 Homebrew 安装，使用 `/init` 前先运行一次 `dow setup`。
 

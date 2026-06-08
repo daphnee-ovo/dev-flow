@@ -73,3 +73,5 @@ After one feature loop, the repository contains both code changes and a lightwei
 ```
 
 The point is not ceremony. The point is to make long-running agent work inspectable, recoverable, and harder to fake.
+
+For concrete sample output, inspect [sample-project](sample-project/).
