@@ -34,14 +34,15 @@ dev-flow creates:
 
 ```text
 .dev-doc/
-├── STATUS.yaml
-├── CHANGELOG.md
-├── PRD.md
-├── SPEC.md
-├── TEST.md
-├── task/
-├── issue/
-└── archive/
+├── archive.db
+└── main/
+    ├── STATUS.yaml
+    ├── CHANGELOG.md
+    ├── PRD.md
+    ├── SPEC.md
+    ├── TEST.md
+    ├── task/
+    └── issue/
 ```
 
 Then ask for a task breakdown:
@@ -65,11 +66,12 @@ After one feature loop, the repository contains both code changes and a lightwei
 
 ```text
 .dev-doc/
-├── STATUS.yaml      # current phase, mode, version, active task
-├── CHANGELOG.md     # session-level change notes
-├── task/            # planned and completed work
-├── issue/           # discovered defects or audit findings
-└── archive/         # previous iterations after /iterate
+├── archive.db       # SQLite history queried by dow archive ...
+└── main/
+    ├── STATUS.yaml  # current phase, mode, version, active task
+    ├── CHANGELOG.md # session-level change notes
+    ├── task/        # planned work before iterate
+    └── issue/       # discovered defects before iterate
 ```
 
 The point is not ceremony. The point is to make long-running agent work inspectable, recoverable, and harder to fake.

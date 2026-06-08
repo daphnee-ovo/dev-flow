@@ -161,20 +161,21 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 ```
 .dev-doc/
-├── STATUS.yaml            # 项目状态
-├── CHANGELOG.md           # 会话变更日志（追加式）
-├── BRAINSTORM.md          # 头脑风暴
-├── PRD.md                 # 产品需求
-├── SPEC.md                # 技术规范
-├── TEST.md                # 测试报告
-├── task/                  # 任务文件（task_<日期>_<序号>.md）
-├── issue/                 # 问题追踪（issue_<来源>_<日期>_<序号>.md）
-└── archive/               # 历史迭代（v<N>-<主题>/）
+├── archive.db             # SQLite 归档，通过 `dow archive ...` 查询
+└── main/                  # 当前分支流程文档
+    ├── STATUS.yaml        # 项目状态
+    ├── CHANGELOG.md       # 会话变更日志（追加式）
+    ├── BRAINSTORM.md      # 头脑风暴
+    ├── PRD.md             # 产品需求
+    ├── SPEC.md            # 技术规范
+    ├── TEST.md            # 测试报告
+    ├── task/              # 任务文件（task_<日期>_<序号>.md）
+    └── issue/             # 问题追踪（issue_<来源>_<日期>_<序号>.md）
 ```
 
 ### 迭代管理
 
-`/iterate` 归档当前版本，启动新一轮开发。所有文档会归档到 `archive/v<N>-<主题>/` 下。
+`/iterate` 会把已完成 task、已关闭 issue、测试报告、CHANGELOG 和阶段文档写入 `.dev-doc/archive.db`，然后启动新一轮开发。历史迭代通过 `dow archive list/show/tasks/issues/doc` 查询。
 
 ---
 

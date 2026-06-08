@@ -160,20 +160,21 @@ The plugin maintains a `.dev-doc/` directory in your project:
 
 ```
 .dev-doc/
-├── STATUS.yaml            # Project status
-├── CHANGELOG.md           # Session changelog (append-only)
-├── BRAINSTORM.md          # Brainstorming notes
-├── PRD.md                 # Product requirements
-├── SPEC.md                # Technical specification
-├── TEST.md                # Test report
-├── task/                  # Task files (task_<date>_<seq>.md)
-├── issue/                 # Issue tracking (issue_<source>_<date>_<seq>.md)
-└── archive/               # Historical iterations (v<N>-<topic>/)
+├── archive.db             # SQLite archive queried by `dow archive ...`
+└── main/                  # Current branch workflow documents
+    ├── STATUS.yaml        # Project status
+    ├── CHANGELOG.md       # Session changelog (append-only)
+    ├── BRAINSTORM.md      # Brainstorming notes
+    ├── PRD.md             # Product requirements
+    ├── SPEC.md            # Technical specification
+    ├── TEST.md            # Test report
+    ├── task/              # Task files (task_<date>_<seq>.md)
+    └── issue/             # Issue tracking (issue_<source>_<date>_<seq>.md)
 ```
 
 ### Iteration Management
 
-`/iterate` archives the current version and starts a new development cycle. All documents are versioned under `archive/v<N>-<topic>/`.
+`/iterate` archives completed tasks, closed issues, test reports, changelog entries, and phase documents into `.dev-doc/archive.db`, then starts a new development cycle. Use `dow archive list/show/tasks/issues/doc` to query historical iterations.
 
 ---
 

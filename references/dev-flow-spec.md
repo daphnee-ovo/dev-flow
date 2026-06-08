@@ -70,8 +70,8 @@ task/
 
 **完成规则**：
 - 文件内所有 checkbox 均为 `[x]` → `dow hooks post-write` 自动重命名为 `done_` 前缀
-- 归档时 `done_task_*.md` 移入 `archive/v<N>-<topic>/`
-- `/iterate` 时活跃 task 文件（`task_*.md`）也一并归档
+- `/iterate` 时 `done_task_*.md` 和活跃 task 文件（`task_*.md`）写入 `.dev-doc/archive.db`
+- 写入 SQLite 后源 task 文件删除，历史任务通过 `dow archive tasks` 查询
 
 ### Issue 文件命名
 
@@ -101,15 +101,17 @@ dow doc issue --source <source>
 
 **关闭 issue**：文件内所有 checkbox 勾选为 `[x]` 后，`dow hooks post-write` 自动重命名为 `closed_` 前缀。
 
-### Archive 命名
+### Archive 存储
 
-**格式**：`archive/v<N>-<topic>/`
+**格式**：`.dev-doc/archive.db`（SQLite）
 
-- `N`：当前版本号，从 VERSION 文件读取
+- `version`：当前版本号，从 VERSION 文件读取
 - `topic`：由用户在 `/iterate` 时指定，简短描述本轮主题
 - 归档内容：done_task_*、task_*（活跃任务）、已关闭 issue、CHANGELOG.md、PRD.md、SPEC.md、TEST.md
+- 写入 SQLite 后源 task、已关闭 issue、TEST、CHANGELOG 和阶段文档删除或重置
 - 未关闭 issue 留在当前 `issue/` 带入下一轮
 - BRAINSTORM.md 不归档（持久参考）
+- 历史内容通过 `dow archive list/show/tasks/issues/doc/stats` 查询
 
 ## 开发模式
 

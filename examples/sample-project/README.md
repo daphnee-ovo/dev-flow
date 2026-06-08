@@ -1,23 +1,32 @@
 # Sample Project Walkthrough
 
-This fixture shows what dev-flow leaves behind after a small feature cycle.
+This fixture shows what dev-flow leaves behind after a small feature cycle after `/iterate`.
 
 Scenario: an agent is asked to add a settings page to a small app. dev-flow keeps the workflow state in `.dev-doc/` instead of relying only on chat history.
+
+The `.dev-doc` files in this example were generated in an isolated temporary project with:
+
+```bash
+dow init --name sample-settings-app --mode fast
+dow doc task -n 3
+dow doc issue --source devtest -n 1
+dow doc test
+dow hooks post-write .dev-doc/main/task/task_2026-06-08_1.md
+dow hooks post-write .dev-doc/main/issue/issue_devtest_2026-06-08_1.md
+dow iterate --topic settings-page --type feat --files src tests .dev-doc/main/TEST.md
+DOW_ITERATE_<preview-token>=1 dow iterate --topic settings-page --type feat --files src tests .dev-doc/main/TEST.md --confirm
+```
 
 ## Files To Inspect
 
 ```text
 examples/sample-project/
 ├── .dev-doc/
-│   ├── STATUS.yaml
-│   ├── task/
-│   │   └── done_task_2026-06-08_1.md
-│   ├── issue/
-│   │   └── closed_issue_devtest_2026-06-08_1.md
-│   └── archive/
-│       └── v1-settings-page/
-│           ├── SUMMARY.md
-│           └── TEST.md
+│   ├── archive.db
+│   └── main/
+│       ├── CHANGELOG.md
+│       └── STATUS.yaml
+├── archive-queries.md
 ├── src/
 │   └── settings.ts
 └── tests/
@@ -30,7 +39,9 @@ examples/sample-project/
 2. `/task` turns the feature request into a structured task file.
 3. Development updates code and marks task checkboxes only after verification.
 4. `/devtest` records a concrete issue if validation fails.
-5. `/iterate` archives the completed cycle under `.dev-doc/archive/`.
+5. `/iterate` archives completed task, issue, TEST, and CHANGELOG records into `.dev-doc/archive.db`.
+6. `dow archive ...` commands query archived records from SQLite.
 
-The example is static and safe to inspect. It is not a runnable application.
+See [archive-queries.md](archive-queries.md) for the real `dow archive` output from this sample.
 
+The example is static and safe to inspect. It is not intended to be a runnable application.

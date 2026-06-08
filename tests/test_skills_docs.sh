@@ -86,15 +86,15 @@ if [ -f "$SPEC" ]; then
   fi
 fi
 
-# --- 检查7: references/dev-flow-spec.md archive 格式为 v<N>-<topic>/ ---
+# --- 检查7: references/dev-flow-spec.md archive 使用 SQLite archive.db ---
 echo ""
-echo "[7] references/dev-flow-spec.md archive 路径格式 v<N>-<topic>/"
+echo "[7] references/dev-flow-spec.md archive 使用 archive.db"
 
 if [ -f "$SPEC" ]; then
-  if grep -qE 'v<N>-<topic>/' "$SPEC"; then
-    pass "dev-flow-spec.md archive 格式为 v<N>-<topic>/"
+  if grep -q ".dev-doc/archive.db" "$SPEC" && grep -q "dow archive list/show/tasks/issues/doc/stats" "$SPEC"; then
+    pass "dev-flow-spec.md archive 使用 SQLite archive.db"
   else
-    fail "dev-flow-spec.md archive 格式不正确（期望 v<N>-<topic>/）"
+    fail "dev-flow-spec.md archive 格式不正确（期望 .dev-doc/archive.db 和 dow archive 查询）"
   fi
 fi
 
