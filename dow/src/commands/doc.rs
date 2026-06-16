@@ -29,7 +29,7 @@ struct DocOutput {
 }
 
 /// 合法的文档类型
-const VALID_TYPES: &[&str] = &["task", "issue", "prd", "spec", "test", "brainstorm", "changelog"];
+const VALID_TYPES: &[&str] = &["task", "issue", "prd", "spec", "test", "brainstorm", "changelog", "init", "check-sync", "list"];
 
 /// 合法的 issue 来源
 const VALID_SOURCES: &[&str] = &["test", "devtest", "other", "audit"];
@@ -46,6 +46,21 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
             ),
             1,
         ));
+    }
+
+    // doc init：生成持久化文档骨架
+    if doc_type == "init" {
+        return run_doc_init(args.project_name.as_deref(), human);
+    }
+
+    // doc check-sync：检查文档同步状态
+    if doc_type == "check-sync" {
+        return run_doc_check_sync(args.since.as_deref(), human);
+    }
+
+    // doc list：列出注册文档
+    if doc_type == "list" {
+        return run_doc_list(human);
     }
 
     // --md / --json：输出文档规范（spec/prd 按当前 mode 过滤）
@@ -773,6 +788,259 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
     }
 
     result.join("\n")
+}
+
+// === 持久化文档初始化 ===
+
+const DEFAULT_DOCS: &[&str] = &["docs/structure.md", "docs/decisions.md", "docs/usage.md"];
+
+fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError> {
+    let project_root = doc_root::project_root();
+    let name = project_name
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| infer_project_name(&project_root));
+
+    let docs_dir = project_root.join("docs");
+    fs::create_dir_all(&docs_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    let mut created: Vec<String> = Vec::new();
+    let mut skipped: Vec<String> = Vec::new();
+
+    // README.md
+    let readme_path = project_root.join("README.md");
+    if !readme_path.exists() {
+        let content = format!(
+            "# {}\n\n<一句话描述>\n\n## 快速开始\n\n<安装和基本使用>\n\n## 文档\n\n- [项目结构](docs/structure.md)\n- [设计决策](docs/decisions.md)\n- [使用指南](docs/usage.md)\n",
+            name
+        );
+        fs::write(&readme_path, content).map_err(|e| DowError::new(e.to_string(), 1))?;
+        created.push("README.md".to_string());
+    } else {
+        skipped.push("README.md".to_string());
+    }
+
+    // docs/structure.md
+    let structure_path = docs_dir.join("structure.md");
+    if !structure_path.exists() {
+        fs::write(
+            &structure_path,
+            "# 项目结构\n\n## 目录树\n\n<待填充>\n\n## 模块职责\n\n<待填充>\n",
+        )
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+        created.push("docs/structure.md".to_string());
+    } else {
+        skipped.push("docs/structure.md".to_string());
+    }
+
+    // docs/decisions.md
+    let decisions_path = docs_dir.join("decisions.md");
+    if !decisions_path.exists() {
+        fs::write(
+            &decisions_path,
+            "# 设计决策记录\n\n## <决策标题>\n\n- **日期**：YYYY-MM-DD\n- **决策**：<what>\n- **理由**：<why>\n- **后果**：<consequence>\n",
+        )
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+        created.push("docs/decisions.md".to_string());
+    } else {
+        skipped.push("docs/decisions.md".to_string());
+    }
+
+    // docs/usage.md
+    let usage_path = docs_dir.join("usage.md");
+    if !usage_path.exists() {
+        fs::write(
+            &usage_path,
+            "# 使用指南\n\n## 开发环境\n\n<待填充>\n\n## 常见任务\n\n<待填充>\n",
+        )
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+        created.push("docs/usage.md".to_string());
+    } else {
+        skipped.push("docs/usage.md".to_string());
+    }
+
+    // 更新 STATUS.yaml 的 docs 字段
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    let status_file = doc_root_path.join("STATUS.yaml");
+    if status_file.exists() {
+        let existing = yaml::get_list(&status_file, "docs")
+            .unwrap_or_default();
+        if existing.is_empty() {
+            let docs_list: Vec<String> = DEFAULT_DOCS.iter().map(|s| s.to_string()).collect();
+            yaml::set_list(&status_file, "docs", &docs_list)
+                .map_err(|e| DowError::new(e.to_string(), 1))?;
+        }
+    }
+
+    if human {
+        println!("[dev-flow] 持久化文档初始化完成");
+        if !created.is_empty() {
+            println!("  创建：{}", created.join(", "));
+        }
+        if !skipped.is_empty() {
+            println!("  跳过（已存在）：{}", skipped.join(", "));
+        }
+        println!("  STATUS.yaml docs 字段已更新");
+    } else {
+        output::print_json(&json!({
+            "created": created,
+            "skipped": skipped,
+            "docs_registered": DEFAULT_DOCS,
+        }));
+    }
+
+    Ok(0)
+}
+
+fn infer_project_name(project_root: &Path) -> String {
+    project_root
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "my-project".to_string())
+}
+
+// === doc check-sync ===
+
+fn run_doc_check_sync(since: Option<&str>, human: bool) -> Result<i32, DowError> {
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    let status_file = doc_root_path.join("STATUS.yaml");
+
+    let mut docs = yaml::get_list(&status_file, "docs").unwrap_or_default();
+    // README.md 隐含检查
+    docs.push("README.md".to_string());
+
+    let project_root = doc_root::project_root();
+    let ref_valid = since.map_or(false, |r| git_ref_exists(r));
+
+    let mut synced: Vec<String> = Vec::new();
+    let mut outdated: Vec<String> = Vec::new();
+    let mut missing: Vec<String> = Vec::new();
+
+    for doc in &docs {
+        let full_path = project_root.join(doc);
+        if !full_path.exists() {
+            missing.push(doc.clone());
+            continue;
+        }
+        if let Some(git_ref) = since {
+            if ref_valid {
+                if file_changed_since(&project_root, doc, git_ref) {
+                    synced.push(doc.clone());
+                } else {
+                    outdated.push(doc.clone());
+                }
+            } else {
+                // ref 无效，降级到文件存在性
+                synced.push(doc.clone());
+            }
+        } else {
+            // 无 --since，只检查文件存在性
+            synced.push(doc.clone());
+        }
+    }
+
+    if human {
+        if !outdated.is_empty() {
+            println!("[dev-flow] 以下文档自 {} 后未更新：", since.unwrap_or("?"));
+            for d in &outdated {
+                println!("  - {}", d);
+            }
+        }
+        if !missing.is_empty() {
+            println!("[dev-flow] 以下注册文档不存在：");
+            for d in &missing {
+                println!("  - {}", d);
+            }
+        }
+        if outdated.is_empty() && missing.is_empty() {
+            println!("[dev-flow] 所有持久化文档已同步");
+        }
+    } else {
+        output::print_json(&json!({
+            "synced": synced,
+            "outdated": outdated,
+            "missing": missing,
+            "since": since.unwrap_or(""),
+            "ref_valid": ref_valid,
+        }));
+    }
+
+    Ok(0)
+}
+
+fn git_ref_exists(git_ref: &str) -> bool {
+    std::process::Command::new("git")
+        .args(["rev-parse", "--verify", git_ref])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn file_changed_since(project_root: &Path, file: &str, git_ref: &str) -> bool {
+    let output = std::process::Command::new("git")
+        .args(["log", &format!("{}..HEAD", git_ref), "--", file])
+        .current_dir(project_root)
+        .output();
+    match output {
+        Ok(o) => !o.stdout.is_empty(),
+        Err(_) => false,
+    }
+}
+
+// === doc list ===
+
+fn run_doc_list(human: bool) -> Result<i32, DowError> {
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    let status_file = doc_root_path.join("STATUS.yaml");
+    let docs = yaml::get_list(&status_file, "docs").unwrap_or_default();
+    let project_root = doc_root::project_root();
+
+    #[derive(Serialize)]
+    struct DocEntry {
+        path: String,
+        exists: bool,
+        last_modified: Option<String>,
+    }
+
+    let entries: Vec<DocEntry> = docs.iter().map(|d| {
+        let full_path = project_root.join(d);
+        let exists = full_path.exists();
+        let last_modified = if exists {
+            git_last_modified(&project_root, d)
+        } else {
+            None
+        };
+        DocEntry { path: d.clone(), exists, last_modified }
+    }).collect();
+
+    if human {
+        if entries.is_empty() {
+            println!("[dev-flow] 无注册文档");
+        } else {
+            println!("[dev-flow] 注册文档列表：");
+            for e in &entries {
+                let status = if e.exists {
+                    e.last_modified.as_deref().unwrap_or("未跟踪")
+                } else {
+                    "不存在"
+                };
+                println!("  {} ({})", e.path, status);
+            }
+        }
+    } else {
+        output::print_json(&entries);
+    }
+
+    Ok(0)
+}
+
+fn git_last_modified(project_root: &Path, file: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%ci", "--", file])
+        .current_dir(project_root)
+        .output()
+        .ok()?;
+    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
 }
 
 /// 按 mode 过滤 --json 输出中的 mode_requirements 和 template

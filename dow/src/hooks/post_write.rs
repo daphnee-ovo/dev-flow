@@ -94,6 +94,7 @@ pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
     // 3. 代码变更同步提醒
     if phase == "DEV" && !changed_file.starts_with(".dev-doc/") {
         check_code_sync(&changed_file, &doc_root_path, &mode);
+        check_persistent_docs_reminder(&changed_file, &status_file);
     }
 
     Ok(0)
@@ -257,6 +258,42 @@ fn read_file_path_from_stdin() -> Option<String> {
         .and_then(|ti| ti.get("file_path"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
+}
+
+fn check_persistent_docs_reminder(changed_file: &str, status_file: &Path) {
+    // 排除 docs/ 自身的变更
+    if changed_file.starts_with("docs/") || changed_file == "README.md" {
+        return;
+    }
+
+    let docs = yaml::get_list(status_file, "docs").unwrap_or_default();
+    if docs.is_empty() {
+        return;
+    }
+
+    // 统计 unstaged + staged 变更文件数（排除 .dev-doc/ 和 docs/）
+    let output = std::process::Command::new("git")
+        .args(["diff", "--name-only", "HEAD"])
+        .output();
+
+    let changed_count = match output {
+        Ok(o) => {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter(|l| !l.starts_with(".dev-doc/") && !l.starts_with("docs/") && *l != "README.md")
+                .count()
+        }
+        Err(_) => return,
+    };
+
+    // 阈值：3 个文件
+    if changed_count >= 3 {
+        println!(
+            "[dev-flow] 提示：代码变更较大（{}个文件），请检查是否需要更新持久化文档",
+        changed_count
+        );
+        println!("  注册文档：{}", docs.join(", "));
+    }
 }
 
 fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {

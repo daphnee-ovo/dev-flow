@@ -230,6 +230,11 @@ fn test_prd_traversal_stays_in_tmp_asks() {
 fn test_dev_source_allowed() {
     let dir = create_test_dir();
     setup_env(&dir, "DEV", "quick");
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
     let (stdout, _) = run_guard(&dir, "src/main.rs");
     assert_allow(&stdout);
 }
@@ -240,6 +245,16 @@ fn test_dev_tmp_code_allowed() {
     setup_env(&dir, "DEV", "quick");
     let (stdout, _) = run_guard(&dir, "tmp/test.py");
     assert_allow(&stdout);
+}
+
+#[test]
+fn test_dev_no_claim_denied_with_hint() {
+    let dir = create_test_dir();
+    setup_env(&dir, "DEV", "quick");
+    // 有未完成 task 但没 claim → 应提示 claim
+    let (stdout, _) = run_guard(&dir, "src/main.rs");
+    assert_deny(&stdout);
+    assert!(stdout.contains("未 claim"), "should hint about claim, got: {}", stdout);
 }
 
 // ─── DEV 阶段：无活跃工作 ──────────────────────────────────────────────────

@@ -238,6 +238,19 @@ fn handle_read(
 
     // 只取某字段
     if let Some(ref key) = field {
+        // 数组字段特殊处理
+        if key == "docs" {
+            let items = yaml::get_list(status_file, key)
+                .map_err(|e| DowError::new(e.to_string(), 1))?;
+            if human {
+                for item in &items {
+                    println!("{}", item);
+                }
+            } else {
+                output::print_json(&items);
+            }
+            return Ok(0);
+        }
         let value = map.get(key).cloned().unwrap_or_default();
         println!("{}", value);
         return Ok(0);

@@ -2,7 +2,7 @@
 // ├── init.rs  -- dow init（初始化 dev-flow 工作流管理）
 
 use crate::cli::InitArgs;
-use crate::core::version;
+use crate::core::{doc_root, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -83,6 +83,9 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         version::write_branch(&branch, "0.1.0")?;
     }
 
+    // 生成持久化文档骨架（docs/ + README.md）
+    init_persistent_docs(&args.name, &status_path)?;
+
     // 写入 CHANGELOG
     let changelog_path = doc_root_path.join("CHANGELOG.md");
     if !changelog_path.exists() {
@@ -113,6 +116,45 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     }
 
     Ok(0)
+}
+
+fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Result<(), DowError> {
+    let project_root = doc_root::project_root();
+    let docs_dir = project_root.join("docs");
+    fs::create_dir_all(&docs_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    let readme_path = project_root.join("README.md");
+    if !readme_path.exists() {
+        let content = format!(
+            "# {}\n\n<一句话描述>\n\n## 快速开始\n\n<安装和基本使用>\n\n## 文档\n\n- [项目结构](docs/structure.md)\n- [设计决策](docs/decisions.md)\n- [使用指南](docs/usage.md)\n",
+            project_name
+        );
+        fs::write(&readme_path, content).map_err(|e| DowError::new(e.to_string(), 1))?;
+    }
+
+    let files: &[(&str, &str)] = &[
+        ("structure.md", "# 项目结构\n\n## 目录树\n\n<待填充>\n\n## 模块职责\n\n<待填充>\n"),
+        ("decisions.md", "# 设计决策记录\n\n## <决策标题>\n\n- **日期**：YYYY-MM-DD\n- **决策**：<what>\n- **理由**：<why>\n- **后果**：<consequence>\n"),
+        ("usage.md", "# 使用指南\n\n## 开发环境\n\n<待填充>\n\n## 常见任务\n\n<待填充>\n"),
+    ];
+
+    for (filename, template) in files {
+        let path = docs_dir.join(filename);
+        if !path.exists() {
+            fs::write(&path, template).map_err(|e| DowError::new(e.to_string(), 1))?;
+        }
+    }
+
+    // 注册到 STATUS.yaml
+    let docs_list = vec![
+        "docs/structure.md".to_string(),
+        "docs/decisions.md".to_string(),
+        "docs/usage.md".to_string(),
+    ];
+    yaml::set_list(status_path, "docs", &docs_list)
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    Ok(())
 }
 
 fn inject_kiro_steering_if_needed(project_name: &str) {

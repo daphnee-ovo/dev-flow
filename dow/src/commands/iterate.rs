@@ -76,6 +76,18 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         return Err(DowError::new(msg, 1));
     }
 
+    // 2.6 检查持久化文档同步（警告但不阻断）
+    let doc_warnings = check_persistent_docs_sync(&status_file);
+    if !doc_warnings.is_empty() && !args.confirm {
+        if human {
+            println!("[dev-flow] 警告：以下持久化文档自上次迭代后未更新：");
+            for w in &doc_warnings {
+                println!("  - {}", w);
+            }
+            println!();
+        }
+    }
+
     // 3. 计算版本：当前版本即 released_version，bump 一次得到 next_version
     let released_version = version::read_current()?;
     let next_version = version::bump_version_str(&released_version, &args.bump)?;
@@ -128,6 +140,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             let mut json_out = serde_json::to_value(&result).unwrap_or_default();
             json_out["changelog_entries"] = serde_json::json!(changelog_entries);
             json_out["changelog_hint"] = serde_json::json!("请检查 CHANGELOG 是否有遗漏的记录。如有遗漏，请在确认前手动补充。");
+            if !doc_warnings.is_empty() {
+                json_out["doc_sync_warnings"] = serde_json::json!(doc_warnings);
+            }
             println!("{}", serde_json::to_string_pretty(&json_out).unwrap());
         }
         return Ok(0);
@@ -215,6 +230,12 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
         fs::write(&changelog, "# Changelog\n")
             .map_err(|e| DowError::new(e.to_string(), 1))?;
+    }
+
+    // 7.5 清理 claim.lock（归档后不再需要）
+    let claim_lock = doc_root_path.join("claim.lock");
+    if claim_lock.exists() {
+        let _ = fs::remove_file(&claim_lock);
     }
 
     // 8. git commit + tag（archive.db 加入提交）
@@ -514,6 +535,53 @@ fn generate_token_for_minute(offset: i64, args: &IterateArgs) -> String {
 // 返回当前分钟 + 前4分钟的 token（5分钟有效窗口）
 fn generate_tokens_with_window(args: &IterateArgs) -> Vec<String> {
     (0..=4).map(|i| generate_token_for_minute(-i, args)).collect()
+}
+
+fn check_persistent_docs_sync(status_file: &Path) -> Vec<String> {
+    let docs = yaml::get_list(status_file, "docs").unwrap_or_default();
+    if docs.is_empty() {
+        return Vec::new();
+    }
+
+    // 找最近的 tag 作为 --since 参考
+    let last_tag = Command::new("git")
+        .args(["describe", "--tags", "--abbrev=0"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+    let git_ref = match last_tag {
+        Some(ref t) if !t.is_empty() => t.as_str(),
+        _ => return Vec::new(),
+    };
+
+    // 验证 ref 有效
+    let ref_check = Command::new("git")
+        .args(["rev-parse", "--verify", git_ref])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if !ref_check {
+        return Vec::new();
+    }
+
+    let mut all_docs = docs;
+    all_docs.push("README.md".to_string());
+
+    let mut outdated = Vec::new();
+    for doc in &all_docs {
+        let changed = Command::new("git")
+            .args(["log", &format!("{}..HEAD", git_ref), "--", doc])
+            .output()
+            .map(|o| !o.stdout.is_empty())
+            .unwrap_or(false);
+        if !changed && Path::new(doc).exists() {
+            outdated.push(doc.clone());
+        }
+    }
+    outdated
 }
 
 fn list_pending_changes(extra_files: &[String]) -> Vec<String> {

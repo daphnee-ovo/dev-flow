@@ -537,6 +537,13 @@ fn test_guard_allows_code_write_with_active_task() {
     let dir = create_test_dir();
     setup_branch_env(&dir); // has undone task
 
+    // claim task so guard allows write
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
     let tool_input = r#"{"tool_name":"Write","tool_input":{"file_path":"src/main.rs"}}"#;
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard"])

@@ -208,7 +208,7 @@ pub struct IterateArgs {
 
 #[derive(clap::Args)]
 pub struct DocArgs {
-    /// 文档类型（task/issue/prd/spec/test/brainstorm/changelog）
+    /// 文档类型（task/issue/prd/spec/test/brainstorm/changelog/init）
     pub doc_type: String,
 
     /// 输出 markdown 格式的文档规范
@@ -226,6 +226,14 @@ pub struct DocArgs {
     /// issue 来源
     #[arg(long)]
     pub source: Option<String>,
+
+    /// 项目名称（用于 doc init）
+    #[arg(long)]
+    pub project_name: Option<String>,
+
+    /// git ref 起点（用于 doc check-sync）
+    #[arg(long)]
+    pub since: Option<String>,
 }
 
 #[derive(clap::Args)]

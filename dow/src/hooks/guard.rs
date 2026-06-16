@@ -326,15 +326,25 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         {
             return None;
         }
-        // DEV 无活跃工作 → deny
-        if phase == "DEV" && !has_active_work(&ctx.doc_root_path()) {
-            return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
-                → /task 创建新任务\n\
-                → /issue 创建 issue\n\
-                → /test 进入测试阶段",
-                path.display()
-            )));
+        // DEV 无活跃 claim → 区分原因
+        if phase == "DEV" && !has_active_claim(&ctx.doc_root_path()) {
+            let doc_root = ctx.doc_root_path();
+            let has_undone = has_pending_work(&doc_root);
+            if has_undone {
+                return Some(PhaseDecision::Deny(format!(
+                    "[dev-flow] DEV 阶段有未完成的 task/issue 但未 claim，不允许写入 {}。请先执行：\n\
+                    → `dow claim <TASK_ID>` 认领要开发的任务",
+                    path.display()
+                )));
+            } else {
+                return Some(PhaseDecision::Deny(format!(
+                    "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
+                    → /task 创建新任务\n\
+                    → /issue 创建 issue\n\
+                    → /test 进入测试阶段",
+                    path.display()
+                )));
+            }
         }
         return None;
     }
@@ -445,8 +455,31 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
 
 // ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
-fn has_active_work(doc_root: &Path) -> bool {
+fn has_active_claim(doc_root: &Path) -> bool {
     !crate::core::claim::get_active_claims(doc_root).is_empty()
+}
+
+fn has_pending_work(doc_root: &Path) -> bool {
+    let task_dir = doc_root.join("task");
+    if crate::core::task_store::has_active_work(&task_dir) {
+        return true;
+    }
+    let issue_dir = doc_root.join("issue");
+    if issue_dir.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("issue_") && name.ends_with(".md") {
+                    if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                        if content.lines().any(|l| l.starts_with("- [ ]")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn is_code_file(path: &GuardPath) -> bool {

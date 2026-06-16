@@ -97,6 +97,90 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
     fs::write(path, output)
 }
 
+/// 读取数组字段（如 docs: 下方的 `  - item` 列表）
+pub fn get_list(path: &Path, key: &str) -> std::io::Result<Vec<String>> {
+    let content = fs::read_to_string(path)?;
+    Ok(parse_list(&content, key))
+}
+
+/// 解析数组字段
+fn parse_list(content: &str, key: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut in_list = false;
+    let prefix = format!("{}:", key);
+
+    for line in content.lines() {
+        if !in_list {
+            let trimmed = line.trim();
+            if trimmed.starts_with(&prefix) {
+                let after_colon = trimmed[prefix.len()..].trim();
+                if after_colon.is_empty() {
+                    in_list = true;
+                }
+            }
+        } else if line.starts_with("  - ") || line.starts_with("\t- ") {
+            let item = line.trim().trim_start_matches("- ").trim().to_string();
+            items.push(item);
+        } else if line.trim().is_empty() {
+            continue;
+        } else {
+            break;
+        }
+    }
+    items
+}
+
+/// 设置数组字段（空数组则删除该字段）
+pub fn set_list(path: &Path, key: &str, values: &[String]) -> std::io::Result<()> {
+    let content = fs::read_to_string(path)?;
+    let prefix = format!("{}:", key);
+    let mut lines: Vec<String> = Vec::new();
+    let mut skip_old_list = false;
+
+    for line in content.lines() {
+        if skip_old_list {
+            if line.starts_with("  - ") || line.starts_with("\t- ") {
+                continue;
+            } else if line.trim().is_empty() {
+                continue;
+            } else {
+                skip_old_list = false;
+                lines.push(line.to_string());
+            }
+        } else {
+            let trimmed = line.trim();
+            if trimmed.starts_with(&prefix) && trimmed[prefix.len()..].trim().is_empty() {
+                skip_old_list = true;
+                continue;
+            }
+            lines.push(line.to_string());
+        }
+    }
+
+    if !values.is_empty() {
+        let insert_pos = lines.iter().position(|l| {
+            l.starts_with("updated:") || l.starts_with("started:")
+        });
+        let mut block = vec![format!("{}:", key)];
+        for v in values {
+            block.push(format!("  - {}", v));
+        }
+        if let Some(pos) = insert_pos {
+            for (i, line) in block.into_iter().enumerate() {
+                lines.insert(pos + i, line);
+            }
+        } else {
+            lines.extend(block);
+        }
+    }
+
+    let mut output = lines.join("\n");
+    if !output.ends_with('\n') {
+        output.push('\n');
+    }
+    fs::write(path, output)
+}
+
 /// 更新 updated 时间戳
 pub fn touch_updated(path: &Path) -> std::io::Result<()> {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
@@ -129,5 +213,57 @@ mod tests {
         let map = parse(content);
         assert_eq!(map.len(), 2);
         assert_eq!(map.get("name"), Some(&"test".to_string()));
+    }
+
+    #[test]
+    fn test_parse_list_basic() {
+        let content = "name: test\ndocs:\n  - docs/structure.md\n  - docs/usage.md\nupdated: 2026-01-01\n";
+        let items = parse_list(content, "docs");
+        assert_eq!(items, vec!["docs/structure.md", "docs/usage.md"]);
+    }
+
+    #[test]
+    fn test_parse_list_missing_key() {
+        let content = "name: test\nphase: DEV\n";
+        let items = parse_list(content, "docs");
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_parse_list_empty() {
+        let content = "name: test\ndocs:\nupdated: 2026-01-01\n";
+        let items = parse_list(content, "docs");
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_set_list_and_read_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("STATUS.yaml");
+        fs::write(&path, "name: test\nupdated: 2026-01-01\nstarted: 2026-01-01\n").unwrap();
+
+        let values = vec!["docs/a.md".to_string(), "docs/b.md".to_string()];
+        set_list(&path, "docs", &values).unwrap();
+
+        let result = get_list(&path, "docs").unwrap();
+        assert_eq!(result, values);
+
+        // 验证 updated/started 仍在末尾
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.ends_with("updated: 2026-01-01\nstarted: 2026-01-01\n"));
+    }
+
+    #[test]
+    fn test_set_list_empty_removes_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("STATUS.yaml");
+        fs::write(&path, "name: test\ndocs:\n  - docs/a.md\nupdated: 2026-01-01\nstarted: 2026-01-01\n").unwrap();
+
+        set_list(&path, "docs", &[]).unwrap();
+
+        let result = get_list(&path, "docs").unwrap();
+        assert!(result.is_empty());
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(!content.contains("docs:"));
     }
 }

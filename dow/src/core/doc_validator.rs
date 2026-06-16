@@ -812,7 +812,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     let valid_top_files = [
-        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml",
+        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml", "claim.lock",
     ];
     let valid_subdirs = ["task", "issue"];
 

@@ -56,6 +56,18 @@ pub fn resolve(base: &str) -> PathBuf {
     base_path.to_path_buf()
 }
 
+/// 获取项目根目录（git 仓库根）
+pub fn project_root() -> PathBuf {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok();
+    output
+        .filter(|o| o.status.success())
+        .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim().to_string()))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
 /// 获取当前 git 分支名
 pub fn current_branch() -> Option<String> {
     let output = Command::new("git")
