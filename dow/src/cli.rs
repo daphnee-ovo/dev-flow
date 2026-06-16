@@ -78,6 +78,9 @@ pub enum Commands {
         command: HooksCommands,
     },
 
+    /// 声明当前工作关联的 task/issue
+    Claim(ClaimArgs),
+
     /// 安装并注册到 agent
     Setup(SetupArgs),
 
@@ -248,6 +251,16 @@ pub struct VersionArgs {
     /// 按类型 bump（major/minor/patch）
     #[arg(long)]
     pub bump: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct ClaimArgs {
+    /// 要 claim 的 ID（TASK-xxx 或 ISSUE-xxx），不传则显示当前状态
+    pub ids: Vec<String>,
+
+    /// 释放 claim（不带 ID 则全部释放）
+    #[arg(long)]
+    pub revoke: bool,
 }
 
 #[derive(Subcommand)]

@@ -18,6 +18,7 @@ pub const DOC_DIR_LEGACY: &str = "dev-doc";
 
 pub mod agent_registry;
 pub mod archive_db;
+pub mod claim;
 pub mod config;
 pub mod doc_root;
 pub mod doc_validator;

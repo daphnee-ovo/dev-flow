@@ -9,6 +9,7 @@
 
 pub mod archive;
 pub mod check;
+pub mod claim;
 pub mod devtest;
 pub mod doc;
 pub mod fix;

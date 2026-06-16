@@ -33,6 +33,7 @@ fn main() {
         Commands::Status(args) => commands::status::run(args, human),
         Commands::Init(args) => commands::init::run(args, human),
         Commands::Check => commands::check::run(human),
+        Commands::Claim(args) => commands::claim::run(args, human),
         Commands::Iterate(args) => commands::iterate::run(args, human),
         Commands::Scan => commands::scan::run(human),
         Commands::Validate => commands::validate::run(human),

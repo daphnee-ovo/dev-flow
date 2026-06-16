@@ -446,31 +446,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
 // ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
 fn has_active_work(doc_root: &Path) -> bool {
-    use std::fs;
-
-    let task_dir = doc_root.join("task");
-    if crate::core::task_store::has_active_work(&task_dir) {
-        return true;
-    }
-
-    let issue_dir = doc_root.join("issue");
-    if issue_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&issue_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with("issue_") || !name.ends_with(".md") {
-                    continue;
-                }
-                if let Ok(content) = fs::read_to_string(entry.path()) {
-                    if content.lines().any(|l| l.starts_with("- [ ]")) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    false
+    !crate::core::claim::get_active_claims(doc_root).is_empty()
 }
 
 fn is_code_file(path: &GuardPath) -> bool {

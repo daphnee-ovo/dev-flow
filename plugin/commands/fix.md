@@ -21,11 +21,15 @@ doc_root 通过 `dow status --field doc_root` 获取（无需手动检测分支�
 
 2. 逐一读取每个 issue 文件内容
 
-3. 生成项目上下文：`dow inbox context`
+3. 声明工作关联：`dow claim <ISSUE-ID>...`（将所有待修复 issue ID 传入，guard 据此放行写入）
 
-4. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
+4. 生成项目上下文：`dow inbox context`
 
-5. 修复完成后验证并关闭 issue
+5. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
+
+6. 修复完成后验证并关闭 issue
+
+7. 释放 claim：`dow claim --revoke`
 
 ## Agent 调度（隔离模板）
 
