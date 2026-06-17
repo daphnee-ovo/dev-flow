@@ -2,5 +2,9 @@ name: dev-flow
 phase: DEV
 mode: fast
 goals_minor: dow 完善与优化
-updated: 2026-06-16 17:18
+docs:
+  - docs/structure.md
+  - docs/decisions.md
+  - docs/usage.md
+updated: 2026-06-16 18:54
 started: 2026-05-26 16:58

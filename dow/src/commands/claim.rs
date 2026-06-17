@@ -29,7 +29,8 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     if args.revoke {
-        let target = args.ids.first().map(|s| s.as_str());
+        let normalized_target = args.ids.first().map(|s| normalize_claim_id(s));
+        let target = normalized_target.as_deref();
         claim::revoke_claims(&doc_root_path, target).map_err(|e| {
             DowError::new(format!("释放 claim 失败: {}", e), 1)
         })?;
@@ -46,8 +47,10 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     }
 
     if !args.ids.is_empty() {
+        let normalized: Vec<String> = args.ids.iter().map(|id| normalize_claim_id(id)).collect();
+
         // 校验每个 ID 是否对应未完成的 task/issue
-        let invalid = find_invalid_claim_ids(&doc_root_path, &args.ids);
+        let invalid = find_invalid_claim_ids(&doc_root_path, &normalized);
         if !invalid.is_empty() {
             return Err(DowError::new(
                 format!("无法 claim 已完成或不存在的项：{}", invalid.join(", ")),
@@ -55,14 +58,14 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
             ));
         }
 
-        claim::add_claims(&doc_root_path, &args.ids).map_err(|e| {
+        claim::add_claims(&doc_root_path, &normalized).map_err(|e| {
             DowError::new(format!("添加 claim 失败: {}", e), 1)
         })?;
 
         if human {
-            println!("[dev-flow] 已 claim: {}", args.ids.join(", "));
+            println!("[dev-flow] 已 claim: {}", normalized.join(", "));
         } else {
-            output::print_json(&serde_json::json!({"claimed": &args.ids}));
+            output::print_json(&serde_json::json!({"claimed": &normalized}));
         }
         return Ok(0);
     }
@@ -128,6 +131,18 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     }
 
     Ok(0)
+}
+
+/// 将全称 ID 归一化为短格式：TASK-T001 → T001, ISSUE-I001 → I001
+/// 已经是短格式的直接返回
+fn normalize_claim_id(id: &str) -> String {
+    if let Some(short) = id.strip_prefix("TASK-") {
+        short.to_string()
+    } else if let Some(short) = id.strip_prefix("ISSUE-") {
+        short.to_string()
+    } else {
+        id.to_string()
+    }
 }
 
 /// 检查 claim ID 是否对应未完成的 task 或 open issue
