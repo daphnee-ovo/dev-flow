@@ -381,6 +381,12 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
 
     // 白名单 4: .dev-doc 工作流文件
     if path.is_under(&ctx.devdoc_dir) {
+        // STATUS.yaml 只允许通过 dow status 命令修改
+        if path.file_name().map(|f| f == "STATUS.yaml").unwrap_or(false) {
+            return Some(PhaseDecision::Deny(format!(
+                "[dev-flow] STATUS.yaml 不允许手动编辑，请使用 `dow status` 命令修改。"
+            )));
+        }
         if path.exists() || path.is_dir() {
             return None;
         }

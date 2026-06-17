@@ -82,13 +82,14 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
 
         CREATE TABLE IF NOT EXISTS iterations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            version TEXT NOT NULL UNIQUE,
+            version TEXT NOT NULL,
             topic TEXT NOT NULL,
             commit_type TEXT,
             branch TEXT NOT NULL DEFAULT 'main',
             released_at TEXT NOT NULL,
             tag TEXT NOT NULL,
-            mode TEXT
+            mode TEXT,
+            revoked INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS prd_docs (
@@ -165,6 +166,40 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
         ",
     )
     .map_err(|e| DowError::new(format!("建表失败：{}", e), 1))?;
+
+    // 兼容旧数据库：确保 revoked 列存在
+    conn.execute_batch(
+        "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
+    ).ok();
+
+    // 兼容旧数据库：去掉 version UNIQUE 约束（同版本可有多条记录）
+    let has_unique: bool = conn.query_row(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='iterations'",
+        [],
+        |row| row.get::<_, String>(0),
+    ).map(|sql| sql.contains("UNIQUE")).unwrap_or(false);
+
+    if has_unique {
+        conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS iterations_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                commit_type TEXT,
+                branch TEXT NOT NULL DEFAULT 'main',
+                released_at TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                mode TEXT,
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO iterations_new (id, version, topic, commit_type, branch, released_at, tag, mode, revoked)
+                SELECT id, version, topic, commit_type, branch, released_at, tag, mode,
+                    COALESCE(revoked, 0) FROM iterations;
+            DROP TABLE iterations;
+            ALTER TABLE iterations_new RENAME TO iterations;
+        ").ok();
+    }
+
     Ok(())
 }
 
@@ -172,8 +207,8 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
 
 pub fn insert_iteration(conn: &Connection, rec: &IterationRecord) -> Result<(), DowError> {
     conn.execute(
-        "INSERT OR IGNORE INTO iterations (version, topic, commit_type, branch, released_at, tag, mode)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO iterations (version, topic, commit_type, branch, released_at, tag, mode, revoked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)",
         params![
             rec.version,
             rec.topic,
@@ -451,14 +486,29 @@ pub fn query_changelog(conn: &Connection, version: &str) -> Result<Vec<(Option<S
     Ok(results)
 }
 
-pub fn mark_iteration_revoked(conn: &Connection, version: &str) -> Result<(), DowError> {
+/// 查找 version=X 且 revoked=0 的最新一条 iteration id
+pub fn find_active_iteration(conn: &Connection, version: &str) -> Result<Option<i64>, DowError> {
+    let result = conn.query_row(
+        "SELECT id FROM iterations WHERE version = ?1 AND revoked = 0 ORDER BY id DESC LIMIT 1",
+        params![version],
+        |row| row.get::<_, i64>(0),
+    );
+    match result {
+        Ok(id) => Ok(Some(id)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(DowError::new(e.to_string(), 1)),
+    }
+}
+
+/// 标记指定 iteration id 为 revoked
+pub fn mark_iteration_revoked(conn: &Connection, iteration_id: i64) -> Result<(), DowError> {
     conn.execute_batch(
         "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
-    ).ok(); // ignore if column already exists
+    ).ok(); // 兼容老数据库
 
     conn.execute(
-        "UPDATE iterations SET revoked = 1 WHERE version = ?1",
-        params![version],
+        "UPDATE iterations SET revoked = 1 WHERE id = ?1",
+        params![iteration_id],
     ).map_err(|e| DowError::new(e.to_string(), 1))?;
     Ok(())
 }

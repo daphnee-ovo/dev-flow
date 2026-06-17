@@ -12,5 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build dow
+        run: cd dow && cargo build --release
+
       - name: Run all tests
         run: bash tests/test_all.sh

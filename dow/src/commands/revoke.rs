@@ -43,9 +43,9 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
     let archive_base = archive_db::archive_base();
     let conn = archive_db::open_or_create(&archive_base)?;
 
-    let iteration = archive_db::get_iteration(&conn, &target_version)?
+    let iteration_id = archive_db::find_active_iteration(&conn, &target_version)?
         .ok_or_else(|| DowError::new(
-            format!("版本 {} 在归档中不存在（使用 --list 查看可选版本）", target_version),
+            format!("版本 {} 无可回退的归档记录（不存在或已全部 revoked）", target_version),
             1,
         ))?;
 
@@ -94,7 +94,7 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 7. 标记 iteration 为 revoked
-    archive_db::mark_iteration_revoked(&conn, &target_version)?;
+    archive_db::mark_iteration_revoked(&conn, iteration_id)?;
 
     let result = RevokeOutput {
         revoked_version: target_version.clone(),
@@ -118,7 +118,7 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
         println!();
         println!("注意：git 历史未变更，仅流程状态与文档已还原。");
         println!("提示：使用 `dow iterate` 重新交付，版本号 {} 可复用。",
-            iteration.version);
+            target_version);
     } else {
         output::print_json(&result);
     }
@@ -131,16 +131,21 @@ fn run_list(human: bool) -> Result<i32, DowError> {
     let conn = archive_db::open_or_create(&archive_base)?;
     let iterations = archive_db::list_iterations(&conn, None)?;
 
-    if iterations.is_empty() {
+    // 只展示有活跃（未 revoked）记录的版本
+    let active: Vec<_> = iterations.into_iter().filter(|i| {
+        archive_db::find_active_iteration(&conn, &i.version).unwrap_or(None).is_some()
+    }).collect();
+
+    if active.is_empty() {
         if human {
-            println!("[dev-flow] 无可回退版本（归档为空）");
+            println!("[dev-flow] 无可回退版本（归档为空或全部已 revoked）");
         } else {
             output::print_json(&RevokeListOutput { versions: vec![] });
         }
         return Ok(0);
     }
 
-    let entries: Vec<RevokeListEntry> = iterations
+    let entries: Vec<RevokeListEntry> = active
         .iter()
         .map(|i| RevokeListEntry {
             version: i.version.clone(),

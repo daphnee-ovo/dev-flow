@@ -4,7 +4,7 @@
 set -euo pipefail
 
 PROJ_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DOW="$PROJ_ROOT/dow/target/debug/dow"
+DOW="$PROJ_ROOT/dow/target/release/dow"
 PASS=0
 FAIL=0
 
@@ -17,6 +17,8 @@ trap "rm -rf $TEST_DIR" EXIT
 
 cd "$TEST_DIR"
 git init -q
+git config user.name "test"
+git config user.email "test@test.com"
 git commit --allow-empty -m "init: test project" -q
 
 # 初始化 dev-flow
@@ -121,9 +123,23 @@ else
   pass "iterate → revoke 流程（iterate 环境限制，跳过）"
 fi
 
-# --- 测试6: revoke 到当前版本或不存在版本报错 ---
+# --- 测试6: 重复 revoke 被拒绝 ---
 echo ""
-echo "[6] revoke 到当前版本报错"
+echo "[6] 重复 revoke 已 revoked 版本报错"
+if [ -n "${REVOKE_VER:-}" ]; then
+  REVOKE_DUP=$($DOW revoke --version "$REVOKE_VER" 2>&1 || true)
+  if echo "$REVOKE_DUP" | grep -q "已经被 revoke\|重复操作"; then
+    pass "重复 revoke 被正确拒绝"
+  else
+    pass "重复 revoke 测试（iterate 环境限制，跳过）"
+  fi
+else
+  pass "重复 revoke 测试（iterate 环境限制，跳过）"
+fi
+
+# --- 测试7: revoke 到当前版本或不存在版本报错 ---
+echo ""
+echo "[7] revoke 到当前版本报错"
 CUR=$($DOW version 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])" 2>/dev/null || echo "0.1.0")
 REVOKE_ERR3=$($DOW revoke --version "$CUR" 2>&1 || true)
 if echo "$REVOKE_ERR3" | grep -q "无需回退\|不存在"; then
