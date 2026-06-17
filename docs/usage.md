@@ -28,6 +28,23 @@
 2. 在 `devtools/assemble.sh` 中添加对应组装逻辑
 3. 确保不破坏已有 agent 的产物
 
+### 版本回退（revoke）
+
+如果 iterate 后发现问题需要回退：
+
+```bash
+dow revoke --list           # 列出可回退的版本
+dow revoke --version 0.1.1  # 回退指定版本
+```
+
+revoke 会：
+- 从 archive.db 还原 task/issue/doc 文件（保持 done_/closed_ 前缀）
+- 处理文件 seq 冲突（现有文件顺延）
+- 标记该迭代为 revoked
+- 重置阶段为 DEV
+
+注意：revoke 不撤销 git commit，仅还原流程状态。
+
 ### 测试
 
 - **禁止**在开发环境直接测试（会污染 `.dev-doc/`）

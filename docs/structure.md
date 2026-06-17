@@ -6,6 +6,8 @@
 dev-flow/
 ├── dow/                  # Rust CLI 统一调度器（核心二进制）
 │   ├── src/              # Rust 源码
+│   │   ├── commands/     # 子命令（iterate, revoke, claim, doc, check 等）
+│   │   └── core/         # 核心模块（archive_db, doc_validator 等）
 │   ├── tests/            # dow 集成测试
 │   ├── references/       # 参考资料和模板（编译时嵌入）
 │   └── tmp/              # dow 测试临时目录
@@ -36,7 +38,7 @@ dev-flow/
 
 | 模块 | 职责 |
 |------|------|
-| `dow/` | 全局 CLI 调度器，处理 hook、状态管理、文档校验、归档、迭代交付 |
+| `dow/` | 全局 CLI 调度器，处理 hook、状态管理、文档校验、归档、迭代交付、版本回退 |
 | `plugin/` | 跨 agent 共享的 command/agent/skill 定义，是插件的逻辑内核 |
 | `targets/` | 各 agent 平台的差异化配置（hook 格式、plugin.json 结构） |
 | `dist/` | assemble.sh 的输出产物，直接部署到各 agent 插件目录 |

@@ -234,6 +234,8 @@ The plugin maintains a `.dev-doc/` directory in your project:
 
 `/iterate` archives completed tasks, closed issues, test reports, changelog entries, and phase documents into `.dev-doc/archive.db`, then starts a new development cycle. Use `dow archive list/show/tasks/issues/doc` to query historical iterations.
 
+`dow revoke --version <v>` is the inverse of iterate — it restores archived tasks, issues, and documents from the database, handles file sequence conflicts, and marks the iteration as revoked. Use `dow revoke --list` to see revokable versions.
+
 ---
 
 ## Cross-Platform Support
@@ -260,6 +262,7 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow self-check` | Show install status and health |
 | `dow status` | Read/write STATUS.yaml |
 | `dow iterate` | Delivery: archive + commit + tag + bump |
+| `dow revoke --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
 | `dow doc <type>` | Generate/query document templates |
 | `dow hooks ...` | Hook dispatch (context, guard, post-write) |
 
