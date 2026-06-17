@@ -10,8 +10,8 @@ use std::fs;
 use std::path::Path;
 
 // 编译时嵌入规范 md
-const REF_ISSUE: &str = include_str!("../../../references/.dev-doc/ISSUE.md");
-const REF_TASK: &str = include_str!("../../../references/.dev-doc/TASK-FILE.md");
+const REF_ISSUE: &str = include_str!("../../references/.dev-doc/ISSUE.md");
+const REF_TASK: &str = include_str!("../../references/.dev-doc/TASK-FILE.md");
 
 /// 验证错误
 #[derive(Debug, Clone)]

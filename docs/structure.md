@@ -7,6 +7,7 @@ dev-flow/
 ├── dow/                  # Rust CLI 统一调度器（核心二进制）
 │   ├── src/              # Rust 源码
 │   ├── tests/            # dow 集成测试
+│   ├── references/       # 参考资料和模板（编译时嵌入）
 │   └── tmp/              # dow 测试临时目录
 ├── plugin/               # 共享插件内容（跨 agent 通用）
 │   ├── commands/         # slash command 定义（.md）
@@ -24,7 +25,6 @@ dev-flow/
 ├── docs/                 # 持久化项目文档
 ├── install/              # 安装脚本
 ├── examples/             # 示例项目
-├── references/           # 参考资料和模板
 ├── tests/                # 项目级测试
 ├── .dev-doc/             # 流程文档（STATUS、CHANGELOG 等）
 │   ├── main/             # 主分支流程

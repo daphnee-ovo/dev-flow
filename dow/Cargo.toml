@@ -1,7 +1,19 @@
 [package]
-name = "dow"
+name = "dev-flow"
 version = "0.1.0"
 edition = "2021"
+description = "Engineering discipline for coding agents — lightweight lifecycle management from requirements through delivery"
+license = "MIT"
+repository = "https://github.com/daphnee-ovo/dev-flow"
+homepage = "https://github.com/daphnee-ovo/dev-flow"
+authors = ["xinyue"]
+keywords = ["dev-flow", "workflow", "agents", "project-management", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "../README.md"
+
+[[bin]]
+name = "dow"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -19,35 +31,3 @@ tar = "0.4"
 [dev-dependencies]
 tempfile = "3"
 serde_json = "1"
-
-[[test]]
-name = "test_dow_status_read"
-path = "../tests/test_dow_status_read.rs"
-
-[[test]]
-name = "test_dow_status_write"
-path = "../tests/test_dow_status_write.rs"
-
-[[test]]
-name = "test_dow_validate"
-path = "../tests/test_dow_validate.rs"
-
-[[test]]
-name = "test_dow_scan"
-path = "../tests/test_dow_scan.rs"
-
-[[test]]
-name = "test_dow_doc"
-path = "../tests/test_dow_doc.rs"
-
-[[test]]
-name = "test_dow_setup"
-path = "../tests/test_dow_setup.rs"
-
-[[test]]
-name = "test_dow_branch"
-path = "../tests/test_dow_branch.rs"
-
-[[test]]
-name = "test_guard_phase"
-path = "../tests/test_guard_phase.rs"

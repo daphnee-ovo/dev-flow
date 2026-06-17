@@ -12,13 +12,13 @@ use std::fs;
 use std::path::Path;
 
 // 嵌入 references/.dev-doc/ 的规范文件
-const REF_TASK: &str = include_str!("../../../references/.dev-doc/TASK-FILE.md");
-const REF_ISSUE: &str = include_str!("../../../references/.dev-doc/ISSUE.md");
-const REF_PRD: &str = include_str!("../../../references/.dev-doc/PRD-FILE.md");
-const REF_SPEC: &str = include_str!("../../../references/.dev-doc/SPEC-FILE.md");
-const REF_TEST: &str = include_str!("../../../references/.dev-doc/TEST.md");
-const REF_BRAINSTORM: &str = include_str!("../../../references/.dev-doc/BRAINSTORM-FILE.md");
-const REF_CHANGELOG: &str = include_str!("../../../references/.dev-doc/CHANGELOG.md");
+const REF_TASK: &str = include_str!("../../references/.dev-doc/TASK-FILE.md");
+const REF_ISSUE: &str = include_str!("../../references/.dev-doc/ISSUE.md");
+const REF_PRD: &str = include_str!("../../references/.dev-doc/PRD-FILE.md");
+const REF_SPEC: &str = include_str!("../../references/.dev-doc/SPEC-FILE.md");
+const REF_TEST: &str = include_str!("../../references/.dev-doc/TEST.md");
+const REF_BRAINSTORM: &str = include_str!("../../references/.dev-doc/BRAINSTORM-FILE.md");
+const REF_CHANGELOG: &str = include_str!("../../references/.dev-doc/CHANGELOG.md");
 
 #[derive(Serialize)]
 struct DocOutput {

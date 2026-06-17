@@ -20,8 +20,11 @@ Small, focused, and opinionated. dev-flow gives coding agents structure — ligh
 ### One-Line Install
 
 ```bash
+# Cargo (Rust toolchain required)
+cargo install dev-flow && dow setup
+
 # macOS arm64 / Linux x86_64 / Linux aarch64
-brew install daphnee-ovo/tap/dev-flow
+brew install daphnee-ovo/tap/dev-flow && dow setup
 
 # Linux / macOS / WSL
 curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.sh | bash
@@ -30,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-Homebrew currently supports macOS arm64, Linux x86_64, and Linux aarch64. The install scripts support Linux, macOS, WSL, and Windows. Setup registers dev-flow with your preferred agent (Claude Code, Codex, or both). Project initialization happens later with `/init` inside the target project.
+The install scripts run `dow setup` automatically. For Cargo and Homebrew installs, `dow setup` registers dev-flow with your preferred agent (Claude Code, Codex, or Kiro). Project initialization happens later with `/init` inside the target project.
 
 ### First Run
 
@@ -48,8 +51,6 @@ Then ask your coding agent:
 dev-flow creates a `.dev-doc/` workspace, tracks the current phase in `STATUS.yaml`, generates structured task files, and uses hooks to remind or block the agent when workflow rules are violated.
 
 See [examples/quickstart-demo.md](examples/quickstart-demo.md) for a concrete before/after walkthrough, or inspect [examples/sample-project](examples/sample-project/) for static `.dev-doc` output.
-
-If you installed with Homebrew, run `dow setup` once before using `/init`.
 
 ---
 
@@ -77,7 +78,64 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
 | **Codex CLI** | Supported | `dow setup --agent codex` |
-| **Kiro CLI** | Testing | `dow setup --agent kiro` |
+| **Kiro** | Testing | `dow setup --agent kiro` |
+
+### Agent Compatibility Matrix
+
+#### Install & Setup
+
+| Capability | Claude Code | Codex CLI | Kiro |
+|------------|:-----------:|:---------:|:----:|
+| `dow setup` registration | Yes | Yes | Yes |
+| `dow self-check` validation | Yes | Yes | Yes |
+| Plugin manifest | `plugin.json` | `plugin.json` | `config.json` |
+| Project instructions file | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
+
+#### Hook Support
+
+| Hook | Claude Code | Codex CLI | Kiro |
+|------|:-----------:|:---------:|:----:|
+| UserPromptSubmit (context injection) | Yes | Yes | Yes |
+| PreToolUse — Write/Edit guard | Yes | Yes | Yes |
+| PreToolUse — Bash guard | Yes | Yes | Yes |
+| PostToolUse — Write/Edit sync | Yes | Yes | Yes |
+| PostToolUse — Bash sync | Yes | Yes | Yes |
+| Stop (changelog save) | Yes | Yes | Yes |
+
+#### Command Support
+
+| Command | Claude Code | Codex CLI | Kiro |
+|---------|:-----------:|:---------:|:----:|
+| `/init` | Slash command | Skill | Agent command |
+| `/brainstorm` | Slash command | Skill | Agent command |
+| `/prd` | Slash command | Skill | Agent command |
+| `/spec` | Slash command | Skill | Agent command |
+| `/task` | Slash command | Skill | Agent command |
+| `/issue` | Slash command | Skill | Agent command |
+| `/devtest` | Slash command | Skill | Agent command |
+| `/fix` | Slash command | Skill | Agent command |
+| `/test` | Slash command | Skill | Agent command |
+| `/status` | Slash command | Skill | Agent command |
+| `/check` | Slash command | Skill | Agent command |
+| `/iterate` | Slash command | Skill | Agent command |
+| `/mode` | Slash command | Skill | Agent command |
+
+#### Sub-Agent Support
+
+| Capability | Claude Code | Codex CLI | Kiro |
+|------------|:-----------:|:---------:|:----:|
+| PRD agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| SPEC agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+
+#### Known Limitations
+
+| Agent | Limitations |
+|-------|-------------|
+| **Claude Code** | None known |
+| **Codex CLI** | No native slash commands — commands are exposed as skills (`SKILL.md`). Hook protocol uses JSON envelope (`--codex-hook`). |
+| **Kiro** | Testing status — not yet validated in production workflows. No native slash commands — commands are handled through agent configuration. Hook protocol uses `--kiro-hook` flag. |
 
 ---
 
