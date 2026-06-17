@@ -75,7 +75,11 @@ fn main() {
 fn should_check_version(cmd: &Commands) -> bool {
     !matches!(
         cmd,
-        Commands::Setup(_) | Commands::Update | Commands::SelfCheck
+        Commands::Setup(_)
+            | Commands::Update
+            | Commands::SelfCheck
+            | Commands::Hooks { .. }
+            | Commands::Version(_)
     )
 }
 

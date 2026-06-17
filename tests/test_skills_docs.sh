@@ -63,7 +63,7 @@ fi
 echo ""
 echo "[5] dow/references/dev-flow-spec.md 含 task/ 目录"
 
-SPEC="$PROJ_ROOT/dow/dow/references/dev-flow-spec.md"
+SPEC="$PROJ_ROOT/dow/references/dev-flow-spec.md"
 if [ ! -f "$SPEC" ]; then
   fail "$SPEC 文件不存在"
 else
