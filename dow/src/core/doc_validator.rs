@@ -596,6 +596,8 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
     }
 
     let mut all_errors = Vec::new();
+    let mut all_issue_ids: Vec<(u32, String)> = Vec::new();
+
     if let Ok(entries) = fs::read_dir(&issue_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -603,10 +605,66 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
                 && (name.starts_with("issue_") || name.starts_with("closed_issue_"))
             {
                 all_errors.extend(validate_issue_file(&entry.path()));
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    for line in content.lines() {
+                        if line.starts_with("- [") {
+                            let title = line[5..].trim();
+                            if let Some(num) = extract_issue_id_num(title) {
+                                all_issue_ids.push((num, name.clone()));
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+
+    // 全局序号连续性检查
+    if !all_issue_ids.is_empty() {
+        all_issue_ids.sort_by_key(|(num, _)| *num);
+
+        for i in 1..all_issue_ids.len() {
+            if all_issue_ids[i].0 == all_issue_ids[i - 1].0 {
+                all_errors.push(ValidationError {
+                    file: all_issue_ids[i].1.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: format!(
+                        "issue 序号重复：ISSUE-I{:03} 出现在 {} 和 {}",
+                        all_issue_ids[i].0, all_issue_ids[i - 1].1, all_issue_ids[i].1
+                    ),
+                    fixable: false,
+                });
+            }
+        }
+
+        for (idx, (num, filename)) in all_issue_ids.iter().enumerate() {
+            let expected = idx as u32 + 1;
+            if *num != expected {
+                all_errors.push(ValidationError {
+                    file: filename.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: format!(
+                        "issue 全局序号不连续：期望 ISSUE-I{:03}，实际 ISSUE-I{:03}",
+                        expected, num
+                    ),
+                    fixable: false,
+                });
+                break;
+            }
+        }
+    }
+
     all_errors
+}
+
+fn extract_issue_id_num(title: &str) -> Option<u32> {
+    let prefix = "ISSUE-I";
+    if !title.starts_with(prefix) {
+        return None;
+    }
+    let rest = &title[prefix.len()..];
+    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse().ok()
 }
 
 /// 验证指定目录下所有 task 文件，返回错误列表
@@ -617,6 +675,8 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
     }
 
     let mut all_errors = Vec::new();
+    let mut all_task_ids: Vec<(u32, String)> = Vec::new(); // (id_num, filename)
+
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -624,10 +684,69 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
                 && (name.starts_with("task_") || name.starts_with("done_task_"))
             {
                 all_errors.extend(validate_task_file(&entry.path()));
+                // 收集所有 task ID
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    for line in content.lines() {
+                        if line.starts_with("- [") {
+                            let title = line[5..].trim();
+                            if let Some(num) = extract_task_id_num(title) {
+                                all_task_ids.push((num, name.clone()));
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+
+    // 全局序号连续性检查：排序后验证 1..N
+    if !all_task_ids.is_empty() {
+        all_task_ids.sort_by_key(|(num, _)| *num);
+
+        // 检查重复
+        for i in 1..all_task_ids.len() {
+            if all_task_ids[i].0 == all_task_ids[i - 1].0 {
+                all_errors.push(ValidationError {
+                    file: all_task_ids[i].1.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: format!(
+                        "task 序号重复：TASK-T{:03} 出现在 {} 和 {}",
+                        all_task_ids[i].0, all_task_ids[i - 1].1, all_task_ids[i].1
+                    ),
+                    fixable: false,
+                });
+            }
+        }
+
+        // 检查连续：从 1 开始到 max
+        for (idx, (num, filename)) in all_task_ids.iter().enumerate() {
+            let expected = idx as u32 + 1;
+            if *num != expected {
+                all_errors.push(ValidationError {
+                    file: filename.clone(),
+                    kind: ErrorKind::InvalidFieldValue,
+                    message: format!(
+                        "task 全局序号不连续：期望 TASK-T{:03}，实际 TASK-T{:03}",
+                        expected, num
+                    ),
+                    fixable: false,
+                });
+                break; // 只报第一个断点
+            }
+        }
+    }
+
     all_errors
+}
+
+fn extract_task_id_num(title: &str) -> Option<u32> {
+    let prefix = "TASK-T";
+    if !title.starts_with(prefix) {
+        return None;
+    }
+    let rest = &title[prefix.len()..];
+    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse().ok()
 }
 
 /// 验证 SPEC.md 的 SPEC-AC 序号递增不跳号
@@ -943,8 +1062,8 @@ fn extract_fm_value(fm: &str, key: &str) -> Option<String> {
     None
 }
 
-/// 验证 issue item 序号：ISSUE-I + 三位数字 + ：
-fn validate_issue_item_seq(title: &str, expected: u32, filename: &str) -> Option<ValidationError> {
+/// 验证 issue item 序号格式：ISSUE-I + 数字（不检查连续性，由全局检查负责）
+fn validate_issue_item_seq(title: &str, _expected: u32, filename: &str) -> Option<ValidationError> {
     let prefix = "ISSUE-I";
     if !title.starts_with(prefix) {
         return Some(ValidationError {
@@ -967,21 +1086,11 @@ fn validate_issue_item_seq(title: &str, expected: u32, filename: &str) -> Option
             fixable: false,
         });
     }
-    if let Ok(actual) = num_str.parse::<u32>() {
-        if actual != expected {
-            return Some(ValidationError {
-                file: filename.to_string(),
-                kind: ErrorKind::InvalidFieldValue,
-                message: format!("issue item 序号不连续：期望 ISSUE-I{:03}，实际 ISSUE-I{:03}", expected, actual),
-                fixable: false,
-            });
-        }
-    }
     None
 }
 
-/// 验证 task item 序号：TASK-T + 三位数字 + :
-fn validate_task_item_seq(title: &str, expected: u32, filename: &str) -> Option<ValidationError> {
+/// 验证 task item 序号格式：TASK-T + 数字（不检查连续性，由全局检查负责）
+fn validate_task_item_seq(title: &str, _expected: u32, filename: &str) -> Option<ValidationError> {
     let prefix = "TASK-T";
     if !title.starts_with(prefix) {
         return Some(ValidationError {
@@ -1003,16 +1112,6 @@ fn validate_task_item_seq(title: &str, expected: u32, filename: &str) -> Option<
             message: format!("task item 序号缺少数字：'{}'", title.chars().take(30).collect::<String>()),
             fixable: false,
         });
-    }
-    if let Ok(actual) = num_str.parse::<u32>() {
-        if actual != expected {
-            return Some(ValidationError {
-                file: filename.to_string(),
-                kind: ErrorKind::InvalidFieldValue,
-                message: format!("task item 序号不连续：期望 TASK-T{:03}，实际 TASK-T{:03}", expected, actual),
-                fixable: false,
-            });
-        }
     }
     None
 }

@@ -78,6 +78,9 @@ pub enum Commands {
         command: HooksCommands,
     },
 
+    /// 版本回退（仅回退流程状态，不撤销 git commit）
+    Revoke(RevokeArgs),
+
     /// 声明当前工作关联的 task/issue
     Claim(ClaimArgs),
 
@@ -259,6 +262,17 @@ pub struct VersionArgs {
     /// 按类型 bump（major/minor/patch）
     #[arg(long)]
     pub bump: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct RevokeArgs {
+    /// 回退到的目标版本号
+    #[arg(long)]
+    pub version: Option<String>,
+
+    /// 列出可回退的版本
+    #[arg(long)]
+    pub list: bool,
 }
 
 #[derive(clap::Args)]

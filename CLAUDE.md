@@ -43,6 +43,8 @@
 | `dow check` | 文档规范检查 |
 | `dow issue --list` | 列出未关闭的 issue |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--tag] [--confirm]` | 迭代交付（默认 patch，minor/major 自动打 tag） |
+| `dow revoke --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
+| `dow revoke --list` | 列出可回退的版本 |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 .dev-doc 结构 |
 | `dow fix` | 自动修复 .dev-doc 文件格式问题 |

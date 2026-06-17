@@ -416,6 +416,53 @@ pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&
     Ok(results)
 }
 
+pub fn get_iteration(conn: &Connection, version: &str) -> Result<Option<IterationRecord>, DowError> {
+    let mut stmt = conn.prepare(
+        "SELECT version, topic, commit_type, branch, released_at, tag, mode FROM iterations WHERE version = ?1"
+    ).map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    let result = stmt.query_row(params![version], |row| {
+        Ok(IterationRecord {
+            version: row.get(0)?,
+            topic: row.get(1)?,
+            commit_type: row.get(2)?,
+            branch: row.get(3)?,
+            released_at: row.get(4)?,
+            tag: row.get(5)?,
+            mode: row.get(6)?,
+        })
+    }).ok();
+    Ok(result)
+}
+
+pub fn query_changelog(conn: &Connection, version: &str) -> Result<Vec<(Option<String>, String)>, DowError> {
+    let mut stmt = conn.prepare(
+        "SELECT entry_date, entry_text FROM changelog_entries WHERE version = ?1 ORDER BY sort_order ASC"
+    ).map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    let rows = stmt.query_map(params![version], |row| {
+        Ok((row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?))
+    }).map_err(|e| DowError::new(e.to_string(), 1))?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row.map_err(|e| DowError::new(e.to_string(), 1))?);
+    }
+    Ok(results)
+}
+
+pub fn mark_iteration_revoked(conn: &Connection, version: &str) -> Result<(), DowError> {
+    conn.execute_batch(
+        "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
+    ).ok(); // ignore if column already exists
+
+    conn.execute(
+        "UPDATE iterations SET revoked = 1 WHERE version = ?1",
+        params![version],
+    ).map_err(|e| DowError::new(e.to_string(), 1))?;
+    Ok(())
+}
+
 pub fn get_stats(conn: &Connection) -> Result<serde_json::Value, DowError> {
     let iter_count: i64 = conn.query_row("SELECT COUNT(*) FROM iterations", [], |r| r.get(0))
         .map_err(|e| DowError::new(e.to_string(), 1))?;

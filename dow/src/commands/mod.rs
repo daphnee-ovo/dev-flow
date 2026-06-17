@@ -17,6 +17,7 @@ pub mod info;
 pub mod init;
 pub mod issue;
 pub mod iterate;
+pub mod revoke;
 pub mod scan;
 pub mod self_check;
 pub mod setup;

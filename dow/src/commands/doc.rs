@@ -400,12 +400,14 @@ fn create_task(doc_root: &Path, count: u32) -> Result<(String, u32), DowError> {
     let filename = format!("task_{}_{}.md", today, seq);
     let path = task_dir.join(&filename);
 
+    let max_id = max_task_id_in_dir(&task_dir);
+
     let mut content = format!("---\ntitle: TASK - \nnums: {}\n---\n\n", count);
 
     for i in 1..=count {
         content.push_str(&format!(
             "- [ ] TASK-T{:03}: \n  - type: feat\n  - priority: P1\n  - refs: \n  - files:\n      create: []\n      modify: []\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - \n\n",
-            i
+            max_id + i
         ));
     }
 
@@ -427,12 +429,14 @@ fn create_issue(
     let filename = format!("issue_{}_{}_{}.md", src, today, seq);
     let path = issue_dir.join(&filename);
 
+    let max_id = max_issue_id_in_dir(&issue_dir);
+
     let mut content = format!("---\nsource: {}\nnums: {}\n---\n\n", src, count);
 
     for i in 1..=count {
         content.push_str(&format!(
             "- [ ] ISSUE-I{:03}：\n  - severity: P1\n  - location：\n  - description：\n  - reproduce：\n  - fix：\n\n",
-            i
+            max_id + i
         ));
     }
 
@@ -454,6 +458,69 @@ fn create_single(
     }
     fs::write(&path, template).map_err(|e| DowError::new(e.to_string(), 1))?;
     Ok((path.to_string_lossy().to_string(), 1))
+}
+
+fn max_task_id_in_dir(task_dir: &Path) -> u32 {
+    let mut max = 0u32;
+    if let Ok(entries) = fs::read_dir(task_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("- [") {
+                        // 匹配 TASK-T001 或 T001
+                        if let Some(id) = extract_task_num(trimmed) {
+                            max = max.max(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    max
+}
+
+fn max_issue_id_in_dir(issue_dir: &Path) -> u32 {
+    let mut max = 0u32;
+    if let Ok(entries) = fs::read_dir(issue_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("- [") {
+                        if let Some(id) = extract_issue_num(trimmed) {
+                            max = max.max(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    max
+}
+
+fn extract_task_num(line: &str) -> Option<u32> {
+    // "- [x] TASK-T001: ..." or "- [ ] TASK-T012: ..."
+    let after = line.find("TASK-T").map(|p| &line[p + 6..])
+        .or_else(|| line.find("] T").map(|p| &line[p + 3..]))?;
+    let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse().ok()
+}
+
+fn extract_issue_num(line: &str) -> Option<u32> {
+    // "- [x] ISSUE-I001：..." or "- [ ] ISSUE-I012: ..."
+    let after = line.find("ISSUE-I").map(|p| &line[p + 7..])
+        .or_else(|| line.find("] I").map(|p| &line[p + 3..]))?;
+    let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse().ok()
 }
 
 fn next_seq(dir: &Path, prefix: &str) -> u32 {

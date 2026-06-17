@@ -50,7 +50,13 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         let normalized: Vec<String> = args.ids.iter().map(|id| normalize_claim_id(id)).collect();
 
         // 校验每个 ID 是否对应未完成的 task/issue
-        let invalid = find_invalid_claim_ids(&doc_root_path, &normalized);
+        let (invalid, duplicates) = validate_claim_ids(&doc_root_path, &normalized);
+        if !duplicates.is_empty() {
+            return Err(DowError::new(
+                format!("ID 存在歧义（多个文件中出现）：{}。请手动修正序号使其唯一。", duplicates.join(", ")),
+                1,
+            ));
+        }
         if !invalid.is_empty() {
             return Err(DowError::new(
                 format!("无法 claim 已完成或不存在的项：{}", invalid.join(", ")),
@@ -145,10 +151,11 @@ fn normalize_claim_id(id: &str) -> String {
     }
 }
 
-/// 检查 claim ID 是否对应未完成的 task 或 open issue
-/// 返回无效（已完成/不存在）的 ID 列表
-fn find_invalid_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> Vec<String> {
-    let mut open_ids: Vec<String> = Vec::new();
+/// 校验 claim ID：返回 (无效ID列表, 重复ID列表)
+/// 无效 = 已完成或不存在；重复 = 同一 ID 出现在多个文件中
+fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String>, Vec<String>) {
+    // id → 出现次数
+    let mut id_count: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
 
     // 收集 task 文件中所有未完成项的 ID
     let task_dir = doc_root.join("task");
@@ -156,20 +163,15 @@ fn find_invalid_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> Vec<Str
         if let Ok(entries) = fs::read_dir(&task_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if !name.ends_with(".md") {
-                    continue;
-                }
-                // done_task_ 文件 = 已全部完成，跳过
-                if name.starts_with("done_") {
+                if !name.ends_with(".md") || name.starts_with("done_") {
                     continue;
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
                         if line.starts_with("- [ ] TASK-") {
-                            // 提取 ID: "- [ ] TASK-T001: ..." → "T001"
                             if let Some(rest) = line.strip_prefix("- [ ] TASK-") {
                                 if let Some(id) = rest.split(':').next() {
-                                    open_ids.push(id.trim().to_string());
+                                    *id_count.entry(id.trim().to_string()).or_insert(0) += 1;
                                 }
                             }
                         }
@@ -185,20 +187,16 @@ fn find_invalid_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> Vec<Str
         if let Ok(entries) = fs::read_dir(&issue_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if !name.ends_with(".md") {
-                    continue;
-                }
-                if name.starts_with("closed_") {
+                if !name.ends_with(".md") || name.starts_with("closed_") {
                     continue;
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
                         if line.starts_with("- [ ] ISSUE-") {
-                            // "- [ ] ISSUE-I001：..." → "I001"
                             if let Some(rest) = line.strip_prefix("- [ ] ISSUE-") {
                                 let id = rest.split([':', '：']).next().unwrap_or("").trim();
                                 if !id.is_empty() {
-                                    open_ids.push(id.to_string());
+                                    *id_count.entry(id.to_string()).or_insert(0) += 1;
                                 }
                             }
                         }
@@ -208,8 +206,15 @@ fn find_invalid_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> Vec<Str
         }
     }
 
-    ids.iter()
-        .filter(|id| !open_ids.contains(id))
+    let invalid: Vec<String> = ids.iter()
+        .filter(|id| !id_count.contains_key(id.as_str()))
         .cloned()
-        .collect()
+        .collect();
+
+    let duplicates: Vec<String> = ids.iter()
+        .filter(|id| id_count.get(id.as_str()).copied().unwrap_or(0) > 1)
+        .cloned()
+        .collect();
+
+    (invalid, duplicates)
 }
