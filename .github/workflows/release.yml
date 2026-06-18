@@ -92,3 +92,25 @@ jobs:
         with:
           files: artifacts/dow-*.tar.gz
           generate_release_notes: true
+
+  npm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update npm package version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          cd npm/dev-flow
+          node -e "const p=require('./package.json'); p.version='$TAG'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
+
+      - name: Publish to npm
+        run: cd npm/dev-flow && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

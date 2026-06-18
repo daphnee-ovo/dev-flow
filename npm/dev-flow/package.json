@@ -1,0 +1,28 @@
+{
+  "name": "@xin_yue/dev-flow",
+  "version": "0.1.1",
+  "description": "Engineering discipline for coding agents — lightweight workflow management CLI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daphnee-ovo/dev-flow"
+  },
+  "homepage": "https://github.com/daphnee-ovo/dev-flow",
+  "keywords": ["dev-flow", "cli", "agent", "workflow", "coding-agent"],
+  "bin": {
+    "dow": "bin/dow"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "engines": {
+    "node": ">=16"
+  }
+}
