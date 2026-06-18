@@ -89,6 +89,13 @@ async function install() {
   }
 
   console.log(`[dev-flow] Installed dow ${VERSION} for ${getPlatformKey()}`);
+
+  // Register with coding agents
+  try {
+    execSync(`"${binary}" setup`, { stdio: "inherit" });
+  } catch {
+    console.log("[dev-flow] dow setup skipped (run manually: dow setup)");
+  }
 }
 
 install().catch((err) => {
