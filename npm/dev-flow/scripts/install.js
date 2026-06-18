@@ -81,18 +81,23 @@ async function install() {
 
   fs.unlinkSync(tmpFile);
 
-  // Ensure the binary is at bin/dow (or bin/dow.exe on Windows)
-  const binaryName = process.platform === "win32" ? "dow.exe" : "dow";
-  const binary = path.join(BIN_DIR, binaryName);
-  if (fs.existsSync(binary) && process.platform !== "win32") {
-    fs.chmodSync(binary, 0o755);
+  // Rename to dow-bin so it doesn't conflict with the Node.js wrapper (bin/dow)
+  const srcName = process.platform === "win32" ? "dow.exe" : "dow";
+  const dstName = process.platform === "win32" ? "dow-bin.exe" : "dow-bin";
+  const srcPath = path.join(BIN_DIR, srcName);
+  const dstPath = path.join(BIN_DIR, dstName);
+  if (fs.existsSync(srcPath)) {
+    fs.renameSync(srcPath, dstPath);
+  }
+  if (fs.existsSync(dstPath) && process.platform !== "win32") {
+    fs.chmodSync(dstPath, 0o755);
   }
 
   console.log(`[dev-flow] Installed dow ${VERSION} for ${getPlatformKey()}`);
 
   // Register with coding agents
   try {
-    execSync(`"${binary}" setup`, { stdio: "inherit" });
+    execSync(`"${dstPath}" setup`, { stdio: "inherit" });
   } catch {
     console.log("[dev-flow] dow setup skipped (run manually: dow setup)");
   }
