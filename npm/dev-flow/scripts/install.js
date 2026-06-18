@@ -60,38 +60,39 @@ async function install() {
 
   const tarball = await download(url);
 
-  const tmpFile = path.join(BIN_DIR, "dow.tar.gz");
-  fs.mkdirSync(BIN_DIR, { recursive: true });
+  // Extract to a temp directory to avoid overwriting the Node.js wrapper (bin/dow)
+  const os = require("os");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dow-install-"));
+  const tmpFile = path.join(tmpDir, "dow.tar.gz");
   fs.writeFileSync(tmpFile, tarball);
 
   try {
-    execSync(`tar -xzf "${tmpFile}" -C "${BIN_DIR}" --strip-components=1 bin/`, {
-      stdio: "pipe",
-    });
-  } catch {
-    // Windows or tar without --strip-components support
-    execSync(`tar -xzf "${tmpFile}" -C "${BIN_DIR}"`, { stdio: "pipe" });
-    // Move nested bin/dow to bin/
-    const nested = path.join(BIN_DIR, "bin", "dow");
-    if (fs.existsSync(nested)) {
-      fs.renameSync(nested, path.join(BIN_DIR, "dow"));
-      fs.rmSync(path.join(BIN_DIR, "bin"), { recursive: true, force: true });
-    }
+    execSync(`tar -xzf "${tmpFile}" -C "${tmpDir}"`, { stdio: "pipe" });
+  } catch (e) {
+    throw new Error(`Failed to extract tarball: ${e.message}`);
   }
 
-  fs.unlinkSync(tmpFile);
-
-  // Rename to dow-bin so it doesn't conflict with the Node.js wrapper (bin/dow)
+  // Find the native binary in the extracted contents
   const srcName = process.platform === "win32" ? "dow.exe" : "dow";
-  const dstName = process.platform === "win32" ? "dow-bin.exe" : "dow-bin";
-  const srcPath = path.join(BIN_DIR, srcName);
-  const dstPath = path.join(BIN_DIR, dstName);
-  if (fs.existsSync(srcPath)) {
-    fs.renameSync(srcPath, dstPath);
+  let srcPath = path.join(tmpDir, "bin", srcName);
+  if (!fs.existsSync(srcPath)) {
+    srcPath = path.join(tmpDir, srcName);
   }
-  if (fs.existsSync(dstPath) && process.platform !== "win32") {
+  if (!fs.existsSync(srcPath)) {
+    throw new Error(`Binary not found after extraction in ${tmpDir}`);
+  }
+
+  // Copy native binary as dow-bin into BIN_DIR
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  const dstName = process.platform === "win32" ? "dow-bin.exe" : "dow-bin";
+  const dstPath = path.join(BIN_DIR, dstName);
+  fs.copyFileSync(srcPath, dstPath);
+  if (process.platform !== "win32") {
     fs.chmodSync(dstPath, 0o755);
   }
+
+  // Cleanup temp
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 
   console.log(`[dev-flow] Installed dow ${VERSION} for ${getPlatformKey()}`);
 
