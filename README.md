@@ -20,6 +20,9 @@ Small, focused, and opinionated. dev-flow gives coding agents structure — ligh
 ### One-Line Install
 
 ```bash
+# npm (Node.js 16+, auto-downloads platform binary + runs dow setup)
+npm install -g @xin_yue/dev-flow
+
 # Cargo (Rust toolchain required)
 cargo install dev-flow && dow setup
 
