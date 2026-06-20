@@ -12,84 +12,71 @@ VERSION_RAW="$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "0.0.0")"
 # 格式: (branch)X.Y.Z → 提取 X.Y.Z
 VERSION="${VERSION_RAW##*)}"; VERSION="${VERSION:-$VERSION_RAW}"
 
-extract_command_description() {
-  local file="$1"
-  awk '
-    NR == 1 && $0 == "---" { in_fm = 1; next }
-    in_fm && $0 == "---" { exit }
-    in_fm && $0 ~ /^description:[[:space:]]*/ {
-      sub(/^description:[[:space:]]*/, "")
-      print
-      exit
-    }
-  ' "$file"
-}
+install_command_skills() {
+  local target_dir="$1"
+  local managed_marker="$2"
 
-append_command_body_without_frontmatter() {
-  local file="$1"
-  awk '
-    NR == 1 && $0 == "---" { in_fm = 1; next }
-    in_fm && $0 == "---" { in_fm = 0; next }
-    !in_fm { print }
-  ' "$file"
-}
+  python3 - "$PROJECT_ROOT/plugin/commands" "$target_dir/skills" "$managed_marker" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
 
-yaml_quote() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+commands_dir = Path(sys.argv[1])
+skills_dir = Path(sys.argv[2])
+managed_marker = sys.argv[3] == "true"
+
+
+def split_frontmatter(text):
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---", 4)
+    if end == -1:
+        return {}, text
+    frontmatter = text[4:end]
+    body_start = end + len("\n---")
+    if text[body_start:body_start + 1] == "\n":
+        body_start += 1
+    fields = {}
+    for line in frontmatter.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        fields[key.strip()] = value.strip()
+    return fields, text[body_start:]
+
+
+for command_file in sorted(commands_dir.glob("*.md")):
+    command_name = command_file.stem
+    text = command_file.read_text(encoding="utf-8")
+    fields, body = split_frontmatter(text)
+    description = fields.get("description") or f"执行 dev-flow /{command_name} 流程"
+    skill_description = (
+        f"{description}。当用户要求执行 dev-flow {command_name} 流程，"
+        "或表达对应流程意图时使用。"
+    )
+
+    skill_dir = skills_dir / command_name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        "---\n"
+        f"name: {command_name}\n"
+        f"description: {json.dumps(skill_description, ensure_ascii=False)}\n"
+        "---\n\n"
+        f"{body.lstrip()}",
+        encoding="utf-8",
+    )
+    if managed_marker:
+        (skill_dir / ".dev-flow-managed").touch()
+PYEOF
 }
 
 install_codex_command_skills() {
-  local target_dir="$1"
-  local commands_dir="$PROJECT_ROOT/plugin/commands"
-  local command_file command_name skill_dir description skill_description
-
-  for command_file in "$commands_dir"/*.md; do
-    command_name="$(basename "$command_file" .md)"
-    skill_dir="$target_dir/skills/$command_name"
-    description="$(extract_command_description "$command_file")"
-    if [ -z "$description" ]; then
-      description="执行 dev-flow /$command_name 流程"
-    fi
-    skill_description="$description。当用户要求执行 dev-flow $command_name 流程，或表达对应流程意图时使用。"
-
-    mkdir -p "$skill_dir"
-    {
-      echo "---"
-      echo "name: $command_name"
-      echo "description: \"$(yaml_quote "$skill_description")\""
-      echo "---"
-      echo
-      append_command_body_without_frontmatter "$command_file"
-    } > "$skill_dir/SKILL.md"
-  done
+  install_command_skills "$1" false
 }
 
 install_kiro_command_skills() {
-  local target_dir="$1"
-  local commands_dir="$PROJECT_ROOT/plugin/commands"
-  local command_file command_name skill_dir description skill_description
-
-  for command_file in "$commands_dir"/*.md; do
-    command_name="$(basename "$command_file" .md)"
-    skill_dir="$target_dir/skills/$command_name"
-    description="$(extract_command_description "$command_file")"
-    if [ -z "$description" ]; then
-      description="执行 dev-flow /$command_name 流程"
-    fi
-    skill_description="$description。当用户要求执行 dev-flow $command_name 流程，或表达对应流程意图时使用。"
-
-    mkdir -p "$skill_dir"
-    {
-      echo "---"
-      echo "name: $command_name"
-      echo "description: \"$(yaml_quote "$skill_description")\""
-      echo "---"
-      echo
-      append_command_body_without_frontmatter "$command_file"
-    } > "$skill_dir/SKILL.md"
-    # 标记为 dev-flow 管理的 skill，部署时用于冲突检测
-    touch "$skill_dir/.dev-flow-managed"
-  done
+  install_command_skills "$1" true
 }
 
 convert_agent_md_to_json() {
