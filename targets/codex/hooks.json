@@ -1,5 +1,4 @@
 {
-  "description": "Dev-flow hooks for Codex — dow CLI 统一调度",
   "hooks": {
     "UserPromptSubmit": [
       {
