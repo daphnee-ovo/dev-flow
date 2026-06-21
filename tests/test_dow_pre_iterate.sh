@@ -161,7 +161,8 @@ echo "[5] git add 失败时阻断 iterate commit"
 setup_project "bad-files"
 before="$(git rev-parse HEAD)"
 before_version="$(cat VERSION)"
-task_before="$(find .dev-doc/main/task -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
+branch="$(git branch --show-current)"
+task_before="$(find ".dev-doc/$branch/task" -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
 preview="$("$DOW" iterate --topic bad-files --type feat --files missing-file.txt 2>/dev/null)"
 token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
 export "DOW_ITERATE_${token}=1"
@@ -171,7 +172,7 @@ if "$DOW" iterate --topic bad-files --type feat --files missing-file.txt --confi
 else
   after="$(git rev-parse HEAD)"
   after_version="$(cat VERSION)"
-  task_after="$(find .dev-doc/main/task -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
+  task_after="$(find ".dev-doc/$branch/task" -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
   if [ "$before" = "$after" ] \
     && [ "$before_version" = "$after_version" ] \
     && [ "$task_before" = "$task_after" ] \
