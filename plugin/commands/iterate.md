@@ -16,7 +16,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 1. task 文件中所有任务必须全部勾选 `[x]`（audit 模式跳过）
 2. 无未关闭的 P0 issue
 3. VERSION 文件存在且格式合法
-4. `.dev-doc/preIterate.yaml` 中的 CI steps 必须全部成功（如果文件存在）
+4. `.dev-doc/preIterate.ci` 中的 CI steps 必须全部成功（如果文件存在）
 
 ## 参数
 
@@ -46,7 +46,7 @@ DOW_ITERATE_<token>=1 dow iterate --confirm --topic <topic> --type <type> [--fil
 
 Token 通过环境变量前缀传递，有效期 5 分钟。确认后依次执行：
 
-1. **preIterate CI** — 如果存在 `.dev-doc/preIterate.yaml`，先按顺序执行其中的 steps；任一步失败则整个 iterate 停止，不归档、不 commit、不 tag、不 bump
+1. **preIterate CI** — 如果存在 `.dev-doc/preIterate.ci`，先按顺序执行其中的 steps；任一步失败则整个 iterate 停止，不归档、不 commit、不 tag、不 bump
 2. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `.dev-doc/archive.db`（SQLite），然后删除源文件
 3. **重置 CHANGELOG** — 清空为 `# Changelog\n`
 4. **git commit + tag** — `git add -u` + 显式 add 指定文件和 archive.db，commit message 格式为 `<type>: Release v<版本> <topic>`，CHANGELOG 条目作为 commit body
@@ -55,7 +55,7 @@ Token 通过环境变量前缀传递，有效期 5 分钟。确认后依次执�
 
 ## preIterate CI
 
-可在项目根目录创建 `.dev-doc/preIterate.yaml`：
+可在项目根目录创建 `.dev-doc/preIterate.ci`：
 
 ```yaml
 sync-version: dow/Cargo.toml
@@ -71,7 +71,7 @@ run: npm run build
 | `sync-version: <path>` | 将明确声明的 Cargo、npm、uv/pyproject 清单版本同步为本次交付版本 |
 | `run: <command>` | 在项目根目录执行命令；退出码非 0 时阻断整个 iterate |
 
-preIterate 一定在 `git commit` 之前执行。step 产生的文件改动会进入同一次 iterate commit。`dow` 不自动扫描或猜测哪些清单、lockfile、生成物需要同步；项目特定同步必须显式写在 `preIterate.yaml` 中。
+preIterate 一定在 `git commit` 之前执行。step 产生的文件改动会进入同一次 iterate commit。`dow` 不自动扫描或猜测哪些清单、lockfile、生成物需要同步；项目特定同步必须显式写在 `preIterate.ci` 中。
 
 ## Commit Message 格式
 

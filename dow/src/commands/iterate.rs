@@ -10,6 +10,7 @@ use crate::core::{archive_db, doc_root, doc_validator, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -373,46 +374,125 @@ fn run_pre_iterate(version: &str, human: bool) -> Result<Vec<String>, DowError> 
         return Ok(Vec::new());
     }
 
-    let before_paths = git_worktree_paths();
+    let snapshot = PreIterateSnapshot::capture();
     if human {
         println!("[dev-flow] 执行 preIterate steps");
     }
 
     let mut changed_files = Vec::new();
     for step in steps {
-        match step {
+        let result = match step {
             PreIterateStep::SyncVersion { path } => {
                 if human {
                     println!("  - sync-version: {} -> {}", path, version);
                 }
-                if sync_version_file(&path, version)? && !changed_files.contains(&path) {
+                let changed = sync_version_file(&path, version);
+                if matches!(changed, Ok(true)) && !changed_files.contains(&path) {
                     changed_files.push(path);
                 }
+                changed.map(|_| ())
             }
             PreIterateStep::Run { name, command } => {
                 if human {
                     println!("  - {}: {}", name, command);
                 }
-                run_shell_step(&name, &command)?;
+                run_shell_step(&name, &command)
             }
+        };
+        if let Err(err) = result {
+            snapshot.restore().map_err(|rollback_err| {
+                DowError::new(
+                    format!("{}；preIterate 回滚失败：{}", err.message, rollback_err.message),
+                    1,
+                )
+            })?;
+            return Err(DowError::new(
+                format!("{}；已回滚 preIterate 修改", err.message),
+                err.exit_code,
+            ));
         }
     }
     for file in git_worktree_paths() {
-        if !before_paths.contains(&file) && !changed_files.contains(&file) {
+        if !snapshot.dirty_paths.contains(&file) && !changed_files.contains(&file) {
             changed_files.push(file);
         }
     }
     Ok(changed_files)
 }
 
+struct PreIterateSnapshot {
+    files: BTreeMap<String, Option<Vec<u8>>>,
+    dirty_paths: Vec<String>,
+}
+
+impl PreIterateSnapshot {
+    fn capture() -> Self {
+        let mut paths: BTreeSet<String> = git_tracked_paths().into_iter().collect();
+        let dirty_paths = git_worktree_paths();
+        paths.extend(dirty_paths.iter().cloned());
+
+        let files = paths
+            .into_iter()
+            .map(|path| {
+                let content = fs::read(&path).ok();
+                (path, content)
+            })
+            .collect();
+
+        Self { files, dirty_paths }
+    }
+
+    fn restore(&self) -> Result<(), DowError> {
+        let known_paths: BTreeSet<&String> = self.files.keys().collect();
+
+        for path in git_worktree_paths() {
+            if !known_paths.contains(&path) && Path::new(&path).exists() {
+                remove_path(Path::new(&path))?;
+            }
+        }
+
+        for (path, content) in &self.files {
+            let target = Path::new(path);
+            match content {
+                Some(bytes) => {
+                    if let Some(parent) = target.parent() {
+                        fs::create_dir_all(parent).map_err(|e| {
+                            DowError::new(format!("创建回滚目录 {} 失败：{}", parent.display(), e), 1)
+                        })?;
+                    }
+                    fs::write(target, bytes).map_err(|e| {
+                        DowError::new(format!("回滚写入 {} 失败：{}", target.display(), e), 1)
+                    })?;
+                }
+                None => {
+                    if target.exists() {
+                        remove_path(target)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn remove_path(path: &Path) -> Result<(), DowError> {
+    if path.is_dir() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    }
+    .map_err(|e| DowError::new(format!("回滚删除 {} 失败：{}", path.display(), e), 1))
+}
+
 fn read_pre_iterate_steps() -> Result<Vec<PreIterateStep>, DowError> {
-    let path = Path::new(".dev-doc/preIterate.yaml");
+    let path = Path::new(".dev-doc/preIterate.ci");
     if !path.exists() {
         return Ok(Vec::new());
     }
 
     let content = fs::read_to_string(path)
-        .map_err(|e| DowError::new(format!("读取 .dev-doc/preIterate.yaml 失败：{}", e), 1))?;
+        .map_err(|e| DowError::new(format!("读取 .dev-doc/preIterate.ci 失败：{}", e), 1))?;
     parse_pre_iterate_steps(&content)
 }
 
@@ -695,6 +775,18 @@ fn git_worktree_paths() -> Vec<String> {
                 Some(path)
             }
         })
+        .collect()
+}
+
+fn git_tracked_paths() -> Vec<String> {
+    let Ok(output) = Command::new("git").args(["ls-files", "-z"]).output() else {
+        return Vec::new();
+    };
+    output
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|path| !path.is_empty())
+        .filter_map(|path| String::from_utf8(path.to_vec()).ok())
         .collect()
 }
 

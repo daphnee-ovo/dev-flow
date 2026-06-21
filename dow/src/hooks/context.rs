@@ -472,14 +472,12 @@ fn read_version_info() -> (String, String) {
 }
 
 fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
-    let context_json = serde_json::to_string_pretty(data)
-        .map_err(|e| DowError::new(format!("序列化 Codex hook 上下文失败: {}", e), 1))?;
     let output = CodexUserPromptSubmitOutput {
         decision: None,
         reason: None,
         hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
             hook_event_name: "UserPromptSubmit",
-            additional_context: context_json,
+            additional_context: format_human_context(data),
         },
     };
     output::print_json(&output);
@@ -487,17 +485,21 @@ fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
 }
 
 fn print_human(data: &ContextOutput) {
-    // 第一行：核心状态
-    println!(
-        "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | v{} ({})",
-        data.branch, data.phase, data.mode, data.exec_mode, data.version, data.version_tag
-    );
-    // 第二行：doc_root + task/issue 统计
-    println!(
-        "doc_root:{} | tasks:{}/{} | issues:{}",
-        data.doc_root, data.tasks.done, data.tasks.total, data.issues
-    );
-    // 优先级明细
+    println!("{}", format_human_context(data));
+}
+
+fn format_human_context(data: &ContextOutput) -> String {
+    let mut lines = vec![
+        format!(
+            "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | v{} ({})",
+            data.branch, data.phase, data.mode, data.exec_mode, data.version, data.version_tag
+        ),
+        format!(
+            "doc_root:{} | tasks:{}/{} | issues:{}",
+            data.doc_root, data.tasks.done, data.tasks.total, data.issues
+        ),
+    ];
+
     if !data.tasks.by_priority.is_empty() {
         let parts: Vec<String> = data
             .tasks
@@ -505,9 +507,9 @@ fn print_human(data: &ContextOutput) {
             .iter()
             .map(|(k, v)| format!("{}:{}/{}", k, v.done, v.total))
             .collect();
-        println!("priority: {}", parts.join(" | "));
+        lines.push(format!("priority: {}", parts.join(" | ")));
     }
-    // 版本目标
+
     if data.goals_minor.is_some() || data.goals_major.is_some() {
         let mut parts = Vec::new();
         if let Some(ref g) = data.goals_minor {
@@ -516,9 +518,9 @@ fn print_human(data: &ContextOutput) {
         if let Some(ref g) = data.goals_major {
             parts.push(format!("major: {}", g));
         }
-        println!("goals: {}", parts.join(" | "));
+        lines.push(format!("goals: {}", parts.join(" | ")));
     }
-    // 当前 items
+
     if let Some(ref items) = data.current_items {
         let label = if items.item_type == "issue" {
             format!(
@@ -531,13 +533,19 @@ fn print_human(data: &ContextOutput) {
                 items.priority.as_deref().unwrap_or("?")
             )
         };
-        println!("{}:", label);
+        lines.push(format!("{}:", label));
         for item in &items.items {
-            println!("  - {}", item);
+            lines.push(format!("  - {}", item));
         }
     }
-    // 最近 changelog
+
     if let Some(ref last) = data.last_changelog {
-        println!("last: {}", last);
+        lines.push(format!("last: {}", last));
     }
+
+    if let Some(ref notice) = data.guard_notice {
+        lines.push(notice.clone());
+    }
+
+    lines.join("\n")
 }

@@ -62,8 +62,8 @@ write_file "Cargo.toml" $'# cargo manifest comment\n[package]\nname = "sync-vers
 write_file "Cargo.lock" $'version = 3\n\n[[package]]\nname = "sync-version"\nversion = "9.9.9"'
 write_file "package.json" $'{\n  "name": "sync-version",\n  "version": "9.9.9"\n}'
 write_file "pyproject.toml" $'# pyproject comment\n[project]\nname = "sync-version"\nversion = "9.9.9" # keep pyproject inline comment'
-write_file ".dev-doc/preIterate.yaml" $'sync-version: Cargo.toml\nsync-version: package.json\nsync-version: pyproject.toml\nrun: python3 -c "from pathlib import Path; p=Path(\'Cargo.lock\'); p.write_text(p.read_text().replace(\'version = \\"9.9.9\\"\', \'version = \\"0.1.0\\"\'))"'
-git add Cargo.toml Cargo.lock package.json pyproject.toml .dev-doc/preIterate.yaml
+write_file ".dev-doc/preIterate.ci" $'sync-version: Cargo.toml\nsync-version: package.json\nsync-version: pyproject.toml\nrun: python3 -c "from pathlib import Path; p=Path(\'Cargo.lock\'); p.write_text(p.read_text().replace(\'version = \\"9.9.9\\"\', \'version = \\"0.1.0\\"\'))"'
+git add Cargo.toml Cargo.lock package.json pyproject.toml .dev-doc/preIterate.ci
 git commit -m "test: add manifests" -q
 run_iterate_confirmed "sync-version"
 if grep -q 'version = "0.1.0"' Cargo.toml \
@@ -86,8 +86,8 @@ fi
 echo ""
 echo "[2] run step 在 git commit 前执行，产物进入 commit"
 setup_project "run-step"
-write_file ".dev-doc/preIterate.yaml" "run: python3 -c \"from pathlib import Path; Path('generated.txt').write_text('marker')\""
-git add .dev-doc/preIterate.yaml
+write_file ".dev-doc/preIterate.ci" "run: python3 -c \"from pathlib import Path; Path('generated.txt').write_text('marker')\""
+git add .dev-doc/preIterate.ci
 git commit -m "test: add preIterate run" -q
 run_iterate_confirmed "run-step"
 if [ "$(cat generated.txt 2>/dev/null)" = "marker" ] \
@@ -100,8 +100,8 @@ fi
 echo ""
 echo "[3] run step 失败时阻断整个 iterate"
 setup_project "failing-step"
-write_file ".dev-doc/preIterate.yaml" "run: exit 7"
-git add .dev-doc/preIterate.yaml
+write_file ".dev-doc/preIterate.ci" "run: exit 7"
+git add .dev-doc/preIterate.ci
 git commit -m "test: add failing preIterate" -q
 before="$(git rev-parse HEAD)"
 before_version="$(cat VERSION)"
@@ -125,7 +125,39 @@ fi
 unset "DOW_ITERATE_${token}"
 
 echo ""
-echo "[4] git add 失败时阻断 iterate commit"
+echo "[4] preIterate 失败回滚 sync-version 和 run 产物"
+setup_project "rollback-step"
+write_file "package.json" $'{\n  "name": "rollback-step",\n  "version": "9.9.9"\n}'
+write_file ".dev-doc/preIterate.ci" "sync-version: package.json
+run: python3 -c \"from pathlib import Path; Path('generated.txt').write_text('marker')\"
+run: exit 7"
+git add package.json .dev-doc/preIterate.ci
+git commit -m "test: add rollback preIterate" -q
+before="$(git rev-parse HEAD)"
+before_version="$(cat VERSION)"
+preview="$("$DOW" iterate --topic rollback-step --type feat --files VERSION 2>/dev/null)"
+token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
+export "DOW_ITERATE_${token}=1"
+fail_out="$TEST_DIR/pre_iterate_rollback.out"
+if "$DOW" iterate --topic rollback-step --type feat --files VERSION --confirm >"$fail_out" 2>&1; then
+  fail "失败 step 未触发回滚阻断"
+else
+  after="$(git rev-parse HEAD)"
+  after_version="$(cat VERSION)"
+  if [ "$before" = "$after" ] \
+    && [ "$before_version" = "$after_version" ] \
+    && grep -q '"version": "9.9.9"' package.json \
+    && [ ! -e generated.txt ] \
+    && grep -q '已回滚 preIterate 修改' "$fail_out"; then
+    pass "失败 step 回滚 sync-version 和 run 产物"
+  else
+    fail "失败 step 未正确回滚 preIterate 修改"
+  fi
+fi
+unset "DOW_ITERATE_${token}"
+
+echo ""
+echo "[5] git add 失败时阻断 iterate commit"
 setup_project "bad-files"
 before="$(git rev-parse HEAD)"
 before_version="$(cat VERSION)"
