@@ -1,6 +1,6 @@
 {
   "name": "@xin_yue/dev-flow",
-  "version": "0.1.1",
+  "version": "0.1.5",
   "description": "Engineering discipline for coding agents — lightweight workflow management CLI",
   "license": "MIT",
   "repository": {

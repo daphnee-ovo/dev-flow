@@ -237,6 +237,15 @@ The plugin maintains a `.dev-doc/` directory in your project:
 
 `/iterate` archives completed tasks, closed issues, test reports, changelog entries, and phase documents into `.dev-doc/archive.db`, then starts a new development cycle. Use `dow archive list/show/tasks/issues/doc` to query historical iterations.
 
+If `.dev-doc/preIterate.yaml` exists, `dow iterate --confirm` runs its steps before archive, commit, tag, and bump. A failing step stops the whole iteration. Supported steps are `sync-version: <path>` for explicit Cargo/npm/uv project manifests and `run: <command>` for project-local checks, lockfile updates, or generators.
+
+```yaml
+sync-version: dow/Cargo.toml
+sync-version: npm/dev-flow/package.json
+run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
+run: npm run build
+```
+
 `dow revoke --version <v>` is the inverse of iterate — it restores archived tasks, issues, and documents from the database, handles file sequence conflicts, and marks the iteration as revoked. Use `dow revoke --list` to see revokable versions.
 
 ---

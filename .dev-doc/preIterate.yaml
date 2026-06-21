@@ -1,0 +1,3 @@
+sync-version: dow/Cargo.toml
+sync-version: npm/dev-flow/package.json
+run: cargo update -p dev-flow --manifest-path dow/Cargo.toml

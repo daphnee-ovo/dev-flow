@@ -32,6 +32,8 @@ struct ContextOutput {
     current_items: Option<CurrentItems>,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_changelog: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard_notice: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -102,6 +104,7 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
     let open_issues = count_open_issues(&doc_root_path);
 
     // BLOCKED 检查：DEV 阶段无待做工作时阻断
+    let mut guard_notice = None;
     if phase == "DEV" && !mode.starts_with("audit/") {
         let undone_items = count_undone_in_active_tasks(&doc_root_path);
 
@@ -114,7 +117,7 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
             if human {
                 println!("{}", reason);
             } else if codex_hook {
-                print_codex_block(reason)?;
+                guard_notice = Some(reason.to_string());
             } else if kiro_hook {
                 let block_json = serde_json::json!({
                     "decision": "block",
@@ -128,7 +131,9 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
                 });
                 println!("{}", block_json);
             }
-            return Ok(0);
+            if !codex_hook {
+                return Ok(0);
+            }
         }
     }
 
@@ -160,6 +165,7 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         goals_major,
         current_items,
         last_changelog,
+        guard_notice,
     };
 
     if codex_hook {
@@ -478,24 +484,6 @@ fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
     };
     output::print_json(&output);
     Ok(())
-}
-
-fn print_codex_block(reason: &str) -> Result<i32, DowError> {
-    let context_json = serde_json::to_string_pretty(&serde_json::json!({
-        "blocked": true,
-        "reason": reason
-    }))
-    .map_err(|e| DowError::new(format!("序列化 Codex hook 阻断上下文失败: {}", e), 1))?;
-    let output = CodexUserPromptSubmitOutput {
-        decision: Some("block"),
-        reason: Some(reason.to_string()),
-        hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
-            hook_event_name: "UserPromptSubmit",
-            additional_context: context_json,
-        },
-    };
-    output::print_json(&output);
-    Ok(0)
 }
 
 fn print_human(data: &ContextOutput) {

@@ -237,6 +237,15 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 `/iterate` 会把已完成 task、已关闭 issue、测试报告、CHANGELOG 和阶段文档写入 `.dev-doc/archive.db`，然后启动新一轮开发。历史迭代通过 `dow archive list/show/tasks/issues/doc` 查询。
 
+如果存在 `.dev-doc/preIterate.yaml`，`dow iterate --confirm` 会先执行其中的 steps，再归档、commit、tag、bump。任一步失败都会阻断整个 iterate。支持 `sync-version: <path>` 同步显式声明的 Cargo/npm/uv 清单版本，也支持 `run: <command>` 执行项目内检查、lockfile 更新或生成命令。
+
+```yaml
+sync-version: dow/Cargo.toml
+sync-version: npm/dev-flow/package.json
+run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
+run: npm run build
+```
+
 ---
 
 ## 跨平台支持

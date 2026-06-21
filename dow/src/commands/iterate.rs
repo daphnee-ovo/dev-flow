@@ -23,9 +23,17 @@ struct IterateOutput {
     next_version: String,
     next_phase: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pre_iterate: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     commit_files: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     token: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+enum PreIterateStep {
+    SyncVersion { path: String },
+    Run { name: String, command: String },
 }
 
 pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
@@ -107,7 +115,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         if !found {
             let hint = &tokens[0];
             return Err(DowError::new(
-                format!("确认失败：环境变量 DOW_ITERATE_{} 不存在，请先执行 dow iterate 预览", hint),
+                format!(
+                    "确认失败：环境变量 DOW_ITERATE_{} 不存在，请先执行 dow iterate 预览",
+                    hint
+                ),
                 1,
             ));
         }
@@ -123,13 +134,19 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         let commit_files = list_pending_changes(&args.files);
         let should_tag = args.bump != "patch" || args.tag;
         let changelog_entries = read_changelog_entries(&doc_root_path);
+        let pre_iterate = describe_pre_iterate_steps()?;
         let result = IterateOutput {
-            tag: if should_tag { format!("v{}", &released_version) } else { "no-tag".to_string() },
+            tag: if should_tag {
+                format!("v{}", &released_version)
+            } else {
+                "no-tag".to_string()
+            },
             released_version: released_version.clone(),
             archive_db: archive_db_path.clone(),
             archived_files: archived_files.clone(),
             next_version: next_version.clone(),
             next_phase: next_phase(&effective_mode, &mode),
+            pre_iterate,
             commit_files,
             token: Some(token),
         };
@@ -139,7 +156,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         } else {
             let mut json_out = serde_json::to_value(&result).unwrap_or_default();
             json_out["changelog_entries"] = serde_json::json!(changelog_entries);
-            json_out["changelog_hint"] = serde_json::json!("请检查 CHANGELOG 是否有遗漏的记录。如有遗漏，请在确认前手动补充。");
+            json_out["changelog_hint"] = serde_json::json!(
+                "请检查 CHANGELOG 是否有遗漏的记录。如有遗漏，请在确认前手动补充。"
+            );
             if !doc_warnings.is_empty() {
                 json_out["doc_sync_warnings"] = serde_json::json!(doc_warnings);
             }
@@ -151,6 +170,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
     let changelog_entries = read_changelog_entries(&doc_root_path);
 
+    // 5.5 preIterate CI：必须在归档、commit、tag、bump 之前执行，失败即阻断整个 iterate
+    let pre_iterate = run_pre_iterate(&released_version, human)?;
+
     // 6. bump VERSION 先写入（归档版本）
     version::write_current(&released_version)?;
 
@@ -158,22 +180,27 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let conn = archive_db::open_or_create(&archive_base)?;
     let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
     let cur_branch = doc_root::current_branch().unwrap_or_else(|| "main".to_string());
-    archive_db::insert_iteration(&conn, &archive_db::IterationRecord {
-        version: released_version.clone(),
-        topic: args.topic.clone(),
-        commit_type: Some(args.r#type.clone()),
-        branch: cur_branch,
-        released_at,
-        tag: format!("v{}", released_version),
-        mode: Some(effective_mode.clone()),
-    })?;
+    archive_db::insert_iteration(
+        &conn,
+        &archive_db::IterationRecord {
+            version: released_version.clone(),
+            topic: args.topic.clone(),
+            commit_type: Some(args.r#type.clone()),
+            branch: cur_branch,
+            released_at,
+            tag: format!("v{}", released_version),
+            mode: Some(effective_mode.clone()),
+        },
+    )?;
 
     // 归档 task 文件
     let task_dir = doc_root_path.join("task");
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(".md") && (name.starts_with("done_task_") || name.starts_with("task_")) {
+            if name.ends_with(".md")
+                && (name.starts_with("done_task_") || name.starts_with("task_"))
+            {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let tasks = archive_db::parse_task_file(&name, &content);
                     for task in &tasks {
@@ -225,11 +252,16 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         if let Ok(content) = fs::read_to_string(&changelog) {
             let cl_entries = archive_db::parse_changelog(&content);
             for (order, (date, text)) in cl_entries.iter().enumerate() {
-                archive_db::insert_changelog(&conn, &released_version, date.as_deref(), text, order as i32)?;
+                archive_db::insert_changelog(
+                    &conn,
+                    &released_version,
+                    date.as_deref(),
+                    text,
+                    order as i32,
+                )?;
             }
         }
-        fs::write(&changelog, "# Changelog\n")
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        fs::write(&changelog, "# Changelog\n").map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // 7.5 清理 claim.lock（归档后不再需要）
@@ -239,8 +271,18 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     }
 
     // 8. git commit + tag（archive.db 加入提交）
-    let commit_msg = format_commit_message(&released_version, &args.topic, &args.r#type, &changelog_entries);
+    let commit_msg = format_commit_message(
+        &released_version,
+        &args.topic,
+        &args.r#type,
+        &changelog_entries,
+    );
     let mut commit_files = args.files.clone();
+    for file in &pre_iterate {
+        if !commit_files.contains(file) {
+            commit_files.push(file.clone());
+        }
+    }
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
 
@@ -259,13 +301,14 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    yaml::set(&status_file, "phase", &next_ph)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
-    yaml::touch_updated(&status_file)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    yaml::set(&status_file, "phase", &next_ph).map_err(|e| DowError::new(e.to_string(), 1))?;
+    yaml::touch_updated(&status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-
-    let tag_str = if should_tag { format!("v{}", released_version) } else { "no-tag".to_string() };
+    let tag_str = if should_tag {
+        format!("v{}", released_version)
+    } else {
+        "no-tag".to_string()
+    };
     let result = IterateOutput {
         released_version: released_version.clone(),
         tag: tag_str.clone(),
@@ -273,6 +316,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         archived_files,
         next_version: next_version,
         next_phase: next_ph,
+        pre_iterate,
         commit_files: vec![],
         token: None,
     };
@@ -299,7 +343,9 @@ fn count_tasks(doc_root: &Path) -> (u32, u32) {
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if (!name.starts_with("task_") && !name.starts_with("done_task_")) || !name.ends_with(".md") {
+            if (!name.starts_with("task_") && !name.starts_with("done_task_"))
+                || !name.ends_with(".md")
+            {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(entry.path()) {
@@ -309,6 +355,245 @@ fn count_tasks(doc_root: &Path) -> (u32, u32) {
         }
     }
     (total, done)
+}
+
+fn describe_pre_iterate_steps() -> Result<Vec<String>, DowError> {
+    let steps = read_pre_iterate_steps()?;
+    Ok(steps.iter().map(describe_pre_iterate_step).collect())
+}
+
+fn run_pre_iterate(version: &str, human: bool) -> Result<Vec<String>, DowError> {
+    let steps = read_pre_iterate_steps()?;
+    if steps.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let before_paths = git_worktree_paths();
+    if human {
+        println!("[dev-flow] 执行 preIterate steps");
+    }
+
+    let mut changed_files = Vec::new();
+    for step in steps {
+        match step {
+            PreIterateStep::SyncVersion { path } => {
+                if human {
+                    println!("  - sync-version: {} -> {}", path, version);
+                }
+                if sync_version_file(&path, version)? && !changed_files.contains(&path) {
+                    changed_files.push(path);
+                }
+            }
+            PreIterateStep::Run { name, command } => {
+                if human {
+                    println!("  - {}: {}", name, command);
+                }
+                run_shell_step(&name, &command)?;
+            }
+        }
+    }
+    for file in git_worktree_paths() {
+        if !before_paths.contains(&file) && !changed_files.contains(&file) {
+            changed_files.push(file);
+        }
+    }
+    Ok(changed_files)
+}
+
+fn read_pre_iterate_steps() -> Result<Vec<PreIterateStep>, DowError> {
+    let path = Path::new(".dev-doc/preIterate.yaml");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(path)
+        .map_err(|e| DowError::new(format!("读取 .dev-doc/preIterate.yaml 失败：{}", e), 1))?;
+    parse_pre_iterate_steps(&content)
+}
+
+fn parse_pre_iterate_steps(content: &str) -> Result<Vec<PreIterateStep>, DowError> {
+    let mut steps = Vec::new();
+
+    for raw_line in content.lines() {
+        let line = raw_line.split('#').next().unwrap_or("").trim_end();
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed == "sync-version" {
+            return Err(DowError::new(
+                "preIterate sync-version 必须显式声明目标文件，例如 `sync-version: dow/Cargo.toml`",
+                1,
+            ));
+        }
+        if let Some(path) = trimmed.strip_prefix("sync-version:") {
+            let path = unquote(path.trim());
+            if path.is_empty() {
+                return Err(DowError::new("preIterate sync-version 目标不能为空", 1));
+            }
+            steps.push(PreIterateStep::SyncVersion { path });
+            continue;
+        }
+        if let Some(command) = trimmed.strip_prefix("run:") {
+            let command = unquote(command.trim());
+            if command.is_empty() {
+                return Err(DowError::new("preIterate run step 不能为空", 1));
+            }
+            steps.push(PreIterateStep::Run {
+                name: format!("run: {}", command),
+                command,
+            });
+            continue;
+        }
+        return Err(DowError::new(
+            format!("preIterate step 不支持：{}", trimmed),
+            1,
+        ));
+    }
+    Ok(steps)
+}
+
+fn unquote(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() >= 2
+        && ((trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
+    {
+        trimmed[1..trimmed.len() - 1].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn describe_pre_iterate_step(step: &PreIterateStep) -> String {
+    match step {
+        PreIterateStep::SyncVersion { path } => format!("sync-version: {}", path),
+        PreIterateStep::Run { name, command } => format!("{}: {}", name, command),
+    }
+}
+
+fn run_shell_step(name: &str, command: &str) -> Result<(), DowError> {
+    let output = if cfg!(windows) {
+        Command::new("cmd").args(["/C", command]).output()
+    } else {
+        Command::new("sh").args(["-c", command]).output()
+    }
+    .map_err(|e| DowError::new(format!("preIterate step `{}` 启动失败：{}", name, e), 1))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let detail = if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            stdout.trim().to_string()
+        };
+        return Err(DowError::new(
+            format!("preIterate step `{}` 失败：{}", name, detail),
+            1,
+        ));
+    }
+    Ok(())
+}
+
+fn sync_version_file(path: &str, version: &str) -> Result<bool, DowError> {
+    let manifest = Path::new(path);
+    if !manifest.exists() {
+        return Err(DowError::new(
+            format!("preIterate sync-version 目标不存在：{}", path),
+            1,
+        ));
+    }
+    match manifest.file_name().and_then(|n| n.to_str()) {
+        Some("Cargo.toml") => update_toml_version(manifest, version, &["package"]),
+        Some("package.json") => update_package_json_version(manifest, version),
+        Some("pyproject.toml") => {
+            let project = update_toml_version(manifest, version, &["project"])?;
+            let poetry = update_toml_version(manifest, version, &["tool", "poetry"])?;
+            Ok(project || poetry)
+        }
+        _ => Err(DowError::new(
+            format!("preIterate sync-version 不支持的文件：{}", path),
+            1,
+        )),
+    }
+}
+
+fn update_package_json_version(path: &Path, version: &str) -> Result<bool, DowError> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| DowError::new(format!("读取 {} 失败：{}", path.display(), e), 1))?;
+    let mut json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| DowError::new(format!("解析 {} 失败：{}", path.display(), e), 1))?;
+    let current = json.get("version").and_then(|v| v.as_str());
+    if current == Some(version) {
+        return Ok(false);
+    }
+    json["version"] = serde_json::Value::String(version.to_string());
+    let output = serde_json::to_string_pretty(&json)
+        .map_err(|e| DowError::new(format!("序列化 {} 失败：{}", path.display(), e), 1))?;
+    fs::write(path, format!("{}\n", output))
+        .map_err(|e| DowError::new(format!("写入 {} 失败：{}", path.display(), e), 1))?;
+    Ok(true)
+}
+
+fn update_toml_version(path: &Path, version: &str, section: &[&str]) -> Result<bool, DowError> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| DowError::new(format!("读取 {} 失败：{}", path.display(), e), 1))?;
+    let mut value: toml::Value = toml::from_str(&content)
+        .map_err(|e| DowError::new(format!("解析 {} 失败：{}", path.display(), e), 1))?;
+
+    let mut table = &mut value;
+    for key in section {
+        match table.get_mut(*key) {
+            Some(next) => table = next,
+            None => return Ok(false),
+        }
+    }
+
+    let current = table.get("version").and_then(|v| v.as_str());
+    if current == Some(version) {
+        return Ok(false);
+    }
+    if let Some(tbl) = table.as_table_mut() {
+        tbl.insert(
+            "version".to_string(),
+            toml::Value::String(version.to_string()),
+        );
+    } else {
+        return Ok(false);
+    }
+
+    let output = toml::to_string_pretty(&value)
+        .map_err(|e| DowError::new(format!("序列化 {} 失败：{}", path.display(), e), 1))?;
+    fs::write(path, output)
+        .map_err(|e| DowError::new(format!("写入 {} 失败：{}", path.display(), e), 1))?;
+    Ok(true)
+}
+
+fn git_worktree_paths() -> Vec<String> {
+    let Ok(output) = Command::new("git").args(["status", "--porcelain"]).output() else {
+        return Vec::new();
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .filter_map(|line| {
+            if line.len() < 4 {
+                return None;
+            }
+            let path = line[3..]
+                .split(" -> ")
+                .last()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if path.is_empty() {
+                None
+            } else {
+                Some(path)
+            }
+        })
+        .collect()
 }
 
 fn count_p0_issues(doc_root: &Path) -> u32 {
@@ -341,7 +626,6 @@ fn count_p0_issues(doc_root: &Path) -> u32 {
     }
     p0_open
 }
-
 
 fn next_phase(effective_mode: &str, _full_mode: &str) -> String {
     match effective_mode {
@@ -376,7 +660,13 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
         }
     }
 
-    for doc in &["PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md"] {
+    for doc in &[
+        "PRD.md",
+        "SPEC.md",
+        "TEST.md",
+        "BRAINSTORM.md",
+        "CHANGELOG.md",
+    ] {
         if doc_root.join(doc).exists() {
             files.push(doc.to_string());
         }
@@ -384,7 +674,6 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
 
     files
 }
-
 
 fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     // 已追踪文件的修改/删除
@@ -456,7 +745,12 @@ fn read_changelog_entries(doc_root: &Path) -> Vec<String> {
     entries
 }
 
-fn format_commit_message(version: &str, topic: &str, commit_type: &str, changelog: &[String]) -> String {
+fn format_commit_message(
+    version: &str,
+    topic: &str,
+    commit_type: &str,
+    changelog: &[String],
+) -> String {
     let mut msg = format!("{}: Release v{} {}", commit_type, version, topic);
     if !changelog.is_empty() {
         msg.push_str("\n\n");
@@ -501,9 +795,22 @@ fn print_human_preview(result: &IterateOutput) {
         }
         println!();
     }
+    if !result.pre_iterate.is_empty() {
+        println!("preIterate steps（{}个）：", result.pre_iterate.len());
+        for step in &result.pre_iterate {
+            println!("  - {}", step);
+        }
+        println!();
+    }
     println!("将要执行：");
     println!("  - git commit + tag: v{}", result.released_version);
-    println!("  - bump: v{} → v{}", result.released_version, result.next_version);
+    if !result.pre_iterate.is_empty() {
+        println!("  - preIterate: git commit 前执行");
+    }
+    println!(
+        "  - bump: v{} → v{}",
+        result.released_version, result.next_version
+    );
     println!("  - 阶段重置：{}", result.next_phase);
     if let Some(ref t) = result.token {
         println!();
@@ -534,7 +841,9 @@ fn generate_token_for_minute(offset: i64, args: &IterateArgs) -> String {
 
 // 返回当前分钟 + 前4分钟的 token（5分钟有效窗口）
 fn generate_tokens_with_window(args: &IterateArgs) -> Vec<String> {
-    (0..=4).map(|i| generate_token_for_minute(-i, args)).collect()
+    (0..=4)
+        .map(|i| generate_token_for_minute(-i, args))
+        .collect()
 }
 
 fn check_persistent_docs_sync(status_file: &Path) -> Vec<String> {
@@ -588,10 +897,7 @@ fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
     let mut changes = Vec::new();
 
     // 已追踪文件的工作区修改（git add -u 会提交的内容）
-    if let Ok(output) = Command::new("git")
-        .args(["diff", "--name-only"])
-        .output()
-    {
+    if let Ok(output) = Command::new("git").args(["diff", "--name-only"]).output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
             if !line.is_empty() {

@@ -16,6 +16,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 1. task 文件中所有任务必须全部勾选 `[x]`（audit 模式跳过）
 2. 无未关闭的 P0 issue
 3. VERSION 文件存在且格式合法
+4. `.dev-doc/preIterate.yaml` 中的 CI steps 必须全部成功（如果文件存在）
 
 ## 参数
 
@@ -45,11 +46,32 @@ DOW_ITERATE_<token>=1 dow iterate --confirm --topic <topic> --type <type> [--fil
 
 Token 通过环境变量前缀传递，有效期 5 分钟。确认后依次执行：
 
-1. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `.dev-doc/archive.db`（SQLite），然后删除源文件
-2. **重置 CHANGELOG** — 清空为 `# Changelog\n`
-3. **git commit + tag** — `git add -u` + 显式 add 指定文件和 archive.db，commit message 格式为 `<type>: Release v<版本> <topic>`，CHANGELOG 条目作为 commit body
-4. **bump 版本** — 递增版本号写入 VERSION
-5. **重置 phase** — 按 mode 确定新迭代初始阶段
+1. **preIterate CI** — 如果存在 `.dev-doc/preIterate.yaml`，先按顺序执行其中的 steps；任一步失败则整个 iterate 停止，不归档、不 commit、不 tag、不 bump
+2. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `.dev-doc/archive.db`（SQLite），然后删除源文件
+3. **重置 CHANGELOG** — 清空为 `# Changelog\n`
+4. **git commit + tag** — `git add -u` + 显式 add 指定文件和 archive.db，commit message 格式为 `<type>: Release v<版本> <topic>`，CHANGELOG 条目作为 commit body
+5. **bump 版本** — 递增版本号写入 VERSION
+6. **重置 phase** — 按 mode 确定新迭代初始阶段
+
+## preIterate CI
+
+可在项目根目录创建 `.dev-doc/preIterate.yaml`：
+
+```yaml
+sync-version: dow/Cargo.toml
+sync-version: npm/dev-flow/package.json
+run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
+run: npm run build
+```
+
+支持两类 step：
+
+| Step | 说明 |
+|------|------|
+| `sync-version: <path>` | 将明确声明的 Cargo、npm、uv/pyproject 清单版本同步为本次交付版本 |
+| `run: <command>` | 在项目根目录执行命令；退出码非 0 时阻断整个 iterate |
+
+preIterate 一定在 `git commit` 之前执行。step 产生的文件改动会进入同一次 iterate commit。`dow` 不自动扫描或猜测哪些清单、lockfile、生成物需要同步；项目特定同步必须显式写在 `preIterate.yaml` 中。
 
 ## Commit Message 格式
 
@@ -96,7 +118,7 @@ agent 在调用前：
 
 - 归档写入 SQLite（`.dev-doc/archive.db`），源文件删除，iterate 后 .dev-doc/ 中不残留 PRD/SPEC/TEST/CHANGELOG
 - 如果 SQLite 中已存在同版本记录，说明重复操作，INSERT OR IGNORE 跳过
-- `git add -u` 仅处理已跟踪文件的修改/删除，新文件需通过 `--files` 显式指定
+- `git add -u` 处理已跟踪文件的修改/删除；`--files` 和 preIterate 产生的文件会被显式加入提交
 - 查询历史归档使用 `dow archive` 子命令（list/show/tasks/issues/doc/stats）
 
 ## 完成后输出
