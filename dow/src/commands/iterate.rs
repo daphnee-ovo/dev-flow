@@ -170,8 +170,19 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
     let changelog_entries = read_changelog_entries(&doc_root_path);
 
+    // 5.1 先校验用户显式传入的文件，避免归档后才因 bad path 失败
+    validate_git_add_inputs(&args.files)?;
+
     // 5.5 preIterate CI：必须在归档、commit、tag、bump 之前执行，失败即阻断整个 iterate
     let pre_iterate = run_pre_iterate(&released_version, human)?;
+
+    let mut commit_files = args.files.clone();
+    for file in &pre_iterate {
+        if !commit_files.contains(file) {
+            commit_files.push(file.clone());
+        }
+    }
+    validate_git_add_inputs(&commit_files)?;
 
     // 6. bump VERSION 先写入（归档版本）
     version::write_current(&released_version)?;
@@ -277,12 +288,6 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         &args.r#type,
         &changelog_entries,
     );
-    let mut commit_files = args.files.clone();
-    for file in &pre_iterate {
-        if !commit_files.contains(file) {
-            commit_files.push(file.clone());
-        }
-    }
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
 
@@ -539,35 +544,132 @@ fn update_package_json_version(path: &Path, version: &str) -> Result<bool, DowEr
 fn update_toml_version(path: &Path, version: &str, section: &[&str]) -> Result<bool, DowError> {
     let content = fs::read_to_string(path)
         .map_err(|e| DowError::new(format!("读取 {} 失败：{}", path.display(), e), 1))?;
-    let mut value: toml::Value = toml::from_str(&content)
+    let _: toml::Value = toml::from_str(&content)
         .map_err(|e| DowError::new(format!("解析 {} 失败：{}", path.display(), e), 1))?;
 
-    let mut table = &mut value;
-    for key in section {
-        match table.get_mut(*key) {
-            Some(next) => table = next,
-            None => return Ok(false),
+    let target_section: Vec<String> = section.iter().map(|key| key.to_string()).collect();
+    let mut current_section: Vec<String> = Vec::new();
+    let mut changed = false;
+    let mut output = Vec::new();
+
+    for line in content.lines() {
+        let mut next_line = line.to_string();
+        let trimmed = line.trim();
+        if let Some(header) = parse_toml_section_header(trimmed) {
+            current_section = header;
+        } else if current_section == target_section {
+            if let Some((updated, line_changed)) = replace_toml_version_line(line, version) {
+                next_line = updated;
+                changed |= line_changed;
+            }
         }
+        output.push(next_line);
     }
 
-    let current = table.get("version").and_then(|v| v.as_str());
-    if current == Some(version) {
-        return Ok(false);
-    }
-    if let Some(tbl) = table.as_table_mut() {
-        tbl.insert(
-            "version".to_string(),
-            toml::Value::String(version.to_string()),
-        );
-    } else {
+    if !changed {
         return Ok(false);
     }
 
-    let output = toml::to_string_pretty(&value)
-        .map_err(|e| DowError::new(format!("序列化 {} 失败：{}", path.display(), e), 1))?;
+    let mut output = output.join("\n");
+    if content.ends_with('\n') {
+        output.push('\n');
+    }
     fs::write(path, output)
         .map_err(|e| DowError::new(format!("写入 {} 失败：{}", path.display(), e), 1))?;
     Ok(true)
+}
+
+fn parse_toml_section_header(trimmed: &str) -> Option<Vec<String>> {
+    if let Some(rest) = trimmed.strip_prefix("[[") {
+        let end = rest.find("]]")?;
+        return Some(vec![format!("[[{}]]", &rest[..end])]);
+    }
+    if let Some(rest) = trimmed.strip_prefix('[') {
+        let end = rest.find(']')?;
+        return Some(
+            rest[..end]
+                .split('.')
+                .map(|part| part.trim().trim_matches('"').trim_matches('\'').to_string())
+                .collect(),
+        );
+    }
+    None
+}
+
+fn replace_toml_version_line(line: &str, version: &str) -> Option<(String, bool)> {
+    let leading_len = line.len() - line.trim_start().len();
+    let trimmed = &line[leading_len..];
+    let rest = trimmed.strip_prefix("version")?;
+    if rest
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
+    {
+        return None;
+    }
+
+    let equals = rest.find('=')?;
+    let value_start = leading_len + "version".len() + equals + 1;
+    let after_equals = &line[value_start..];
+    let value_start = value_start + (after_equals.len() - after_equals.trim_start().len());
+    let replacement = format!("\"{}\"", version);
+
+    if let Some(quote) = line[value_start..]
+        .chars()
+        .next()
+        .filter(|ch| *ch == '"' || *ch == '\'')
+    {
+        let value_end = find_toml_string_end(line, value_start, quote)?;
+        let current = &line[value_start + quote.len_utf8()..value_end - quote.len_utf8()];
+        if current == version {
+            return Some((line.to_string(), false));
+        }
+        return Some((
+            format!(
+                "{}{}{}",
+                &line[..value_start],
+                replacement,
+                &line[value_end..]
+            ),
+            true,
+        ));
+    }
+
+    let comment_start = line[value_start..]
+        .find('#')
+        .map(|pos| value_start + pos)
+        .unwrap_or(line.len());
+    let value_end = line[..comment_start].trim_end().len();
+    if line[value_start..value_end].trim() == version {
+        return Some((line.to_string(), false));
+    }
+    Some((
+        format!(
+            "{}{}{}",
+            &line[..value_start],
+            replacement,
+            &line[value_end..]
+        ),
+        true,
+    ))
+}
+
+fn find_toml_string_end(line: &str, value_start: usize, quote: char) -> Option<usize> {
+    let mut escaped = false;
+    for (offset, ch) in line[value_start + quote.len_utf8()..].char_indices() {
+        if quote == '"' && escaped {
+            escaped = false;
+            continue;
+        }
+        if quote == '"' && ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return Some(value_start + quote.len_utf8() + offset + quote.len_utf8());
+        }
+    }
+    None
 }
 
 fn git_worktree_paths() -> Vec<String> {
@@ -703,6 +805,21 @@ fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(DowError::new(format!("git commit 失败：{}", stderr), 1));
+    }
+    Ok(())
+}
+
+fn validate_git_add_inputs(files: &[String]) -> Result<(), DowError> {
+    for file in files {
+        if file.trim().is_empty() {
+            return Err(DowError::new("iterate --files 包含空路径", 1));
+        }
+        if !Path::new(file).exists() {
+            return Err(DowError::new(
+                format!("iterate --files 路径不存在，已在归档前停止：{}", file),
+                1,
+            ));
+        }
     }
     Ok(())
 }

@@ -58,18 +58,22 @@ echo ""
 
 echo "[1] sync-version 同步 Cargo/npm/pyproject 版本并进入 commit"
 setup_project "sync-version"
-write_file "Cargo.toml" $'[package]\nname = "sync-version"\nversion = "9.9.9"\nedition = "2021"'
+write_file "Cargo.toml" $'# cargo manifest comment\n[package]\nname = "sync-version"\nversion = "9.9.9" # keep cargo inline comment\nedition = "2021"'
 write_file "Cargo.lock" $'version = 3\n\n[[package]]\nname = "sync-version"\nversion = "9.9.9"'
 write_file "package.json" $'{\n  "name": "sync-version",\n  "version": "9.9.9"\n}'
-write_file "pyproject.toml" $'[project]\nname = "sync-version"\nversion = "9.9.9"'
+write_file "pyproject.toml" $'# pyproject comment\n[project]\nname = "sync-version"\nversion = "9.9.9" # keep pyproject inline comment'
 write_file ".dev-doc/preIterate.yaml" $'sync-version: Cargo.toml\nsync-version: package.json\nsync-version: pyproject.toml\nrun: python3 -c "from pathlib import Path; p=Path(\'Cargo.lock\'); p.write_text(p.read_text().replace(\'version = \\"9.9.9\\"\', \'version = \\"0.1.0\\"\'))"'
 git add Cargo.toml Cargo.lock package.json pyproject.toml .dev-doc/preIterate.yaml
 git commit -m "test: add manifests" -q
 run_iterate_confirmed "sync-version"
 if grep -q 'version = "0.1.0"' Cargo.toml \
+  && grep -q '# cargo manifest comment' Cargo.toml \
+  && grep -q '# keep cargo inline comment' Cargo.toml \
   && grep -q 'version = "0.1.0"' Cargo.lock \
   && grep -q '"version": "0.1.0"' package.json \
   && grep -q 'version = "0.1.0"' pyproject.toml \
+  && grep -q '# pyproject comment' pyproject.toml \
+  && grep -q '# keep pyproject inline comment' pyproject.toml \
   && git show --name-only --format= HEAD | grep -q 'Cargo.toml' \
   && git show --name-only --format= HEAD | grep -q 'Cargo.lock' \
   && git show --name-only --format= HEAD | grep -q 'package.json' \
@@ -124,6 +128,8 @@ echo ""
 echo "[4] git add 失败时阻断 iterate commit"
 setup_project "bad-files"
 before="$(git rev-parse HEAD)"
+before_version="$(cat VERSION)"
+task_before="$(find .dev-doc/main/task -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
 preview="$("$DOW" iterate --topic bad-files --type feat --files missing-file.txt 2>/dev/null)"
 token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
 export "DOW_ITERATE_${token}=1"
@@ -132,8 +138,13 @@ if "$DOW" iterate --topic bad-files --type feat --files missing-file.txt --confi
   fail "git add 失败未阻断 iterate"
 else
   after="$(git rev-parse HEAD)"
-  if [ "$before" = "$after" ] && grep -q 'git add missing-file.txt 失败' "$fail_out"; then
-    pass "git add 失败阻断 iterate commit"
+  after_version="$(cat VERSION)"
+  task_after="$(find .dev-doc/main/task -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
+  if [ "$before" = "$after" ] \
+    && [ "$before_version" = "$after_version" ] \
+    && [ "$task_before" = "$task_after" ] \
+    && grep -q 'iterate --files 路径不存在，已在归档前停止：missing-file.txt' "$fail_out"; then
+    pass "git add 输入错误在归档前阻断 iterate"
   else
     fail "git add 失败的阻断结果不正确"
   fi

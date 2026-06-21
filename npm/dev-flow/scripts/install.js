@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const https = require("https");
 const http = require("http");
+const os = require("os");
 
 const REPO = "daphnee-ovo/dev-flow";
 const BIN_DIR = path.join(__dirname, "..", "bin");
@@ -16,6 +17,7 @@ const PLATFORM_MAP = {
   "linux-x64": "linux-x86_64",
   "linux-arm64": "linux-aarch64",
   "darwin-arm64": "darwin-arm64",
+  "darwin-x64": "darwin-x86_64",
   "win32-x64": "windows-x86_64",
 };
 
@@ -54,6 +56,29 @@ function download(url) {
   });
 }
 
+function getDataDir() {
+  if (process.platform === "win32") {
+    const base =
+      process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    return path.join(base, "dow");
+  }
+  const base = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
+  return path.join(base, "dow");
+}
+
+function copyDirRecursive(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const dstPath = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, dstPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+}
+
 async function install() {
   const url = getDownloadUrl();
   console.log(`[dev-flow] Downloading ${url}`);
@@ -61,7 +86,6 @@ async function install() {
   const tarball = await download(url);
 
   // Extract to a temp directory to avoid overwriting the Node.js wrapper (bin/dow)
-  const os = require("os");
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "dow-install-"));
   const tmpFile = path.join(tmpDir, "dow.tar.gz");
   fs.writeFileSync(tmpFile, tarball);
@@ -91,6 +115,14 @@ async function install() {
     fs.chmodSync(dstPath, 0o755);
   }
 
+  const bundleSrc = path.join(tmpDir, "bundle");
+  if (!fs.existsSync(bundleSrc)) {
+    throw new Error(`Bundle not found after extraction in ${tmpDir}`);
+  }
+  const bundleDst = path.join(getDataDir(), "bundle");
+  fs.rmSync(bundleDst, { recursive: true, force: true });
+  copyDirRecursive(bundleSrc, bundleDst);
+
   // Cleanup temp
   fs.rmSync(tmpDir, { recursive: true, force: true });
 
@@ -99,8 +131,8 @@ async function install() {
   // Register with coding agents
   try {
     execSync(`"${dstPath}" setup`, { stdio: "inherit" });
-  } catch {
-    console.log("[dev-flow] dow setup skipped (run manually: dow setup)");
+  } catch (e) {
+    throw new Error(`dow setup failed: ${e.message}`);
   }
 }
 
