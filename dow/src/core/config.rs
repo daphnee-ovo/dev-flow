@@ -19,6 +19,8 @@ pub struct DowConfig {
     #[serde(default)]
     pub latest_remote_version: Option<String>,
     #[serde(default)]
+    pub latest_remote_published_at: Option<String>,
+    #[serde(default)]
     pub latest_release_notes: Option<String>,
 }
 
@@ -87,9 +89,16 @@ mod tests {
         let mut config = DowConfig::default();
         config.add_agent("claude");
         config.last_version_check = Some("2026-05-30T12:00:00Z".to_string());
+        config.latest_remote_version = Some("0.1.5".to_string());
+        config.latest_remote_published_at = Some("2026-06-18T10:42:41Z".to_string());
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: DowConfig = toml::from_str(&serialized).unwrap();
         assert_eq!(deserialized.registered_agents, vec!["claude"]);
         assert_eq!(deserialized.last_version_check, Some("2026-05-30T12:00:00Z".to_string()));
+        assert_eq!(deserialized.latest_remote_version, Some("0.1.5".to_string()));
+        assert_eq!(
+            deserialized.latest_remote_published_at,
+            Some("2026-06-18T10:42:41Z".to_string())
+        );
     }
 }

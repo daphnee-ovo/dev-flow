@@ -87,12 +87,17 @@ fn should_check_version(cmd: &Commands) -> bool {
 fn check_version_background() {
     use core::config::DowConfig;
 
-    let config = DowConfig::load();
+    let mut config = DowConfig::load();
+    if !version_check_cache_is_fresh(&config) {
+        sync_latest_release_cache(&mut config);
+    }
 
-    // 显示缓存的新版本提醒
-    if let Some(ref remote) = config.latest_remote_version {
-        let current = env!("DOW_VERSION");
-        if core::github::compare_versions(current, remote) == std::cmp::Ordering::Less {
+    let current = env!("DOW_VERSION");
+    if let (Some(remote), Some(published_at)) = (
+        config.latest_remote_version.as_deref(),
+        config.latest_remote_published_at.as_deref(),
+    ) {
+        if core::github::is_update_available(current, remote, published_at) {
             eprintln!(
                 "[dow] 新版本 v{} 可用（当前 v{}），运行 `dow update` 升级",
                 remote, current
@@ -102,28 +107,37 @@ fn check_version_background() {
             }
         }
     }
+}
 
-    // 判断是否需要后台检查
-    let should_check = match &config.last_version_check {
-        None => true,
-        Some(last) => chrono::DateTime::parse_from_rfc3339(last)
-            .map(|t| {
-                let elapsed = chrono::Utc::now().signed_duration_since(t);
-                elapsed.num_hours() >= 24
-            })
-            .unwrap_or(true),
-    };
-
-    if should_check {
-        // spawn 后台线程，不阻塞主命令
-        std::thread::spawn(|| {
-            if let Ok(release) = core::github::check_latest_version() {
-                let mut config = DowConfig::load();
-                config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
-                config.latest_remote_version = Some(release.version);
-                config.latest_release_notes = release.notes;
-                let _ = config.save();
-            }
-        });
+fn version_check_cache_is_fresh(config: &core::config::DowConfig) -> bool {
+    if config.latest_remote_version.is_none() || config.latest_remote_published_at.is_none() {
+        return false;
     }
+    config
+        .last_version_check
+        .as_deref()
+        .and_then(|last| chrono::DateTime::parse_from_rfc3339(last).ok())
+        .map(|t| {
+            let elapsed = chrono::Utc::now().signed_duration_since(t);
+            elapsed.num_hours() < 24
+        })
+        .unwrap_or(false)
+}
+
+fn sync_latest_release_cache(config: &mut core::config::DowConfig) {
+    match core::github::check_latest_version() {
+        Ok(release) => {
+            config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
+            config.latest_remote_version = Some(release.version);
+            config.latest_remote_published_at = Some(release.published_at);
+            config.latest_release_notes = release.notes;
+        }
+        Err(_) => {
+            config.last_version_check = None;
+            config.latest_remote_version = None;
+            config.latest_remote_published_at = None;
+            config.latest_release_notes = None;
+        }
+    }
+    let _ = config.save();
 }

@@ -1,7 +1,6 @@
 // dow/src/commands/update.rs
 // dow update 子命令 — 自更新二进制 + 插件
 
-use std::cmp::Ordering;
 use std::fs;
 use std::path::PathBuf;
 
@@ -15,17 +14,17 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     let release = github::check_latest_version()
         .map_err(|e| DowError::new(&format!("检查更新失败: {}", e), 1))?;
 
-    match github::compare_versions(current_version, &release.version) {
-        Ordering::Less => {
-            eprintln!("[dow] 发现新版本: v{} → v{}", current_version, release.version);
-            if let Some(ref notes) = release.notes {
-                eprintln!("[dow] 变更: {}", notes);
-            }
+    if github::is_update_available(current_version, &release.version, &release.published_at) {
+        eprintln!(
+            "[dow] 发现新版本: v{} → v{} ({})",
+            current_version, release.version, release.published_at
+        );
+        if let Some(ref notes) = release.notes {
+            eprintln!("[dow] 变更: {}", notes);
         }
-        _ => {
-            eprintln!("[dow] 已是最新版本 (v{})", current_version);
-            return Ok(0);
-        }
+    } else {
+        eprintln!("[dow] 已是最新版本 (v{})", current_version);
+        return Ok(0);
     }
 
     let platform_triple = platform::platform_triple();
@@ -74,6 +73,8 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     let mut config = DowConfig::load();
     config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
     config.latest_remote_version = None;
+    config.latest_remote_published_at = None;
+    config.latest_release_notes = None;
     let _ = config.save();
 
     let _ = fs::remove_dir_all(&tmp_dir);

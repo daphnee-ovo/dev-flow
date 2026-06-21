@@ -15,6 +15,7 @@ const API_BASE: &str = "https://api.github.com";
 pub struct ReleaseInfo {
     pub tag_name: String,
     pub version: String,
+    pub published_at: String,
     pub notes: Option<String>,
 }
 
@@ -68,10 +69,19 @@ pub fn check_latest_version() -> Result<ReleaseInfo, String> {
         .to_string();
 
     let version = tag_name.trim_start_matches('v').to_string();
+    let published_at = body["published_at"]
+        .as_str()
+        .ok_or("响应中无 published_at")?
+        .to_string();
 
     let notes = body["body"].as_str().map(|s| truncate_notes(s, 3));
 
-    Ok(ReleaseInfo { tag_name, version, notes })
+    Ok(ReleaseInfo {
+        tag_name,
+        version,
+        published_at,
+        notes,
+    })
 }
 
 fn truncate_notes(body: &str, max_lines: usize) -> String {
@@ -143,6 +153,13 @@ pub fn compare_versions(current: &str, remote: &str) -> std::cmp::Ordering {
     a.cmp(&b)
 }
 
+pub fn is_update_available(current: &str, remote: &str, remote_published_at: &str) -> bool {
+    if chrono::DateTime::parse_from_rfc3339(remote_published_at).is_err() {
+        return false;
+    }
+    compare_versions(current, remote) == std::cmp::Ordering::Less
+}
+
 pub fn self_replace_binary(new_binary: &Path) -> Result<(), String> {
     let current_exe = std::env::current_exe()
         .map_err(|e| format!("无法获取当前二进制路径: {}", e))?;
@@ -182,5 +199,20 @@ mod tests {
         assert_eq!(compare_versions("3.8.3", "3.9.0"), Ordering::Less);
         assert_eq!(compare_versions("4.0.0", "3.9.0"), Ordering::Greater);
         assert_eq!(compare_versions("v3.8.3", "3.8.3"), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_update_requires_newer_version_and_valid_published_at() {
+        assert!(is_update_available(
+            "0.1.6",
+            "0.1.7",
+            "2026-06-21T10:42:41Z"
+        ));
+        assert!(!is_update_available(
+            "0.1.6",
+            "0.1.5",
+            "2026-06-21T10:42:41Z"
+        ));
+        assert!(!is_update_available("0.1.6", "9.9.9", "not-a-date"));
     }
 }

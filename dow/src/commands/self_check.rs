@@ -54,29 +54,38 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     eprint!("远程最新版本: ");
     match github::check_latest_version() {
         Ok(release) => {
-            eprintln!("v{}", release.version);
-            match github::compare_versions(current_version, &release.version) {
-                std::cmp::Ordering::Less => {
-                    eprintln!("  → 有新版本可用，运行 `dow update` 升级");
-                }
-                std::cmp::Ordering::Equal => {
-                    eprintln!("  → 已是最新");
-                }
-                std::cmp::Ordering::Greater => {
-                    eprintln!("  → 本地版本超前（开发中）");
+            eprintln!("v{} ({})", release.version, release.published_at);
+            if github::is_update_available(current_version, &release.version, &release.published_at)
+            {
+                eprintln!("  → 有新版本可用，运行 `dow update` 升级");
+            } else {
+                match github::compare_versions(current_version, &release.version) {
+                    std::cmp::Ordering::Equal => {
+                        eprintln!("  → 已是最新");
+                    }
+                    std::cmp::Ordering::Greater => {
+                        eprintln!("  → 本地版本超前（开发中）");
+                    }
+                    std::cmp::Ordering::Less => {
+                        eprintln!("  → 远程版本日期无效，跳过更新提示");
+                    }
                 }
             }
             // 更新缓存
             let mut config = config;
             config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
             config.latest_remote_version = Some(release.version);
+            config.latest_remote_published_at = Some(release.published_at);
             config.latest_release_notes = release.notes;
             let _ = config.save();
         }
         Err(e) => {
             eprintln!("查询失败 ({})", e);
-            if let Some(ref cached) = config.latest_remote_version {
-                eprintln!("  缓存版本: v{}", cached);
+            if let (Some(cached), Some(published_at)) = (
+                config.latest_remote_version.as_deref(),
+                config.latest_remote_published_at.as_deref(),
+            ) {
+                eprintln!("  缓存版本: v{} ({})", cached, published_at);
             }
         }
     }
