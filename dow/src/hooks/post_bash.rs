@@ -10,7 +10,7 @@ use serde_json;
 use std::io::Read as IoRead;
 use std::path::Path;
 
-pub fn run(command: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
+pub fn run(command: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
     if !Path::new(crate::core::DOC_DIR).is_dir() {
         return Ok(0);
     }
@@ -44,11 +44,11 @@ pub fn run(command: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
     let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
-    println!(
+    let mut messages = vec![format!(
         "[dev-flow] 检测到分支切换 → 当前分支：`{}`，doc_root：{}",
         branch,
         doc_root_path.display()
-    );
+    )];
 
     // 检查新分支是否有 STATUS.yaml（resolve 会自动创建，但这里给提示）
     if doc_root_path.join("STATUS.yaml").exists() {
@@ -56,12 +56,27 @@ pub fn run(command: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
             .ok()
             .flatten()
             .unwrap_or_else(|| "unknown".to_string());
-        println!("  阶段：{}，文档目录已就绪。", phase);
+        messages.push(format!("  阶段：{}，文档目录已就绪。", phase));
     } else {
-        println!("  ⚠ 新分支尚未初始化 .dev-doc，将自动创建。");
+        messages.push("  ⚠ 新分支尚未初始化 .dev-doc，将自动创建。".to_string());
     }
 
+    emit_messages(codex_hook, &messages)?;
     Ok(0)
+}
+
+fn emit_messages(codex_hook: bool, messages: &[String]) -> Result<(), DowError> {
+    if messages.is_empty() {
+        return Ok(());
+    }
+    if codex_hook {
+        return Ok(());
+    } else {
+        for message in messages {
+            println!("{}", message);
+        }
+    }
+    Ok(())
 }
 
 fn is_branch_switch_command(cmd: &str) -> bool {

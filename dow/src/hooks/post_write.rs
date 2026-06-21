@@ -12,7 +12,7 @@ use std::fs;
 use std::io::Read as IoRead;
 use std::path::Path;
 
-pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
+pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
     // 从命令行参数、stdin hook JSON、或环境变量获取文件路径
     let changed_file = file
         .or_else(|| read_file_path_from_stdin())
@@ -39,11 +39,17 @@ pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
                     if Path::new(&format!(".dev-doc/{}", target_branch)).is_dir()
                         && target_branch != "archive"
                     {
-                        println!(
+                        emit_message(
+                            codex_hook,
+                            format!(
                             "[dev-flow] ⚠ 写入了其他分支的文件：{}（当前分支：{}）",
                             changed_file, branch
+                            ),
                         );
-                        println!("→ 这可能是误操作，guard 应已在 PreToolUse 阶段拦截。");
+                        emit_message(
+                            codex_hook,
+                            "→ 这可能是误操作，guard 应已在 PreToolUse 阶段拦截。".to_string(),
+                        );
                     }
                 }
             }
@@ -56,11 +62,11 @@ pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
         let is_changelog = changed_file.ends_with("CHANGELOG.md");
         if !is_status && !is_changelog {
             if let Err(e) = yaml::touch_updated(&status_file) {
-                eprintln!(
+                emit_warning(format!(
                     "[dow] 警告: 更新时间戳失败 ({}): {}",
                     status_file.display(),
                     e
-                );
+                ));
             }
         }
     }
@@ -80,44 +86,51 @@ pub fn run(file: Option<String>, _kiro_hook: bool) -> Result<i32, DowError> {
 
     // 1.5 audit 模式自动触发
     if changed_file.contains("/issue/issue_") && !mode.starts_with("audit/") && phase != "DEV" {
-        enter_audit_mode(&status_file, &mode);
+        enter_audit_mode(&status_file, &mode, codex_hook);
         // enter_audit_mode 已将 phase 设为 DEV，刷新本地变量
         phase = "DEV".to_string();
     }
 
     // 2. 任务完成度检测（仅 DEV 阶段）
     if phase == "DEV" {
-        check_task_completion(&doc_root_path, &status_file);
-        check_issue_completion(&doc_root_path, &status_file, &mode);
+        check_task_completion(&doc_root_path, &status_file, codex_hook);
+        check_issue_completion(&doc_root_path, &status_file, &mode, codex_hook);
     }
 
     // 3. 代码变更同步提醒
     if phase == "DEV" && !changed_file.starts_with(".dev-doc/") {
-        check_code_sync(&changed_file, &doc_root_path, &mode);
-        check_persistent_docs_reminder(&changed_file, &status_file);
+        check_code_sync(&changed_file, &doc_root_path, &mode, codex_hook);
+        check_persistent_docs_reminder(&changed_file, &status_file, codex_hook);
     }
 
     Ok(0)
 }
 
-fn enter_audit_mode(status_file: &Path, current_mode: &str) {
+fn enter_audit_mode(status_file: &Path, current_mode: &str, codex_hook: bool) {
     let new_mode = format!("audit/{}", current_mode);
     if let Err(e) = yaml::set(status_file, "mode", &new_mode) {
-        eprintln!("[dow] 警告: 设置 audit 模式失败: {}", e);
+        emit_warning(format!("[dow] 警告: 设置 audit 模式失败: {}", e));
     }
     if let Err(e) = yaml::set(status_file, "phase", "DEV") {
-        eprintln!("[dow] 警告: 设置 phase=DEV 失败: {}", e);
+        emit_warning(format!("[dow] 警告: 设置 phase=DEV 失败: {}", e));
     }
     if let Err(e) = yaml::touch_updated(status_file) {
-        eprintln!("[dow] 警告: 更新 audit 模式时间戳失败: {}", e);
+        emit_warning(format!("[dow] 警告: 更新 audit 模式时间戳失败: {}", e));
     }
-    println!(
+    emit_message(
+        codex_hook,
+        format!(
         "[dev-flow] 检测到审计 issue，自动进入 audit 模式（原模式：{}）",
         current_mode
+        ),
     );
 }
 
-fn check_task_completion(doc_root: &Path, status_file: &Path) {
+fn check_task_completion(
+    doc_root: &Path,
+    status_file: &Path,
+    codex_hook: bool,
+) {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
         return;
@@ -134,8 +147,14 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
     }
 
     if done == total {
-        println!("[dev-flow] 所有任务已完成（{}/{}）。", done, total);
-        println!("→ 立即执行 /test 进行全量验证。");
+        emit_message(
+            codex_hook,
+            format!("[dev-flow] 所有任务已完成（{}/{}）。", done, total),
+        );
+        emit_message(
+            codex_hook,
+            "→ 立即执行 /test 进行全量验证。".to_string(),
+        );
     } else {
         // 检查 exec_mode
         let exec_mode = yaml::get(status_file, "exec_mode")
@@ -152,11 +171,22 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
             if let Ok(content) = fs::read_to_string(entry.path()) {
                 if let Some(last_done) = content.lines().filter(|l| l.starts_with("- [x]")).last() {
                     let task_name = last_done.trim_start_matches("- [x] ");
-                    println!("[dev-flow] 任务完成（{}/{}）：{}", done, total, task_name);
+                    emit_message(
+                        codex_hook,
+                        format!("[dev-flow] 任务完成（{}/{}）：{}", done, total, task_name),
+                    );
                     if exec_mode == "continuous" {
-                        println!("→ [continuous] 自动推进：执行 /devtest 并继续下一个任务。");
+                        emit_message(
+                            codex_hook,
+                            "→ [continuous] 自动推进：执行 /devtest 并继续下一个任务。"
+                                .to_string(),
+                        );
                     } else {
-                        println!("→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。");
+                        emit_message(
+                            codex_hook,
+                            "→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。"
+                                .to_string(),
+                        );
                     }
                     break;
                 }
@@ -178,9 +208,15 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
                 let new_path = task_dir.join(&new_name);
                 if !new_path.exists() {
                     if let Err(e) = fs::rename(entry.path(), &new_path) {
-                        eprintln!("[dow] 警告: 重命名任务文件为 done_ 失败 ({}): {}", name, e);
+                        emit_warning(format!(
+                            "[dow] 警告: 重命名任务文件为 done_ 失败 ({}): {}",
+                            name, e
+                        ));
                     } else {
-                        println!("[dev-flow] 批次全部完成，已标记：{}", new_name);
+                        emit_message(
+                            codex_hook,
+                            format!("[dev-flow] 批次全部完成，已标记：{}", new_name),
+                        );
                     }
                 }
             }
@@ -188,11 +224,16 @@ fn check_task_completion(doc_root: &Path, status_file: &Path) {
     }
 }
 
-fn check_issue_completion(doc_root: &Path, status_file: &Path, mode: &str) {
+fn check_issue_completion(
+    doc_root: &Path,
+    status_file: &Path,
+    mode: &str,
+    codex_hook: bool,
+) {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
         if mode.starts_with("audit/") {
-            exit_audit_mode(status_file, mode);
+            exit_audit_mode(status_file, mode, codex_hook);
         }
         return;
     }
@@ -212,12 +253,15 @@ fn check_issue_completion(doc_root: &Path, status_file: &Path, mode: &str) {
                     let new_path = issue_dir.join(&new_name);
                     if !new_path.exists() {
                         if let Err(e) = fs::rename(entry.path(), &new_path) {
-                            eprintln!(
+                            emit_warning(format!(
                                 "[dow] 警告: 重命名 issue 文件为 closed_ 失败 ({}): {}",
                                 name, e
-                            );
+                            ));
                         } else {
-                            println!("[dev-flow] Issue 全部关闭：{}", new_name);
+                            emit_message(
+                                codex_hook,
+                                format!("[dev-flow] Issue 全部关闭：{}", new_name),
+                            );
                         }
                     }
                 } else {
@@ -229,21 +273,24 @@ fn check_issue_completion(doc_root: &Path, status_file: &Path, mode: &str) {
 
     // audit 模式下无 open issue → 自动退出 audit
     if !has_open_issue && mode.starts_with("audit/") {
-        exit_audit_mode(status_file, mode);
+        exit_audit_mode(status_file, mode, codex_hook);
     }
 }
 
-fn exit_audit_mode(status_file: &Path, mode: &str) {
+fn exit_audit_mode(status_file: &Path, mode: &str, codex_hook: bool) {
     let original_mode = mode.strip_prefix("audit/").unwrap_or("fast");
     if let Err(e) = yaml::set(status_file, "mode", original_mode) {
-        eprintln!("[dow] 警告: 退出 audit 模式失败: {}", e);
+        emit_warning(format!("[dow] 警告: 退出 audit 模式失败: {}", e));
     }
     if let Err(e) = yaml::touch_updated(status_file) {
-        eprintln!("[dow] 警告: 更新时间戳失败: {}", e);
+        emit_warning(format!("[dow] 警告: 更新时间戳失败: {}", e));
     }
-    println!(
+    emit_message(
+        codex_hook,
+        format!(
         "[dev-flow] 所有 issue 已关闭，自动退出 audit 模式（恢复为：{}）",
         original_mode
+        ),
     );
 }
 
@@ -260,7 +307,11 @@ fn read_file_path_from_stdin() -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn check_persistent_docs_reminder(changed_file: &str, status_file: &Path) {
+fn check_persistent_docs_reminder(
+    changed_file: &str,
+    status_file: &Path,
+    codex_hook: bool,
+) {
     // 排除 docs/ 自身的变更
     if changed_file.starts_with("docs/") || changed_file == "README.md" {
         return;
@@ -288,15 +339,26 @@ fn check_persistent_docs_reminder(changed_file: &str, status_file: &Path) {
 
     // 阈值：3 个文件
     if changed_count >= 3 {
-        println!(
+        emit_message(
+            codex_hook,
+            format!(
             "[dev-flow] 提示：代码变更较大（{}个文件），请检查是否需要更新持久化文档",
-        changed_count
+            changed_count
+            ),
         );
-        println!("  注册文档：{}", docs.join(", "));
+        emit_message(
+            codex_hook,
+            format!("  注册文档：{}", docs.join(", ")),
+        );
     }
 }
 
-fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {
+fn check_code_sync(
+    changed_file: &str,
+    doc_root: &Path,
+    mode: &str,
+    codex_hook: bool,
+) {
     if mode == "fast" {
         return;
     }
@@ -324,11 +386,27 @@ fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str) {
             .to_lowercase()
             .contains(&basename.to_lowercase())
         {
-            println!(
-                "[dev-flow] 代码文件 {} 已修改，SPEC.md 中有该模块的描述。",
-                changed_file
+            emit_message(
+                codex_hook,
+                format!(
+                    "[dev-flow] 代码文件 {} 已修改，SPEC.md 中有该模块的描述。",
+                    changed_file
+                ),
             );
-            println!("→ 如果修改了 API 接口/数据结构/目录组织，必须同步更新 SPEC.md。");
+            emit_message(
+                codex_hook,
+                "→ 如果修改了 API 接口/数据结构/目录组织，必须同步更新 SPEC.md。".to_string(),
+            );
         }
     }
+}
+
+fn emit_message(codex_hook: bool, message: String) {
+    if !codex_hook {
+        println!("{}", message);
+    }
+}
+
+fn emit_warning(message: String) {
+    eprintln!("{}", message);
 }

@@ -55,8 +55,12 @@ fn main() {
         } => match command {
             HooksCommands::Context => hooks::context::run(human, codex_hook, kiro_hook),
             HooksCommands::Guard { file } => hooks::guard::run(file.unwrap_or_default(), kiro_hook),
-            HooksCommands::PostWrite { file } => hooks::post_write::run(file, kiro_hook),
-            HooksCommands::PostBash { command } => hooks::post_bash::run(command, kiro_hook),
+            HooksCommands::PostWrite { file } => {
+                hooks::post_write::run(file, codex_hook, kiro_hook)
+            }
+            HooksCommands::PostBash { command } => {
+                hooks::post_bash::run(command, codex_hook, kiro_hook)
+            }
             HooksCommands::SaveChangelog => hooks::save_changelog::run(codex_hook, kiro_hook),
         },
         Commands::Setup(args) => commands::setup::run(args.agent, human),
