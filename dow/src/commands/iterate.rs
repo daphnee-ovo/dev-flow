@@ -677,20 +677,22 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
 
 fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     // 已追踪文件的修改/删除
-    Command::new("git").args(["add", "-u"]).output().ok();
+    run_git(["add", "-u"], "git add -u")?;
     // 额外指定的新文件/目录
     for f in extra_files {
-        Command::new("git").args(["add", f]).output().ok();
+        run_git(["add", f.as_str()], &format!("git add {}", f))?;
     }
 
     let diff = Command::new("git")
         .args(["diff", "--cached", "--quiet"])
-        .output();
+        .output()
+        .map_err(|e| DowError::new(format!("git diff --cached 失败：{}", e), 1))?;
 
-    if let Ok(d) = diff {
-        if d.status.success() {
-            return Ok(()); // 无变更
-        }
+    if diff.status.success() {
+        return Err(DowError::new(
+            "git commit 跳过：没有 staged changes。请检查 iterate 的文件列表和 git add 输出。",
+            1,
+        ));
     }
 
     let output = Command::new("git")
@@ -701,6 +703,25 @@ fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(DowError::new(format!("git commit 失败：{}", stderr), 1));
+    }
+    Ok(())
+}
+
+fn run_git<const N: usize>(args: [&str; N], label: &str) -> Result<(), DowError> {
+    let output = Command::new("git")
+        .args(args)
+        .output()
+        .map_err(|e| DowError::new(format!("{} 启动失败：{}", label, e), 1))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let detail = if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            stdout.trim().to_string()
+        };
+        return Err(DowError::new(format!("{} 失败：{}", label, detail), 1));
     }
     Ok(())
 }

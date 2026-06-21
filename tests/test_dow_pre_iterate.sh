@@ -121,6 +121,26 @@ fi
 unset "DOW_ITERATE_${token}"
 
 echo ""
+echo "[4] git add 失败时阻断 iterate commit"
+setup_project "bad-files"
+before="$(git rev-parse HEAD)"
+preview="$("$DOW" iterate --topic bad-files --type feat --files missing-file.txt 2>/dev/null)"
+token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
+export "DOW_ITERATE_${token}=1"
+fail_out="$TEST_DIR/git_add_fail.out"
+if "$DOW" iterate --topic bad-files --type feat --files missing-file.txt --confirm >"$fail_out" 2>&1; then
+  fail "git add 失败未阻断 iterate"
+else
+  after="$(git rev-parse HEAD)"
+  if [ "$before" = "$after" ] && grep -q 'git add missing-file.txt 失败' "$fail_out"; then
+    pass "git add 失败阻断 iterate commit"
+  else
+    fail "git add 失败的阻断结果不正确"
+  fi
+fi
+unset "DOW_ITERATE_${token}"
+
+echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="
 
 if [ "$FAIL" -gt 0 ]; then
