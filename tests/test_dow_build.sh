@@ -15,10 +15,12 @@ echo ""
 echo "[1] cargo build --release"
 cd "$PROJ_ROOT/dow"
 cargo build --release 2>/dev/null
-if file "$PROJ_ROOT/dow/target/release/dow" | grep -q "ELF"; then
-  pass "release 构建生成 ELF 二进制"
+BIN="$PROJ_ROOT/dow/target/release/dow"
+FILE_OUT="$(file "$BIN" 2>/dev/null || true)"
+if [ -x "$BIN" ] && echo "$FILE_OUT" | grep -Eq "ELF|Mach-O|PE32|executable"; then
+  pass "release 构建生成可执行二进制"
 else
-  fail "release 构建未生成 ELF 二进制"
+  fail "release 构建未生成可执行二进制: $FILE_OUT"
 fi
 
 # 2. 二进制可执行且返回版本
