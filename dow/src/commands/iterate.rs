@@ -872,8 +872,11 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
 fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     // 已追踪文件的修改/删除
     run_git(["add", "-u"], "git add -u")?;
-    // 额外指定的新文件/目录
+    // 额外指定的新文件/目录（跳过已被归档删除的路径）
     for f in extra_files {
+        if !Path::new(f).exists() {
+            continue;
+        }
         run_git(["add", f.as_str()], &format!("git add {}", f))?;
     }
 

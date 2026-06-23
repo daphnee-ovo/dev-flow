@@ -24,7 +24,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 |------|------|--------|
 | `--topic` | 归档主题（用于归档目录命名） | 必填 |
 | `--type` | commit 类型（feat/fix/refactor/docs/perf/test/style/workflow） | 必填 |
-| `--files` | 额外提交的文件/目录列表（空格分隔） | 可选 |
+| `--files` | 额外提交的源码文件/目录列表（空格分隔）。**无需传入 .dev-doc/ 下的文件**——它们由 iterate 自动管理（归档删除 + `git add -u`） | 可选 |
 | `-v`/`--bump` | 版本递增类型：major/minor/patch | minor |
 | `--confirm` | 确认执行（需配合环境变量 token） | - |
 

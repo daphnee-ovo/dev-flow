@@ -57,6 +57,15 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         }
     }
 
+    // 修复 issue 状态一致性：全部勾选的 issue 文件加 closed_ 前缀
+    fix_issue_rename(&issue_dir, &mut fixed);
+
+    // 修复 task 状态一致性：全部勾选的 task 文件加 done_ 前缀
+    fix_task_rename(&task_dir, &mut fixed);
+
+    // 修复 issue 全局序号冲突：按文件日期排序重编号
+    fix_issue_renumber(&issue_dir, &mut fixed);
+
     let result = FixOutput { fixed, unfixable };
 
     if human {
@@ -241,4 +250,233 @@ fn print_human(result: &FixOutput) {
         println!();
         println!("提示：以上问题无法自动修复，请手动编辑对应文件。");
     }
+}
+
+/// issue 文件全部勾选时重命名为 closed_ 前缀
+fn fix_issue_rename(issue_dir: &Path, fixed: &mut Vec<String>) {
+    if !issue_dir.is_dir() {
+        return;
+    }
+    let entries: Vec<_> = match fs::read_dir(issue_dir) {
+        Ok(e) => e.flatten().collect(),
+        Err(_) => return,
+    };
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("issue_") || !name.ends_with(".md") {
+            continue;
+        }
+        let content = match fs::read_to_string(entry.path()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let total = content.lines().filter(|l| l.starts_with("- [")).count();
+        let done = content.lines().filter(|l| l.starts_with("- [x]")).count();
+        if total > 0 && total == done {
+            let new_name = format!("closed_{}", name);
+            let new_path = issue_dir.join(&new_name);
+            if !new_path.exists() {
+                if let Err(e) = fs::rename(entry.path(), &new_path) {
+                    eprintln!("[dow fix] 警告：重命名 {} → {} 失败: {}", name, new_name, e);
+                } else {
+                    fixed.push(format!("{}：重命名为 {}", name, new_name));
+                }
+            }
+        }
+    }
+}
+
+/// task 文件全部勾选时重命名为 done_ 前缀
+fn fix_task_rename(task_dir: &Path, fixed: &mut Vec<String>) {
+    if !task_dir.is_dir() {
+        return;
+    }
+    let entries: Vec<_> = match fs::read_dir(task_dir) {
+        Ok(e) => e.flatten().collect(),
+        Err(_) => return,
+    };
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with("task_") || !name.ends_with(".md") {
+            continue;
+        }
+        let content = match fs::read_to_string(entry.path()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let total = content.lines().filter(|l| l.starts_with("- [")).count();
+        let done = content.lines().filter(|l| l.starts_with("- [x]")).count();
+        if total > 0 && total == done {
+            let new_name = format!("done_{}", name);
+            let new_path = task_dir.join(&new_name);
+            if !new_path.exists() {
+                if let Err(e) = fs::rename(entry.path(), &new_path) {
+                    eprintln!("[dow fix] 警告：重命名 {} → {} 失败: {}", name, new_name, e);
+                } else {
+                    fixed.push(format!("{}：重命名为 {}", name, new_name));
+                }
+            }
+        }
+    }
+}
+
+/// 修复 issue 全局序号冲突：按文件日期+序号排序后重新分配连续编号
+fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
+    if !issue_dir.is_dir() {
+        return;
+    }
+
+    struct IssueItem {
+        file_path: std::path::PathBuf,
+        file_date: String,
+        file_seq: u32,
+        line_idx: usize,
+        current_num: u32,
+    }
+
+    let mut items: Vec<IssueItem> = Vec::new();
+    let mut seen_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    let mut has_conflict = false;
+
+    let entries: Vec<_> = match fs::read_dir(issue_dir) {
+        Ok(e) => e.flatten().collect(),
+        Err(_) => return,
+    };
+
+    for entry in &entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".md") {
+            continue;
+        }
+        if !name.starts_with("issue_") && !name.starts_with("closed_issue_") {
+            continue;
+        }
+
+        let (date, seq) = match parse_issue_file_date_seq(&name) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        let content = match fs::read_to_string(entry.path()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        for (line_idx, line) in content.lines().enumerate() {
+            if !line.starts_with("- [") {
+                continue;
+            }
+            let title = line[5..].trim();
+            if let Some(num) = extract_issue_num(title) {
+                if !seen_nums.insert(num) {
+                    has_conflict = true;
+                }
+                items.push(IssueItem {
+                    file_path: entry.path(),
+                    file_date: date.clone(),
+                    file_seq: seq,
+                    line_idx,
+                    current_num: num,
+                });
+            }
+        }
+    }
+
+    if !has_conflict {
+        if !items.is_empty() {
+            let mut nums: Vec<u32> = items.iter().map(|i| i.current_num).collect();
+            nums.sort();
+            let is_sequential = nums.iter().enumerate().all(|(idx, &n)| n == (idx as u32 + 1));
+            if is_sequential {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    // 按文件日期、文件序号、文件内行号排序
+    items.sort_by(|a, b| {
+        a.file_date.cmp(&b.file_date)
+            .then(a.file_seq.cmp(&b.file_seq))
+            .then(a.line_idx.cmp(&b.line_idx))
+    });
+
+    // 分配新序号
+    let mut renames: std::collections::HashMap<std::path::PathBuf, Vec<(usize, u32, u32)>> =
+        std::collections::HashMap::new();
+    for (new_idx, item) in items.iter().enumerate() {
+        let new_num = (new_idx + 1) as u32;
+        if new_num != item.current_num {
+            renames
+                .entry(item.file_path.clone())
+                .or_default()
+                .push((item.line_idx, item.current_num, new_num));
+        }
+    }
+
+    if renames.is_empty() {
+        return;
+    }
+
+    // 执行替换
+    let mut total_fixed = 0u32;
+    for (file_path, changes) in &renames {
+        let content = match fs::read_to_string(file_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        for &(line_idx, old_num, new_num) in changes {
+            if line_idx < lines.len() {
+                let old_id = format!("ISSUE-I{:03}", old_num);
+                let new_id = format!("ISSUE-I{:03}", new_num);
+                lines[line_idx] = lines[line_idx].replace(&old_id, &new_id);
+            }
+        }
+        let new_content = lines.join("\n");
+        let final_content = if content.ends_with('\n') && !new_content.ends_with('\n') {
+            format!("{}\n", new_content)
+        } else {
+            new_content
+        };
+        if let Err(e) = fs::write(file_path, &final_content) {
+            eprintln!("[dow fix] 警告：写入 {} 失败: {}", file_path.display(), e);
+        } else {
+            total_fixed += changes.len() as u32;
+        }
+    }
+
+    if total_fixed > 0 {
+        fixed.push(format!("issue 全局序号重编号：修正 {} 个条目", total_fixed));
+    }
+}
+
+fn parse_issue_file_date_seq(filename: &str) -> Option<(String, u32)> {
+    let stem = filename.strip_suffix(".md")?;
+    let rest = if stem.starts_with("closed_issue_") {
+        &stem["closed_issue_".len()..]
+    } else if stem.starts_with("issue_") {
+        &stem["issue_".len()..]
+    } else {
+        return None;
+    };
+    // rest = "source_YYYY-MM-DD_seq"
+    let parts: Vec<&str> = rest.splitn(3, '_').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let date = parts[1].to_string();
+    let seq = parts[2].parse::<u32>().unwrap_or(0);
+    Some((date, seq))
+}
+
+fn extract_issue_num(title: &str) -> Option<u32> {
+    let prefix = "ISSUE-I";
+    if !title.starts_with(prefix) {
+        return None;
+    }
+    let rest = &title[prefix.len()..];
+    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse().ok()
 }
