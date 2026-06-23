@@ -54,14 +54,32 @@ get_latest_version() {
   fi
 }
 
-# 下载文件
+# 下载文件（带进度 + 重试 + 超时）
 download() {
   local url="$1" dest="$2"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$dest"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q "$url" -O "$dest"
-  fi
+  local retries=3 attempt=0
+  while [ $attempt -lt $retries ]; do
+    attempt=$((attempt + 1))
+    if [ $attempt -gt 1 ]; then
+      info "重试下载 (${attempt}/${retries})..."
+      sleep 2
+    fi
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fL --progress-bar --retry 2 --connect-timeout 10 --max-time 120 "$url" -o "$dest"; then
+        if [ -s "$dest" ]; then
+          return 0
+        fi
+      fi
+    elif command -v wget >/dev/null 2>&1; then
+      if wget --show-progress -q --timeout=10 --tries=2 "$url" -O "$dest"; then
+        if [ -s "$dest" ]; then
+          return 0
+        fi
+      fi
+    fi
+    rm -f "$dest"
+  done
+  return 1
 }
 
 main() {
@@ -86,9 +104,10 @@ main() {
   tmp_dir="$(mktemp -d)"
 
   info "下载 ${filename}..."
-  download "$url" "${tmp_dir}/${filename}"
-  if [ ! -f "${tmp_dir}/${filename}" ]; then
-    err "下载失败: ${url}"
+  if ! download "$url" "${tmp_dir}/${filename}"; then
+    err "下载失败（重试 3 次后仍失败）: ${url}"
+    err "请检查网络连接或手动下载"
+    rm -rf "$tmp_dir"
     exit 1
   fi
 
