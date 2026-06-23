@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── scan.rs  -- dow scan（项目扫描，替代 scan-project.sh）
+// ├── scan.rs  -- dow scan (project scanning, replaces scan-project.sh)
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -102,7 +102,7 @@ fn detect_name() -> String {
             }
         }
     }
-    // fallback: 目录名
+    // fallback: directory name
     std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))

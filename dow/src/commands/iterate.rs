@@ -1,9 +1,9 @@
 // dow/src/commands/
-// ├── iterate.rs  -- dow iterate（迭代交付：校验 → 归档 → commit + tag → bump）
+// ├── iterate.rs  -- dow iterate (Iteration Delivery: Validate → Archive → Commit + Tag → Bump)
 //
 // Related Docs:
-// - [CLAUDE.md - 命令](../../../CLAUDE.md#命令)
-// - [dev-flow 规范](../../references/dev-flow-spec.md)
+// - [CLAUDE.md - Commands](../../../CLAUDE.md#Commands)
+// - [dev-flow Specification](../../references/dev-flow-spec.md)
 
 use crate::cli::IterateArgs;
 use crate::core::{archive_db, doc_root, doc_validator, version, yaml};
@@ -42,7 +42,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {
-        return Err(DowError::new("STATUS.yaml 不存在", 1));
+        return Err(DowError::new("STATUS.yaml does not exist", 1));
     }
 
     let mode = yaml::get(&status_file, "mode")
@@ -55,41 +55,41 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         mode.clone()
     };
 
-    // 1. 校验：任务完成度（audit 模式跳过）
+    // 1. Validate: Task completion (skip in audit mode)
     if !mode.starts_with("audit/") {
         let (total, done) = count_tasks(&doc_root_path);
         if total > 0 && done < total {
             return Err(DowError::new(
-                format!("任务未全部完成（{}/{}）", done, total),
+                format!("Not all tasks completed ({}/{})", done, total),
                 1,
             ));
         }
     }
 
-    // 2. 校验：无 open P0 issue
+    // 2. Validate: No open P0 issues
     let p0_open = count_p0_issues(&doc_root_path);
     if p0_open > 0 {
         return Err(DowError::new(
-            format!("有 {} 个未关闭的 P0 issue", p0_open),
+            format!("{} open P0 issue(s) found", p0_open),
             1,
         ));
     }
 
-    // 2.5 校验：所有 .dev-doc 文件合法
+    // 2.5 Validate: All .dev-doc files are valid
     let validation_errors = doc_validator::validate_all(&doc_root_path);
     if !validation_errors.is_empty() {
         let msg = format!(
-            "iterate 前置检查失败：.dev-doc 文件存在格式错误。\n{}",
+            "iterate pre-check failed: .dev-doc files contain format errors.\n{}",
             doc_validator::format_errors_human(&validation_errors)
         );
         return Err(DowError::new(msg, 1));
     }
 
-    // 2.6 检查持久化文档同步（警告但不阻断）
+    // 2.6 Check persistent docs sync (warn but don't block)
     let doc_warnings = check_persistent_docs_sync(&status_file);
     if !doc_warnings.is_empty() && !args.confirm {
         if human {
-            println!("[dev-flow] 警告：以下持久化文档自上次迭代后未更新：");
+            println!("[dev-flow] Warning: The following persistent documents have not been updated since last iteration:");
             for w in &doc_warnings {
                 println!("  - {}", w);
             }
@@ -97,16 +97,16 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 3. 计算版本：当前版本即 released_version，bump 一次得到 next_version
+    // 3. Calculate version: current version is released_version, bump once to get next_version
     let released_version = version::read_current()?;
     let next_version = version::bump_version_str(&released_version, &args.bump)?;
 
-    // 4. 计算归档内容
+    // 4. Calculate archive content
     let archive_base = archive_db::archive_base();
     let archive_db_path = format!("{}/archive.db", archive_base.to_string_lossy());
     let archived_files = list_archive_files(&doc_root_path);
 
-    // --confirm 模式：验证 token 后执行
+    // --confirm mode: Execute after token verification
     if args.confirm {
         let tokens = generate_tokens_with_window(&args);
         let found = tokens.iter().any(|t| {
@@ -117,21 +117,21 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             let hint = &tokens[0];
             return Err(DowError::new(
                 format!(
-                    "确认失败：环境变量 DOW_ITERATE_{} 不存在，请先执行 dow iterate 预览",
+                    "Confirmation failed: Environment variable DOW_ITERATE_{} not found, please run dow iterate preview first",
                     hint
                 ),
                 1,
             ));
         }
     } else {
-        // 预览前先触发 save_changelog，确保当前会话活动被记录
+        // Trigger save_changelog before preview to ensure current session activity is recorded
         if let Err(e) = crate::hooks::save_changelog::run(false, false) {
-            eprintln!("[dev-flow] save_changelog 警告：{}", e.message);
+            eprintln!("[dev-flow] save_changelog warning: {}", e.message);
         }
 
-        // 生成 token（预览模式）
+        // Generate token (preview mode)
         let token = generate_token_for_minute(0, &args);
-        // 默认：输出预览
+        // Default: Output preview
         let commit_files = list_pending_changes(&args.files);
         let should_tag = args.bump != "patch" || args.tag;
         let changelog_entries = read_changelog_entries(&doc_root_path);
@@ -158,7 +158,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             let mut json_out = serde_json::to_value(&result).unwrap_or_default();
             json_out["changelog_entries"] = serde_json::json!(changelog_entries);
             json_out["changelog_hint"] = serde_json::json!(
-                "请检查 CHANGELOG 是否有遗漏的记录。如有遗漏，请在确认前手动补充。"
+                "Please check if CHANGELOG has any missing entries. If so, manually add them before confirmation."
             );
             if !doc_warnings.is_empty() {
                 json_out["doc_sync_warnings"] = serde_json::json!(doc_warnings);
@@ -168,13 +168,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    // 5. 读取 CHANGELOG（归档前，保留 commit body 内容）
+    // 5. Read CHANGELOG (before archive, preserve commit body content)
     let changelog_entries = read_changelog_entries(&doc_root_path);
 
-    // 5.1 先校验用户显式传入的文件，避免归档后才因 bad path 失败
+    // 5.1 Validate user-specified files first to avoid failure after archive due to bad path
     validate_git_add_inputs(&args.files)?;
 
-    // 5.5 preIterate CI：必须在归档、commit、tag、bump 之前执行，失败即阻断整个 iterate
+    // 5.5 preIterate CI: Must execute before archive, commit, tag, bump; failure blocks entire iterate
     let pre_iterate = run_pre_iterate(&released_version, human)?;
 
     let mut commit_files = args.files.clone();
@@ -185,10 +185,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     }
     validate_git_add_inputs(&commit_files)?;
 
-    // 6. bump VERSION 先写入（归档版本）
+    // 6. bump VERSION write first (archive version)
     version::write_current(&released_version)?;
 
-    // 7. 执行归档（写入 SQLite）
+    // 7. Execute archive (write to SQLite)
     let conn = archive_db::open_or_create(&archive_base)?;
     let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
     let cur_branch = doc_root::current_branch().unwrap_or_else(|| "main".to_string());
@@ -205,7 +205,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         },
     )?;
 
-    // 归档 task 文件
+    // Archive task files
     let task_dir = doc_root_path.join("task");
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {
@@ -220,13 +220,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                     }
                 }
                 if let Err(e) = fs::remove_file(entry.path()) {
-                    eprintln!("[dev-flow] 警告：归档后删除 {} 失败: {}", name, e);
+                    eprintln!("[dev-flow] Warning: Failed to delete {} after archive: {}", name, e);
                 }
             }
         }
     }
 
-    // 归档 closed issue
+    // Archive closed issues
     let issue_dir = doc_root_path.join("issue");
     if let Ok(entries) = fs::read_dir(&issue_dir) {
         for entry in entries.flatten() {
@@ -239,13 +239,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                     }
                 }
                 if let Err(e) = fs::remove_file(entry.path()) {
-                    eprintln!("[dev-flow] 警告：归档后删除 {} 失败: {}", name, e);
+                    eprintln!("[dev-flow] Warning: Failed to delete {} after archive: {}", name, e);
                 }
             }
         }
     }
 
-    // 归档文档（PRD/SPEC/TEST/BRAINSTORM）
+    // Archive documents (PRD/SPEC/TEST/BRAINSTORM)
     for doc_type in &["PRD", "SPEC", "TEST", "BRAINSTORM"] {
         let src = doc_root_path.join(format!("{}.md", doc_type));
         if src.exists() {
@@ -253,12 +253,12 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 archive_db::insert_doc(&conn, &released_version, doc_type, &content)?;
             }
             if let Err(e) = fs::remove_file(&src) {
-                eprintln!("[dev-flow] 警告：归档后删除 {}.md 失败: {}", doc_type, e);
+                eprintln!("[dev-flow] Warning: Failed to delete {}.md after archive: {}", doc_type, e);
             }
         }
     }
 
-    // 归档 CHANGELOG
+    // Archive CHANGELOG
     let changelog = doc_root_path.join("CHANGELOG.md");
     if changelog.exists() {
         if let Ok(content) = fs::read_to_string(&changelog) {
@@ -276,13 +276,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         fs::write(&changelog, "# Changelog\n").map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 7.5 清理 claim.lock（归档后不再需要）
+    // 7.5 Clean up claim.lock (no longer needed after archive)
     let claim_lock = doc_root_path.join("claim.lock");
     if claim_lock.exists() {
         let _ = fs::remove_file(&claim_lock);
     }
 
-    // 8. git commit + tag（archive.db 加入提交）
+    // 8. git commit + tag (include archive.db in commit)
     let commit_msg = format_commit_message(
         &released_version,
         &args.topic,
@@ -292,13 +292,13 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     commit_files.push(archive_db_path.clone());
     git_commit(&commit_msg, &commit_files)?;
 
-    // 只有 minor/major 或显式 --tag 才打 git tag
+    // Only create git tag for minor/major or explicit --tag
     let should_tag = args.bump != "patch" || args.tag;
     if should_tag {
         git_tag(&released_version)?;
     }
 
-    // 9. bump VERSION 到 next_version + 重置 phase
+    // 9. bump VERSION to next_version + reset phase
     version::write_current(&next_version)?;
     let next_ph = next_phase(&effective_mode, &mode);
 
@@ -328,12 +328,12 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     };
 
     if human {
-        println!("[dev-flow] 迭代完成");
+        println!("[dev-flow] Iteration complete");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
         let tag_display = if should_tag { " (tagged)" } else { "" };
-        println!("交付版本：v{}{}", released_version, tag_display);
-        println!("新版本：v{}", result.next_version);
-        println!("阶段重置：{}", result.next_phase);
+        println!("Released version: v{}{}", released_version, tag_display);
+        println!("New version: v{}", result.next_version);
+        println!("Phase reset: {}", result.next_phase);
     } else {
         output::print_json(&result);
     }
@@ -376,7 +376,7 @@ fn run_pre_iterate(version: &str, human: bool) -> Result<Vec<String>, DowError> 
 
     let snapshot = PreIterateSnapshot::capture();
     if human {
-        println!("[dev-flow] 执行 preIterate steps");
+        println!("[dev-flow] Executing preIterate steps");
     }
 
     let mut changed_files = Vec::new();
@@ -402,12 +402,12 @@ fn run_pre_iterate(version: &str, human: bool) -> Result<Vec<String>, DowError> 
         if let Err(err) = result {
             snapshot.restore().map_err(|rollback_err| {
                 DowError::new(
-                    format!("{}；preIterate 回滚失败：{}", err.message, rollback_err.message),
+                    format!("{}; preIterate rollback failed: {}", err.message, rollback_err.message),
                     1,
                 )
             })?;
             return Err(DowError::new(
-                format!("{}；已回滚 preIterate 修改", err.message),
+                format!("{}; preIterate changes have been rolled back", err.message),
                 err.exit_code,
             ));
         }
@@ -457,11 +457,11 @@ impl PreIterateSnapshot {
                 Some(bytes) => {
                     if let Some(parent) = target.parent() {
                         fs::create_dir_all(parent).map_err(|e| {
-                            DowError::new(format!("创建回滚目录 {} 失败：{}", parent.display(), e), 1)
+                            DowError::new(format!("Failed to create rollback directory {}: {}", parent.display(), e), 1)
                         })?;
                     }
                     fs::write(target, bytes).map_err(|e| {
-                        DowError::new(format!("回滚写入 {} 失败：{}", target.display(), e), 1)
+                        DowError::new(format!("Failed to write rollback file {}: {}", target.display(), e), 1)
                     })?;
                 }
                 None => {
@@ -482,7 +482,7 @@ fn remove_path(path: &Path) -> Result<(), DowError> {
     } else {
         fs::remove_file(path)
     }
-    .map_err(|e| DowError::new(format!("回滚删除 {} 失败：{}", path.display(), e), 1))
+    .map_err(|e| DowError::new(format!("Failed to delete {} during rollback: {}", path.display(), e), 1))
 }
 
 fn read_pre_iterate_steps() -> Result<Vec<PreIterateStep>, DowError> {
@@ -492,7 +492,7 @@ fn read_pre_iterate_steps() -> Result<Vec<PreIterateStep>, DowError> {
     }
 
     let content = fs::read_to_string(path)
-        .map_err(|e| DowError::new(format!("读取 .dev-doc/preIterate.ci 失败：{}", e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to read .dev-doc/preIterate.ci: {}", e), 1))?;
     parse_pre_iterate_steps(&content)
 }
 
@@ -507,14 +507,14 @@ fn parse_pre_iterate_steps(content: &str) -> Result<Vec<PreIterateStep>, DowErro
         }
         if trimmed == "sync-version" {
             return Err(DowError::new(
-                "preIterate sync-version 必须显式声明目标文件，例如 `sync-version: dow/Cargo.toml`",
+                "preIterate sync-version must explicitly declare target file, e.g., `sync-version: dow/Cargo.toml`",
                 1,
             ));
         }
         if let Some(path) = trimmed.strip_prefix("sync-version:") {
             let path = unquote(path.trim());
             if path.is_empty() {
-                return Err(DowError::new("preIterate sync-version 目标不能为空", 1));
+                return Err(DowError::new("preIterate sync-version target cannot be empty", 1));
             }
             steps.push(PreIterateStep::SyncVersion { path });
             continue;
@@ -522,7 +522,7 @@ fn parse_pre_iterate_steps(content: &str) -> Result<Vec<PreIterateStep>, DowErro
         if let Some(command) = trimmed.strip_prefix("run:") {
             let command = unquote(command.trim());
             if command.is_empty() {
-                return Err(DowError::new("preIterate run step 不能为空", 1));
+                return Err(DowError::new("preIterate run step cannot be empty", 1));
             }
             steps.push(PreIterateStep::Run {
                 name: format!("run: {}", command),
@@ -531,7 +531,7 @@ fn parse_pre_iterate_steps(content: &str) -> Result<Vec<PreIterateStep>, DowErro
             continue;
         }
         return Err(DowError::new(
-            format!("preIterate step 不支持：{}", trimmed),
+            format!("Unsupported preIterate step: {}", trimmed),
             1,
         ));
     }
@@ -563,7 +563,7 @@ fn run_shell_step(name: &str, command: &str) -> Result<(), DowError> {
     } else {
         Command::new("sh").args(["-c", command]).output()
     }
-    .map_err(|e| DowError::new(format!("preIterate step `{}` 启动失败：{}", name, e), 1))?;
+    .map_err(|e| DowError::new(format!("preIterate step `{}` failed to start: {}", name, e), 1))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -574,7 +574,7 @@ fn run_shell_step(name: &str, command: &str) -> Result<(), DowError> {
             stdout.trim().to_string()
         };
         return Err(DowError::new(
-            format!("preIterate step `{}` 失败：{}", name, detail),
+            format!("preIterate step `{}` failed: {}", name, detail),
             1,
         ));
     }
@@ -585,7 +585,7 @@ fn sync_version_file(path: &str, version: &str) -> Result<bool, DowError> {
     let manifest = Path::new(path);
     if !manifest.exists() {
         return Err(DowError::new(
-            format!("preIterate sync-version 目标不存在：{}", path),
+            format!("preIterate sync-version target does not exist: {}", path),
             1,
         ));
     }
@@ -598,7 +598,7 @@ fn sync_version_file(path: &str, version: &str) -> Result<bool, DowError> {
             Ok(project || poetry)
         }
         _ => Err(DowError::new(
-            format!("preIterate sync-version 不支持的文件：{}", path),
+            format!("preIterate sync-version unsupported file: {}", path),
             1,
         )),
     }
@@ -606,26 +606,26 @@ fn sync_version_file(path: &str, version: &str) -> Result<bool, DowError> {
 
 fn update_package_json_version(path: &Path, version: &str) -> Result<bool, DowError> {
     let content = fs::read_to_string(path)
-        .map_err(|e| DowError::new(format!("读取 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to read {}: {}", path.display(), e), 1))?;
     let mut json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| DowError::new(format!("解析 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to parse {}: {}", path.display(), e), 1))?;
     let current = json.get("version").and_then(|v| v.as_str());
     if current == Some(version) {
         return Ok(false);
     }
     json["version"] = serde_json::Value::String(version.to_string());
     let output = serde_json::to_string_pretty(&json)
-        .map_err(|e| DowError::new(format!("序列化 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to serialize {}: {}", path.display(), e), 1))?;
     fs::write(path, format!("{}\n", output))
-        .map_err(|e| DowError::new(format!("写入 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to write {}: {}", path.display(), e), 1))?;
     Ok(true)
 }
 
 fn update_toml_version(path: &Path, version: &str, section: &[&str]) -> Result<bool, DowError> {
     let content = fs::read_to_string(path)
-        .map_err(|e| DowError::new(format!("读取 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to read {}: {}", path.display(), e), 1))?;
     let _: toml::Value = toml::from_str(&content)
-        .map_err(|e| DowError::new(format!("解析 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to parse {}: {}", path.display(), e), 1))?;
 
     let target_section: Vec<String> = section.iter().map(|key| key.to_string()).collect();
     let mut current_section: Vec<String> = Vec::new();
@@ -655,7 +655,7 @@ fn update_toml_version(path: &Path, version: &str, section: &[&str]) -> Result<b
         output.push('\n');
     }
     fs::write(path, output)
-        .map_err(|e| DowError::new(format!("写入 {} 失败：{}", path.display(), e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to write {}: {}", path.display(), e), 1))?;
     Ok(true)
 }
 
@@ -870,9 +870,9 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
 }
 
 fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
-    // 已追踪文件的修改/删除
+    // Tracked file modifications/deletions
     run_git(["add", "-u"], "git add -u")?;
-    // 额外指定的新文件/目录（跳过已被归档删除的路径）
+    // Additional specified new files/directories (skip paths deleted by archive)
     for f in extra_files {
         if !Path::new(f).exists() {
             continue;
@@ -883,11 +883,11 @@ fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
     let diff = Command::new("git")
         .args(["diff", "--cached", "--quiet"])
         .output()
-        .map_err(|e| DowError::new(format!("git diff --cached 失败：{}", e), 1))?;
+        .map_err(|e| DowError::new(format!("git diff --cached failed: {}", e), 1))?;
 
     if diff.status.success() {
         return Err(DowError::new(
-            "git commit 跳过：没有 staged changes。请检查 iterate 的文件列表和 git add 输出。",
+            "git commit skipped: no staged changes. Please check iterate file list and git add output.",
             1,
         ));
     }
@@ -899,7 +899,7 @@ fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(DowError::new(format!("git commit 失败：{}", stderr), 1));
+        return Err(DowError::new(format!("git commit failed: {}", stderr), 1));
     }
     Ok(())
 }
@@ -907,11 +907,11 @@ fn git_commit(message: &str, extra_files: &[String]) -> Result<(), DowError> {
 fn validate_git_add_inputs(files: &[String]) -> Result<(), DowError> {
     for file in files {
         if file.trim().is_empty() {
-            return Err(DowError::new("iterate --files 包含空路径", 1));
+            return Err(DowError::new("iterate --files contains empty path", 1));
         }
         if !Path::new(file).exists() {
             return Err(DowError::new(
-                format!("iterate --files 路径不存在，已在归档前停止：{}", file),
+                format!("iterate --files path does not exist, stopped before archive: {}", file),
                 1,
             ));
         }
@@ -923,7 +923,7 @@ fn run_git<const N: usize>(args: [&str; N], label: &str) -> Result<(), DowError>
     let output = Command::new("git")
         .args(args)
         .output()
-        .map_err(|e| DowError::new(format!("{} 启动失败：{}", label, e), 1))?;
+        .map_err(|e| DowError::new(format!("{} failed to start: {}", label, e), 1))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -933,7 +933,7 @@ fn run_git<const N: usize>(args: [&str; N], label: &str) -> Result<(), DowError>
         } else {
             stdout.trim().to_string()
         };
-        return Err(DowError::new(format!("{} 失败：{}", label, detail), 1));
+        return Err(DowError::new(format!("{} failed: {}", label, detail), 1));
     }
     Ok(())
 }
@@ -941,14 +941,14 @@ fn run_git<const N: usize>(args: [&str; N], label: &str) -> Result<(), DowError>
 fn git_tag(version: &str) -> Result<(), DowError> {
     let tag = format!("v{}", version);
 
-    // 检查 tag 是否已存在
+    // Check if tag already exists
     let check = Command::new("git")
         .args(["tag", "-l", &tag])
         .output()
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     if !String::from_utf8_lossy(&check.stdout).trim().is_empty() {
-        return Ok(()); // tag 已存在
+        return Ok(()); // tag already exists
     }
 
     let output = Command::new("git")
@@ -958,7 +958,7 @@ fn git_tag(version: &str) -> Result<(), DowError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(DowError::new(format!("git tag 失败：{}", stderr), 1));
+        return Err(DowError::new(format!("git tag failed: {}", stderr), 1));
     }
     Ok(())
 }
@@ -998,56 +998,56 @@ fn format_commit_message(
 fn print_changelog_summary(entries: &[String]) {
     if entries.is_empty() {
         println!();
-        println!("⚠ CHANGELOG 为空，请检查是否有遗漏的记录。");
-        println!("  如有遗漏，请在确认前手动补充到 CHANGELOG.md。");
+        println!("⚠ CHANGELOG is empty, please check if there are missing entries.");
+        println!("  If there are any omissions, manually add them to CHANGELOG.md before confirmation.");
     } else {
         println!();
-        println!("CHANGELOG 当前条目（{}条）：", entries.len());
+        println!("CHANGELOG current entries ({} entries):", entries.len());
         for entry in entries {
             println!("  {}", entry);
         }
         println!();
-        println!("提示：请检查 CHANGELOG 是否有遗漏。如需补充，请在确认前编辑 CHANGELOG.md。");
+        println!("Tip: Check if CHANGELOG has any omissions. If needed, edit CHANGELOG.md before confirmation.");
     }
 }
 
 fn print_human_preview(result: &IterateOutput) {
-    println!("[dev-flow] 迭代预览");
+    println!("[dev-flow] Iteration Preview");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
-    println!("当前版本：v{}", result.released_version);
-    println!("归档数据库：{}", result.archive_db);
-    println!("归档文件（{}个）：", result.archived_files.len());
+    println!("Current version: v{}", result.released_version);
+    println!("Archive database: {}", result.archive_db);
+    println!("Archived files ({} items):", result.archived_files.len());
     for f in &result.archived_files {
         println!("  - {}", f);
     }
     println!();
     if !result.commit_files.is_empty() {
-        println!("提交文件（{}个）：", result.commit_files.len());
+        println!("Commit files ({} items):", result.commit_files.len());
         for f in &result.commit_files {
             println!("  - {}", f);
         }
         println!();
     }
     if !result.pre_iterate.is_empty() {
-        println!("preIterate steps（{}个）：", result.pre_iterate.len());
+        println!("preIterate steps ({} items):", result.pre_iterate.len());
         for step in &result.pre_iterate {
             println!("  - {}", step);
         }
         println!();
     }
-    println!("将要执行：");
+    println!("Will execute:");
     println!("  - git commit + tag: v{}", result.released_version);
     if !result.pre_iterate.is_empty() {
-        println!("  - preIterate: git commit 前执行");
+        println!("  - preIterate: execute before git commit");
     }
     println!(
         "  - bump: v{} → v{}",
         result.released_version, result.next_version
     );
-    println!("  - 阶段重置：{}", result.next_phase);
+    println!("  - Phase reset: {}", result.next_phase);
     if let Some(ref t) = result.token {
         println!();
-        println!("确认执行：DOW_ITERATE_{}=1 dow iterate --confirm ...", t);
+        println!("Confirm execution: DOW_ITERATE_{}=1 dow iterate --confirm ...", t);
     }
 }
 
@@ -1072,7 +1072,7 @@ fn generate_token_for_minute(offset: i64, args: &IterateArgs) -> String {
     format!("{:016x}", hash)[..8].to_string()
 }
 
-// 返回当前分钟 + 前4分钟的 token（5分钟有效窗口）
+// Return tokens for current minute + previous 4 minutes (5-minute validity window)
 fn generate_tokens_with_window(args: &IterateArgs) -> Vec<String> {
     (0..=4)
         .map(|i| generate_token_for_minute(-i, args))
@@ -1085,7 +1085,7 @@ fn check_persistent_docs_sync(status_file: &Path) -> Vec<String> {
         return Vec::new();
     }
 
-    // 找最近的 tag 作为 --since 参考
+    // Find the latest tag as --since reference
     let last_tag = Command::new("git")
         .args(["describe", "--tags", "--abbrev=0"])
         .output()
@@ -1098,7 +1098,7 @@ fn check_persistent_docs_sync(status_file: &Path) -> Vec<String> {
         _ => return Vec::new(),
     };
 
-    // 验证 ref 有效
+    // Verify ref is valid
     let ref_check = Command::new("git")
         .args(["rev-parse", "--verify", git_ref])
         .output()
@@ -1129,7 +1129,7 @@ fn check_persistent_docs_sync(status_file: &Path) -> Vec<String> {
 fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
     let mut changes = Vec::new();
 
-    // 已追踪文件的工作区修改（git add -u 会提交的内容）
+    // Tracked file working directory changes (content that git add -u will commit)
     if let Ok(output) = Command::new("git").args(["diff", "--name-only"]).output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines() {
@@ -1139,7 +1139,7 @@ fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
         }
     }
 
-    // 已 staged 的变更
+    // Already staged changes
     if let Ok(output) = Command::new("git")
         .args(["diff", "--name-only", "--cached"])
         .output()
@@ -1152,7 +1152,7 @@ fn list_pending_changes(extra_files: &[String]) -> Vec<String> {
         }
     }
 
-    // 额外指定的文件
+    // Additional specified files
     for f in extra_files {
         if !changes.contains(f) {
             changes.push(f.clone());

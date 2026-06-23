@@ -1,5 +1,5 @@
 // dow/src/hooks/
-// ├── context.rs  -- dow hooks context（注入上下文，替代 inject-context.sh）
+// ├── context.rs  -- dow hooks context (inject context, replaces inject-context.sh)
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
@@ -97,23 +97,23 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         .cloned()
         .unwrap_or_else(|| "step".to_string());
 
-    // 统计 tasks
+    // Count tasks
     let (task_stats, _total, _done) = count_tasks(&doc_root_path);
 
-    // 统计 open issues
+    // Count open issues
     let open_issues = count_open_issues(&doc_root_path);
 
-    // BLOCKED 检查：DEV 阶段无待做工作时阻断
+    // BLOCKED check: block DEV phase when no pending work
     let mut guard_notice = None;
     if phase == "DEV" && !mode.starts_with("audit/") {
         let undone_items = count_undone_in_active_tasks(&doc_root_path);
 
         if undone_items == 0 && open_issues == 0 {
             let reason =
-                "[dev-flow] DEV 阶段无待完成的 task 且无 open issue，不允许继续开发。请选择：\n\
-                → /task 创建新任务\n\
-                → /issue 创建 issue\n\
-                → /test 进入测试阶段";
+                "[dev-flow] DEV phase has no pending tasks or open issues, development not allowed. Please choose:\n\
+                → /task to create new task\n\
+                → /issue to create issue\n\
+                → /test to enter test phase";
             if human {
                 println!("{}", reason);
             } else if codex_hook {
@@ -137,13 +137,13 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         }
     }
 
-    // 获取当前 items（issue 优先于 task）
+    // Get current items (issues take priority over tasks)
     let current_items = get_current_items(&doc_root_path, open_issues);
 
-    // 最近 CHANGELOG 条目
+    // Last CHANGELOG entry
     let last_changelog = get_last_changelog(&doc_root_path);
 
-    // 版本信息
+    // Version info
     let (version, version_tag) = read_version_info();
 
     let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
@@ -274,7 +274,7 @@ fn count_open_issues(doc_root: &Path) -> u32 {
     open
 }
 
-/// 统计 active task 文件中未完成的 checklist 项数
+/// Count undone checklist items in active task files
 fn count_undone_in_active_tasks(doc_root: &Path) -> u32 {
     let task_dir = doc_root.join("task");
     crate::core::task_store::count_undone_items(&task_dir)
@@ -282,10 +282,10 @@ fn count_undone_in_active_tasks(doc_root: &Path) -> u32 {
 
 fn get_current_items(doc_root: &Path, open_issues: u32) -> Option<CurrentItems> {
     if open_issues > 0 {
-        // 显示最高优先级 issue
+        // show highest priority issues
         return get_current_issues(doc_root);
     }
-    // 显示最高优先级未完成 task
+    // show highest priority incomplete tasks
     get_current_tasks(doc_root)
 }
 

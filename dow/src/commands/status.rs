@@ -1,8 +1,8 @@
 // dow/src/commands/
-// ├── status.rs  -- dow status 子命令（读写 STATUS.yaml + mode 联动）
+// ├── status.rs  -- dow status subcommand (read/write STATUS.yaml + mode coordination)
 //
 // Related Docs:
-// - [STATUS 规范](../../../references/.dev-doc/STATUS.md)
+// - [STATUS specification](../../../references/.dev-doc/STATUS.md)
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::StatusArgs;
@@ -29,7 +29,7 @@ struct StatusOutput {
     started: String,
 }
 
-// mode 对应的阶段流程链
+// Phase chain corresponding to mode
 fn phase_chain(mode: &str) -> Vec<&'static str> {
     match mode {
         "full" => vec!["PRD", "SPEC", "TASK", "DEV", "TEST", "DONE"],
@@ -40,7 +40,7 @@ fn phase_chain(mode: &str) -> Vec<&'static str> {
     }
 }
 
-// mode 对应的起始阶段
+// Starting phase corresponding to mode
 fn mode_start_phase(mode: &str) -> &'static str {
     match mode {
         "full" => "PRD",
@@ -50,9 +50,9 @@ fn mode_start_phase(mode: &str) -> &'static str {
     }
 }
 
-// 校验阶段跳转是否合法
+// Validate whether phase transition is legal
 fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<(), String> {
-    // TEST → DEV 始终允许（回退修 bug）
+    // TEST → DEV always allowed (rollback to fix bugs)
     if current == "TEST" && target == "DEV" {
         return Ok(());
     }
@@ -67,7 +67,7 @@ fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<
                 Ok(())
             } else {
                 Err(format!(
-                    "非法跳转：{} → {}（{} 模式下只允许前进一步：{} → {}）",
+                    "Illegal transition: {} → {} (in {} mode, only one step forward is allowed: {} → {})",
                     current,
                     target,
                     mode,
@@ -76,8 +76,8 @@ fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<
                 ))
             }
         }
-        (None, Some(_)) => Ok(()), // 当前阶段不在链中，允许跳转
-        (_, None) => Err(format!("无效阶段：{}（合法值：{}）", target, chain.join("/"))),
+        (None, Some(_)) => Ok(()), // Current phase not in chain, allow transition
+        (_, None) => Err(format!("Invalid phase: {} (valid values: {})", target, chain.join("/"))),
     }
 }
 
@@ -87,12 +87,12 @@ pub fn run(args: StatusArgs, human: bool) -> Result<i32, DowError> {
 
     if !status_file.exists() {
         return Err(DowError::new(
-            format!("STATUS.yaml 不存在：{}", status_file.display()),
+            format!("STATUS.yaml does not exist: {}", status_file.display()),
             1,
         ));
     }
 
-    // 写操作
+    // Write operation
     let is_write = args.phase.is_some()
         || args.mode.is_some()
         || args.exec_mode.is_some()
@@ -104,12 +104,12 @@ pub fn run(args: StatusArgs, human: bool) -> Result<i32, DowError> {
         return handle_write(&status_file, &args);
     }
 
-    // 读操作
+    // Read operation
     handle_read(&status_file, &doc_root_path, args.field, human)
 }
 
 fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowError> {
-    // 设置 phase（带合法性校验）
+    // Set phase (with validity check)
     if let Some(ref target_phase) = args.phase {
         let target = target_phase.to_uppercase();
         let current = yaml::get(status_file, "phase")
@@ -119,7 +119,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             .map_err(|e| DowError::new(e.to_string(), 1))?
             .unwrap_or_else(|| "quick".to_string());
 
-        // 提取 effective mode（去掉 audit/ 前缀）
+        // Extract effective mode (remove audit/ prefix)
         let effective_mode = if mode.starts_with("audit/") {
             &mode[6..]
         } else {
@@ -129,22 +129,22 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         validate_phase_transition(&current, &target, effective_mode)
             .map_err(|e| DowError::new(e, 1))?;
 
-        // 进入 DEV 的前提：存在未关闭的 task 或 issue，且文档合法
+        // Prerequisite for entering DEV: existence of open tasks or issues, and valid documentation
         if target == "DEV" {
             let doc_root_path = status_file.parent().unwrap();
             let has_tasks = has_open_tasks(doc_root_path);
             let has_issues = has_open_issues(doc_root_path);
             if !has_tasks && !has_issues {
                 return Err(DowError::new(
-                    "无法进入 DEV：不存在未关闭的 task 或 issue。请先用 `dow doc task` 或 `dow doc issue` 创建。",
+                    "Cannot enter DEV: no open tasks or issues exist. Please create them first using `dow doc task` or `dow doc issue`.",
                     1,
                 ));
             }
-            // 文档合法性校验
+            // Documentation validity check
             let validation_errors = doc_validator::validate_all(doc_root_path);
             if !validation_errors.is_empty() {
                 let msg = format!(
-                    "无法进入 DEV：.dev-doc 文件存在格式错误。\n{}",
+                    "Cannot enter DEV: .dev-doc files have format errors.\n{}",
                     doc_validator::format_errors_human(&validation_errors)
                 );
                 return Err(DowError::new(msg, 1));
@@ -155,18 +155,18 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 设置 mode（拒绝 audit + 联动 phase）
+    // Set mode (reject audit + coordinate with phase)
     if let Some(ref new_mode) = args.mode {
         if new_mode.starts_with("audit") {
             return Err(DowError::new(
-                "audit 模式为自动触发，不支持手动设置",
+                "audit mode is auto-triggered and does not support manual setting",
                 1,
             ));
         }
         let valid_modes = ["full", "quick", "fast", "mvp"];
         if !valid_modes.contains(&new_mode.as_str()) {
             return Err(DowError::new(
-                format!("无效模式：{}（可选：full/quick/fast/mvp）", new_mode),
+                format!("Invalid mode: {} (options: full/quick/fast/mvp)", new_mode),
                 1,
             ));
         }
@@ -174,8 +174,8 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         yaml::set(status_file, "mode", new_mode)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-        // mode 切换不联动 phase —— phase 由显式 --phase 或 /iterate 管理
-        // 仅校验当前 phase 在新 mode 下是否合法，不合法则警告但不修改
+        // Mode switching does not coordinate with phase — phase is managed by explicit --phase or /iterate
+        // Only validate whether current phase is legal under new mode, warn but don't modify if illegal
         let current_phase = yaml::get(status_file, "phase")
             .ok()
             .flatten()
@@ -183,18 +183,18 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
         let chain = phase_chain(new_mode);
         if !chain.contains(&current_phase.as_str()) {
             eprintln!(
-                "[dow] 警告: 当前阶段 {} 不在 {} 模式的流程链中（{}），建议手动调整",
+                "[dow] Warning: current phase {} is not in the workflow chain of {} mode ({}), manual adjustment recommended",
                 current_phase, new_mode, chain.join(" → ")
             );
         }
     }
 
-    // 设置 exec_mode
+    // Set exec_mode
     if let Some(ref exec_mode) = args.exec_mode {
         let valid = ["step", "continuous"];
         if !valid.contains(&exec_mode.as_str()) {
             return Err(DowError::new(
-                format!("无效 exec_mode：{}（可选：step/continuous）", exec_mode),
+                format!("Invalid exec_mode: {} (options: step/continuous)", exec_mode),
                 1,
             ));
         }
@@ -202,16 +202,16 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 设置 name（不允许为空）
+    // Set name (must not be empty)
     if let Some(ref name) = args.name {
         if name.trim().is_empty() {
-            return Err(DowError::new("name 不能为空", 1));
+            return Err(DowError::new("name cannot be empty", 1));
         }
         yaml::set(status_file, "name", name)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 设置版本目标
+    // Set version goals
     if let Some(ref goal) = args.goals_minor {
         yaml::set(status_file, "goals_minor", goal)
             .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -221,7 +221,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 自动更新 updated 时间戳
+    // Auto-update updated timestamp
     yaml::touch_updated(status_file)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
@@ -236,9 +236,9 @@ fn handle_read(
 ) -> Result<i32, DowError> {
     let map = yaml::read(status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 只取某字段
+    // Get only a specific field
     if let Some(ref key) = field {
-        // 数组字段特殊处理
+        // Special handling for array fields
         if key == "docs" {
             let items = yaml::get_list(status_file, key)
                 .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -256,7 +256,7 @@ fn handle_read(
         return Ok(0);
     }
 
-    // 读取 VERSION 文件
+    // Read VERSION file
     let (version, version_tag) = read_version_info();
 
     let status = StatusOutput {
@@ -306,31 +306,31 @@ fn read_version_info() -> (String, String) {
 fn print_human(status: &StatusOutput) {
     let branch = crate::core::doc_root::current_branch()
         .unwrap_or_else(|| "main".to_string());
-    println!("[dev-flow] 项目状态报告");
+    println!("[dev-flow] Project Status Report");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
-    println!("项目名称：{}", status.name);
-    println!("文档根：{}", status.doc_root);
-    println!("当前阶段：{}", status.phase);
-    println!("开发模式：{}", status.mode);
-    println!("执行模式：{}", status.exec_mode);
-    println!("当前版本：({})v{} ({})", branch, status.version, status.version_tag);
+    println!("Project Name: {}", status.name);
+    println!("Doc Root: {}", status.doc_root);
+    println!("Current Phase: {}", status.phase);
+    println!("Development Mode: {}", status.mode);
+    println!("Execution Mode: {}", status.exec_mode);
+    println!("Current Version: ({})v{} ({})", branch, status.version, status.version_tag);
     if let Some(ref g) = status.goals_minor {
-        println!("目标(minor)：{}", g);
+        println!("Goal (minor): {}", g);
     }
     if let Some(ref g) = status.goals_major {
-        println!("目标(major)：{}", g);
+        println!("Goal (major): {}", g);
     }
-    println!("更新时间：{}", status.updated);
-    println!("启动时间：{}", status.started);
+    println!("Updated: {}", status.updated);
+    println!("Started: {}", status.started);
 }
 
-/// 检查是否存在未完成的 task
+/// Check if there are any open tasks
 fn has_open_tasks(doc_root: &std::path::Path) -> bool {
     let task_dir = doc_root.join("task");
     crate::core::task_store::has_active_work(&task_dir)
 }
 
-/// 检查是否存在未关闭的 issue
+/// Check if there are any open issues
 fn has_open_issues(doc_root: &std::path::Path) -> bool {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {

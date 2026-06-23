@@ -1,5 +1,5 @@
 // dow/src/core/agent_registry.rs
-// Agent 插件目录发现与文件部署
+// Agent plugin directory discovery and file deployment
 //
 // Internal Framework:
 // agent_registry.rs
@@ -45,17 +45,17 @@ pub fn deploy_plugin(agent: &str, bundle_dir: &Path) -> Result<(), String> {
     let source = bundle_dir.join(agent);
     if !source.exists() {
         return Err(format!(
-            "bundle 中未找到 {} 插件资源: {}",
+            "Plugin resource for {} not found in bundle: {}",
             agent,
             source.display()
         ));
     }
 
     let target =
-        platform::agent_plugin_dir(agent).ok_or_else(|| format!("不支持的 agent: {}", agent))?;
+        platform::agent_plugin_dir(agent).ok_or_else(|| format!("Unsupported agent: {}", agent))?;
 
     if target.exists() {
-        fs::remove_dir_all(&target).map_err(|e| format!("清理旧插件目录失败: {}", e))?;
+        fs::remove_dir_all(&target).map_err(|e| format!("Failed to clean old plugin directory: {}", e))?;
     }
 
     copy_dir_recursive(&source, &target)?;
@@ -65,11 +65,11 @@ pub fn deploy_plugin(agent: &str, bundle_dir: &Path) -> Result<(), String> {
 
 pub fn inject_global_instructions(agent: &str) -> Result<bool, String> {
     let instructions_path = platform::agent_global_instructions(agent)
-        .ok_or_else(|| format!("不支持的 agent: {}", agent))?;
+        .ok_or_else(|| format!("Unsupported agent: {}", agent))?;
 
     let content = if instructions_path.exists() {
         fs::read_to_string(&instructions_path)
-            .map_err(|e| format!("读取全局指令文件失败: {}", e))?
+            .map_err(|e| format!("Failed to read global instructions file: {}", e))?
     } else {
         String::new()
     };
@@ -80,11 +80,11 @@ pub fn inject_global_instructions(agent: &str) -> Result<bool, String> {
     }
 
     if let Some(parent) = instructions_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
     fs::write(&instructions_path, new_content)
-        .map_err(|e| format!("写入全局指令文件失败: {}", e))?;
+        .map_err(|e| format!("Failed to write global instructions file: {}", e))?;
 
     Ok(true)
 }
@@ -143,12 +143,12 @@ fn codex_hook_discipline_block() -> &'static str {
 
 pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     let target =
-        platform::agent_plugin_dir(agent).ok_or_else(|| format!("不支持的 agent: {}", agent))?;
+        platform::agent_plugin_dir(agent).ok_or_else(|| format!("Unsupported agent: {}", agent))?;
 
     let mut issues = Vec::new();
 
     if !target.exists() {
-        issues.push(format!("插件目录不存在: {}", target.display()));
+        issues.push(format!("Plugin directory does not exist: {}", target.display()));
         return Ok(issues);
     }
 
@@ -159,7 +159,7 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     };
     for dir in required_dirs {
         if !target.join(dir).exists() {
-            issues.push(format!("缺少目录: {}/{}", target.display(), dir));
+            issues.push(format!("Missing directory: {}/{}", target.display(), dir));
         }
     }
 
@@ -168,18 +168,18 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
             if !target.join("hooks/hooks.json").exists()
                 && !target.join("hooks").join("hooks.json").exists()
             {
-                issues.push("缺少 hooks/hooks.json".to_string());
+                issues.push("Missing hooks/hooks.json".to_string());
             }
             if !target.join(".claude-plugin/plugin.json").exists() {
-                issues.push("缺少 .claude-plugin/plugin.json".to_string());
+                issues.push("Missing .claude-plugin/plugin.json".to_string());
             }
         }
         "codex" => {
             if !target.join("hooks").join("hooks.json").exists() {
-                issues.push("缺少 hooks/hooks.json".to_string());
+                issues.push("Missing hooks/hooks.json".to_string());
             }
             if !target.join(".app.json").exists() {
-                issues.push("缺少 .app.json".to_string());
+                issues.push("Missing .app.json".to_string());
             }
             if !target
                 .join(".agents")
@@ -187,10 +187,10 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
                 .join("marketplace.json")
                 .exists()
             {
-                issues.push("缺少 .agents/plugins/marketplace.json".to_string());
+                issues.push("Missing .agents/plugins/marketplace.json".to_string());
             }
             if !target.join(".codex-plugin").join("plugin.json").exists() {
-                issues.push("缺少 .codex-plugin/plugin.json".to_string());
+                issues.push("Missing .codex-plugin/plugin.json".to_string());
             }
         }
         _ => {}
@@ -216,11 +216,11 @@ fn which_command(cmd: &str) -> bool {
 }
 
 pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| format!("创建目录 {} 失败: {}", dst.display(), e))?;
+    fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
 
-    for entry in fs::read_dir(src).map_err(|e| format!("读取目录 {} 失败: {}", src.display(), e))?
+    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
     {
-        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
 
@@ -229,7 +229,7 @@ pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
         } else {
             fs::copy(&src_path, &dst_path).map_err(|e| {
                 format!(
-                    "复制 {} → {} 失败: {}",
+                    "Failed to copy {} → {}: {}",
                     src_path.display(),
                     dst_path.display(),
                     e

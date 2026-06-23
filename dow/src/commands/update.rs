@@ -1,5 +1,5 @@
 // dow/src/commands/update.rs
-// dow update 子命令 — 自更新二进制 + 插件
+// dow update subcommand — self-update binary + plugins
 
 use std::fs;
 use std::path::PathBuf;
@@ -8,22 +8,22 @@ use crate::core::{agent_registry, config::DowConfig, github, platform};
 use crate::error::DowError;
 
 pub fn run(_human: bool) -> Result<i32, DowError> {
-    eprintln!("[dow] 检查更新...");
+    eprintln!("[dow] Checking for updates...");
 
     let current_version = env!("DOW_VERSION");
     let release = github::check_latest_version()
-        .map_err(|e| DowError::new(&format!("检查更新失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Update check failed: {}", e), 1))?;
 
     if github::is_update_available(current_version, &release.version, &release.published_at) {
         eprintln!(
-            "[dow] 发现新版本: v{} → v{} ({})",
+            "[dow] New version found: v{} → v{} ({})",
             current_version, release.version, release.published_at
         );
         if let Some(ref notes) = release.notes {
-            eprintln!("[dow] 变更: {}", notes);
+            eprintln!("[dow] Changes: {}", notes);
         }
     } else {
-        eprintln!("[dow] 已是最新版本 (v{})", current_version);
+        eprintln!("[dow] Already at latest version (v{})", current_version);
         return Ok(0);
     }
 
@@ -31,21 +31,21 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     let tmp_dir = std::env::temp_dir().join("dow-update");
     let _ = fs::remove_dir_all(&tmp_dir);
     fs::create_dir_all(&tmp_dir)
-        .map_err(|e| DowError::new(&format!("创建临时目录失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Failed to create temp directory: {}", e), 1))?;
 
     let tarball_path = tmp_dir.join("dow.tar.gz");
-    eprintln!("[dow] 下载 dow-{}-{}...", release.tag_name, platform_triple);
+    eprintln!("[dow] Downloading dow-{}-{}...", release.tag_name, platform_triple);
     github::download_release_asset(&release.tag_name, platform_triple, &tarball_path)
-        .map_err(|e| DowError::new(&format!("下载失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Download failed: {}", e), 1))?;
 
     let extract_dir = tmp_dir.join("extracted");
     github::extract_tarball(&tarball_path, &extract_dir)
-        .map_err(|e| DowError::new(&format!("解压失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Extraction failed: {}", e), 1))?;
 
     let new_binary = find_binary(&extract_dir)?;
-    eprintln!("[dow] 替换二进制...");
+    eprintln!("[dow] Replacing binary...");
     github::self_replace_binary(&new_binary)
-        .map_err(|e| DowError::new(&format!("替换失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Replacement failed: {}", e), 1))?;
 
     let new_bundle = extract_dir.join("bundle");
     if new_bundle.exists() {
@@ -55,7 +55,7 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         }
         copy_dir_recursive(&new_bundle, &bundle_dest)
             .map_err(|e| DowError::new(&e, 1))?;
-        eprintln!("[dow] bundle 已更新");
+        eprintln!("[dow] Bundle updated");
     }
 
     let config = DowConfig::load();
@@ -64,9 +64,9 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         match agent_registry::deploy_plugin(agent, &bundle_dir) {
             Ok(()) => {
                 refresh_agent_plugin(agent);
-                eprintln!("[dow] ✓ {} 插件已更新", agent);
+                eprintln!("[dow] ✓ {} plugin updated", agent);
             }
-            Err(e) => eprintln!("[dow] ⚠ {} 插件更新失败: {}", agent, e),
+            Err(e) => eprintln!("[dow] ⚠ {} plugin update failed: {}", agent, e),
         }
     }
 
@@ -79,7 +79,7 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
 
     let _ = fs::remove_dir_all(&tmp_dir);
 
-    eprintln!("[dow] ✓ 更新完成！当前版本: v{}", release.version);
+    eprintln!("[dow] ✓ Update complete! Current version: v{}", release.version);
     Ok(0)
 }
 
@@ -107,17 +107,17 @@ fn find_binary(extract_dir: &std::path::Path) -> Result<PathBuf, DowError> {
         return Ok(in_root);
     }
 
-    Err(DowError::new(&format!("解压后未找到 {} 二进制", bin_name), 1))
+    Err(DowError::new(&format!("Binary {} not found after extraction", bin_name), 1))
 }
 
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
     fs::create_dir_all(dst)
-        .map_err(|e| format!("创建目录失败: {}", e))?;
+        .map_err(|e| format!("Failed to create directory: {}", e))?;
 
     for entry in fs::read_dir(src)
-        .map_err(|e| format!("读取目录失败: {}", e))?
+        .map_err(|e| format!("Failed to read directory: {}", e))?
     {
-        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
 
@@ -125,7 +125,7 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
             copy_dir_recursive(&src_path, &dst_path)?;
         } else {
             fs::copy(&src_path, &dst_path)
-                .map_err(|e| format!("复制失败: {}", e))?;
+                .map_err(|e| format!("Copy failed: {}", e))?;
         }
     }
     Ok(())

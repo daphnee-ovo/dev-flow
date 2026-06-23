@@ -1,13 +1,13 @@
-// dow - dev-flow 统一 CLI 调度器
+// dow - dev-flow unified CLI dispatcher
 // dow/
 // ├── src/
-// │   ├── main.rs          -- CLI 入口
-// │   ├── cli.rs           -- clap 子命令定义
-// │   ├── output.rs        -- JSON / human 输出切换
-// │   ├── error.rs         -- 统一错误类型
-// │   ├── commands/        -- 子命令实现
-// │   ├── hooks/           -- hook 子命令实现
-// │   └── lib/             -- 公共库（yaml/version/git 等）
+// │   ├── main.rs          -- CLI entry point
+// │   ├── cli.rs           -- clap subcommand definitions
+// │   ├── output.rs        -- JSON / human output toggle
+// │   ├── error.rs         -- Unified error type
+// │   ├── commands/        -- Subcommand implementations
+// │   ├── hooks/           -- Hook subcommand implementations
+// │   └── lib/             -- Common library (yaml/version/git, etc.)
 
 mod cli;
 mod commands;
@@ -24,7 +24,7 @@ fn main() {
     let cli = Cli::parse();
     let human = cli.human;
 
-    // 每日版本检查（非 setup/update/self-check 命令时）
+    // Daily version check (when not setup/update/self-check commands)
     if should_check_version(&cli.command) {
         check_version_background();
     }
@@ -103,11 +103,11 @@ fn check_version_background() {
     ) {
         if core::github::is_update_available(current, remote, published_at) {
             eprintln!(
-                "[dow] 新版本 v{} 可用（当前 v{}），运行 `dow update` 升级",
+                "[dow] New version v{} available (current v{}), run `dow update` to upgrade",
                 remote, current
             );
             if let Some(ref notes) = config.latest_release_notes {
-                eprintln!("[dow] 变更: {}", notes);
+                eprintln!("[dow] Changes: {}", notes);
             }
         }
     }

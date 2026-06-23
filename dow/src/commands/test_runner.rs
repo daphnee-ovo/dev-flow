@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── test_runner.rs  -- dow test（全量测试运行器）
+// ├── test_runner.rs  -- dow test (comprehensive test runner)
 
 use crate::cli::TestArgs;
 use crate::error::DowError;
@@ -57,9 +57,9 @@ pub fn run(args: TestArgs, human: bool) -> Result<i32, DowError> {
     let result = TestOutput { total, passed, failed, failures };
 
     if human {
-        println!("[dev-flow] 测试结果：{}/{} 通过", passed, total);
+        println!("[dev-flow] Test result: {}/{} passed", passed, total);
         if !result.failures.is_empty() {
-            println!("失败：");
+            println!("Failed:");
             for f in &result.failures {
                 println!("  - {}", f);
             }

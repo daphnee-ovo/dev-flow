@@ -1,73 +1,73 @@
 ---
-description: 启动 TASK 阶段 — 任务拆解
+description: Start TASK phase — task decomposition
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# TASK — 任务拆解
+# TASK — Task Decomposition
 
-## 前置检查（模式感知）
+## Pre-checks (mode-aware)
 
-1. 读取 STATUS.yaml 中的开发模式
-2. 按模式决定输入源：
-   - **full/quick 模式**：检查 `<DOC_ROOT>/SPEC.md` 是否存在，不存在则停止，告知用户先执行 /spec
-   - **fast 模式**：不要求 SPEC.md，使用用户描述 + 项目上下文作为输入
-3. 生成项目上下文：`dow inbox context`
+1. Read development mode from STATUS.yaml
+2. Decide input source by mode:
+   - **full/quick mode**: check if `<DOC_ROOT>/SPEC.md` exists, if not stop, tell user to execute /spec first
+   - **fast mode**: SPEC.md not required, use user description + project context as input
+3. Generate project context: `dow inbox context`
 
-## 输入组装（模式感知）
+## Input Assembly (mode-aware)
 
-| 模式 | 方案输入 | 项目上下文 |
-|------|----------|-----------|
-| full/quick | SPEC.md（必须存在） | 始终传入 |
-| fast | 用户描述（无需 SPEC.md） | 始终传入 |
+| Mode | Solution Input | Project Context |
+|------|---------------|-----------------|
+| full/quick | SPEC.md (must exist) | Always passed |
+| fast | User description (no need for SPEC.md) | Always passed |
 
-## Agent 调度（隔离模板）
+## Agent Dispatch (Isolation Template)
 
-**必须启动独立子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
+**Must launch independent subagent. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
 
 ```
-description: "TASK agent - 任务拆解"
-prompt: `<读取 agents/task-agent.md 的完整内容>
+description: "TASK agent - Task decomposition"
+prompt: `<read complete content of agents/task-agent.md>
 
-## 输入文档
+## Input Documents
 
-### 技术方案
-<按模式传入：SPEC.md 完整内容 / 用户描述>
+### Technical Solution
+<pass by mode: SPEC.md complete content / user description>
 
-### 项目上下文
-<执行 dow inbox context 的输出，原样粘贴>
+### Project Context
+<execute dow inbox context output, paste as-is>
 
-## 输出路径
+## Output Path
 
-通过 `dow doc task -n <任务数>` 创建文件（自动处理目录创建和序号递增），写入 `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`。
+Create file via `dow doc task -n <task_count>` (auto-handles directory creation and sequence increment), write to `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`.
 
-## 输出格式
+## Output Format
 
-执行 `dow doc task --json` 获取结构化格式定义，将内容拼入 agent prompt。
+Execute `dow doc task --json` to get structured format definition, append to agent prompt.
 
-## 禁止
+## Prohibited
 
-- 不要阅读 PRD.md（你不需要知道"为什么做"，只需要知道"怎么做"）
-- 不要参考 SPEC 的讨论过程
-- 不要开始写代码
-- 不要设计新的架构方案
-- 不要增加 model/steps/verification/docs 字段`
+- Don't read PRD.md (you don't need to know "why do it", only need to know "how to do it")
+- Don't reference SPEC discussion process
+- Don't start writing code
+- Don't design new architecture solutions
+- Don't add model/steps/verification/docs fields`
 ```
 
-## 输入隔离规则
+## Input Isolation Rules
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| agents/task-agent.md 内容 | PRD.md |
-| SPEC.md 完整内容（按模式） | PRD/SPEC 阶段的对话历史 |
-| 项目上下文（context.sh 输出） | 无关历史记录 |
-| DOC_ROOT 路径 | |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| agents/task-agent.md content | PRD.md |
+| SPEC.md complete content (by mode) | PRD/SPEC phase conversation history |
+| Project context (context.sh output) | Unrelated historical records |
+| DOC_ROOT path | |
 
-## 隔离边界说明
+## Isolation Boundary Explanation
 
-隔离的是**讨论过程**，不是**项目现状**。TASK agent 需要了解项目目录结构和已有模块才能合理评估任务粒度，但不应看到 SPEC 是如何讨论出来的。
+What's isolated is **discussion process**, not **project current state**. TASK agent needs to understand project directory structure and existing modules to reasonably assess task granularity, but shouldn't see how SPEC was discussed out.
 
-## 完成后
+## After Completion
 
-1. 确认 task 文件已写入 `<DOC_ROOT>/task/`
-2. 更新 STATUS.yaml：当前阶段 → TASK
-3. 提示用户：确认任务清单后，STATUS 将切换为 DEV，开始开发
+1. Confirm task files written to `<DOC_ROOT>/task/`
+2. Update STATUS.yaml: current phase → TASK
+3. Prompt user: after confirming task list, STATUS will switch to DEV, start development

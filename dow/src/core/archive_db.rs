@@ -1,5 +1,5 @@
 // dow/src/core/
-// ├── archive_db.rs  -- SQLite 归档存储（建表、读写、解析）
+// ├── archive_db.rs  -- SQLite archive storage (schema, read/write, parsing)
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -9,7 +9,7 @@ use rusqlite::{params, Connection};
 use std::fs;
 use std::path::Path;
 
-// ─── 数据结构 ───
+// ─── Data Structures ───
 
 pub struct IterationRecord {
     pub version: String,
@@ -52,13 +52,13 @@ pub struct IssueRecord {
     pub fix: Option<String>,
 }
 
-// ─── 连接与建表 ───
+// ─── Connection and Schema ───
 
-/// 打开归档数据库（始终在 .dev-doc/archive.db，跨分支共享）
+/// Open archive database (always at .dev-doc/archive.db, shared across branches)
 pub fn open_or_create(base: &Path) -> Result<Connection, DowError> {
     let db_path = base.join("archive.db");
     let conn = Connection::open(&db_path)
-        .map_err(|e| DowError::new(format!("打开 archive.db 失败：{}", e), 1))?;
+        .map_err(|e| DowError::new(format!("Failed to open archive.db: {}", e), 1))?;
 
     conn.execute_batch("PRAGMA journal_mode=DELETE;")
         .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -67,7 +67,7 @@ pub fn open_or_create(base: &Path) -> Result<Connection, DowError> {
     Ok(conn)
 }
 
-/// 归档数据库基础路径（固定 .dev-doc/，不随分支变化）
+/// Archive database base path (fixed at .dev-doc/, does not vary by branch)
 pub fn archive_base() -> std::path::PathBuf {
     std::path::PathBuf::from(crate::core::DOC_DIR)
 }
@@ -165,14 +165,14 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
         INSERT OR IGNORE INTO schema_version(version) VALUES(1);
         ",
     )
-    .map_err(|e| DowError::new(format!("建表失败：{}", e), 1))?;
+    .map_err(|e| DowError::new(format!("Failed to create tables: {}", e), 1))?;
 
-    // 兼容旧数据库：确保 revoked 列存在
+    // Backwards compatibility: ensure revoked column exists
     conn.execute_batch(
         "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
     ).ok();
 
-    // 兼容旧数据库：去掉 version UNIQUE 约束（同版本可有多条记录）
+    // Backwards compatibility: remove version UNIQUE constraint (allow multiple records per version)
     let has_unique: bool = conn.query_row(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='iterations'",
         [],
@@ -203,7 +203,7 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
     Ok(())
 }
 
-// ─── 写入 ───
+// ─── Write Operations ───
 
 pub fn insert_iteration(conn: &Connection, rec: &IterationRecord) -> Result<(), DowError> {
     conn.execute(
@@ -229,7 +229,7 @@ pub fn insert_doc(conn: &Connection, version: &str, doc_type: &str, content: &st
         "SPEC" => "INSERT OR REPLACE INTO spec_docs (version, content) VALUES (?1, ?2)",
         "TEST" => "INSERT OR REPLACE INTO test_docs (version, content) VALUES (?1, ?2)",
         "BRAINSTORM" => "INSERT OR REPLACE INTO brainstorm_docs (version, content) VALUES (?1, ?2)",
-        _ => return Err(DowError::new(format!("未知文档类型：{}", doc_type), 1)),
+        _ => return Err(DowError::new(format!("Unknown document type: {}", doc_type), 1)),
     };
     conn.execute(sql, params![version, content])
         .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -297,7 +297,7 @@ pub fn insert_changelog(conn: &Connection, version: &str, date: Option<&str>, te
     Ok(())
 }
 
-// ─── 查询 ───
+// ─── Query Operations ───
 
 pub struct IterationSummary {
     pub version: String,
@@ -352,7 +352,7 @@ pub fn get_doc(conn: &Connection, version: &str, doc_type: &str) -> Result<Optio
         "SPEC" => "SELECT content FROM spec_docs WHERE version = ?1",
         "TEST" => "SELECT content FROM test_docs WHERE version = ?1",
         "BRAINSTORM" => "SELECT content FROM brainstorm_docs WHERE version = ?1",
-        _ => return Err(DowError::new(format!("未知文档类型：{}", doc_type), 1)),
+        _ => return Err(DowError::new(format!("Unknown document type: {}", doc_type), 1)),
     };
     let result = conn
         .query_row(sql, params![version], |row| row.get::<_, String>(0))
@@ -486,7 +486,7 @@ pub fn query_changelog(conn: &Connection, version: &str) -> Result<Vec<(Option<S
     Ok(results)
 }
 
-/// 查找 version=X 且 revoked=0 的最新一条 iteration id
+/// Find the latest iteration id where version=X and revoked=0
 pub fn find_active_iteration(conn: &Connection, version: &str) -> Result<Option<i64>, DowError> {
     let result = conn.query_row(
         "SELECT id FROM iterations WHERE version = ?1 AND revoked = 0 ORDER BY id DESC LIMIT 1",
@@ -500,11 +500,11 @@ pub fn find_active_iteration(conn: &Connection, version: &str) -> Result<Option<
     }
 }
 
-/// 标记指定 iteration id 为 revoked
+/// Mark specified iteration id as revoked
 pub fn mark_iteration_revoked(conn: &Connection, iteration_id: i64) -> Result<(), DowError> {
     conn.execute_batch(
         "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
-    ).ok(); // 兼容老数据库
+    ).ok(); // Backwards compatibility
 
     conn.execute(
         "UPDATE iterations SET revoked = 1 WHERE id = ?1",
@@ -528,9 +528,9 @@ pub fn get_stats(conn: &Connection) -> Result<serde_json::Value, DowError> {
     }))
 }
 
-// ─── 解析逻辑 ───
+// ─── Parsing Logic ───
 
-/// 从 task 文件内容解析为 TaskRecord 列表（兼容新旧格式，旧格式统一转换）
+/// Parse task file content into TaskRecord list (compatible with old/new formats, old formats are converted)
 pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
     let mut tasks = Vec::new();
     let file_title = parse_frontmatter_field(content, "title");
@@ -541,7 +541,7 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
 
     while i < lines.len() {
         let line = lines[i];
-        // 匹配 task 条目行：`- [x] TASK-T001: xxx` 或 `- [x] T1：xxx`
+        // Match task item line: `- [x] TASK-T001: xxx` or `- [x] T1：xxx`
         if line.starts_with("- [") {
             task_seq += 1;
             let completed = line.starts_with("- [x]");
@@ -552,11 +552,11 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
             };
             let after_bracket = after_bracket.trim();
 
-            // 解析 task_id 和 title
+            // Parse task_id and title
             let (raw_id, title) = split_id_title(after_bracket);
             let task_id = normalize_task_id(&raw_id, task_seq);
 
-            // 收集子字段
+            // Collect subfields
             let mut priority = None;
             let mut refs = None;
             let mut files_create = None;
@@ -574,14 +574,14 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                     if let Some(val) = strip_field(field, "priority:") {
                         priority = Some(val);
                     } else if let Some(val) = strip_field(field, "level:") {
-                        // 旧格式 → 转为 priority
+                        // Old format → convert to priority
                         priority = Some(val);
                     } else if let Some(val) = strip_field(field, "refs:") {
                         refs = Some(val);
                     } else if let Some(val) = strip_field(field, "complexity:") {
                         complexity = Some(val);
                     } else if field.starts_with("files:") {
-                        // 解析 files 子块
+                        // Parse files subblock
                         i += 1;
                         while i < lines.len() {
                             let fl = lines[i].trim();
@@ -603,7 +603,7 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                         let val = strip_field(field, "depends on：")
                             .or_else(|| strip_field(field, "depends on:"))
                             .unwrap_or_default();
-                        depends_on = if val == "无" || val.is_empty() {
+                        depends_on = if val == "none" || val.is_empty() {
                             Some("[]".to_string())
                         } else {
                             Some(normalize_array(&val))
@@ -619,9 +619,9 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                             serde_json::to_string(&[&val]).unwrap_or_else(|_| format!("[\"{}\"]", val))
                         });
                     } else if strip_field(field, "details：").is_some() || strip_field(field, "details:").is_some() {
-                        // 旧格式 details → 忽略（无法映射到 refs）
+                        // Old format details → ignore (cannot map to refs)
                     } else if strip_field(field, "parallel:").is_some() {
-                        // 忽略 parallel 字段
+                        // Ignore parallel field
                     }
                 }
                 i += 1;
@@ -649,7 +649,7 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
     tasks
 }
 
-/// 从 issue 文件内容解析为 IssueRecord 列表
+/// Parse issue file content into IssueRecord list
 pub fn parse_issue_file(filename: &str, content: &str) -> Vec<IssueRecord> {
     let mut issues = Vec::new();
     let source_type = parse_frontmatter_field(content, "source");
@@ -702,7 +702,7 @@ pub fn parse_issue_file(filename: &str, content: &str) -> Vec<IssueRecord> {
                         fix = Some(val);
                     }
                 } else if sub.starts_with("reproduce:") {
-                    // 多行 reproduce（以 | 开头）
+                    // Multi-line reproduce (starts with |)
                     let mut repro_lines = Vec::new();
                     i += 1;
                     while i < lines.len() && !lines[i].trim().starts_with("- ") && !lines[i].starts_with("- [") {
@@ -736,7 +736,7 @@ pub fn parse_issue_file(filename: &str, content: &str) -> Vec<IssueRecord> {
     issues
 }
 
-/// 解析 changelog 内容，返回 (date, text) 对
+/// Parse changelog content, return (date, text) pairs
 pub fn parse_changelog(content: &str) -> Vec<(Option<String>, String)> {
     let mut entries = Vec::new();
     let mut current_date: Option<String> = None;
@@ -753,11 +753,11 @@ pub fn parse_changelog(content: &str) -> Vec<(Option<String>, String)> {
     entries
 }
 
-// ─── 迁移辅助 ───
+// ─── Migration Helpers ───
 
-/// 从归档目录名解析版本号和主题
+/// Parse version and topic from archive directory name
 pub fn parse_archive_dir_name(name: &str) -> Option<(String, String)> {
-    // 格式：v<VERSION>-<TOPIC> 或 v<N>-<TOPIC>
+    // Format: v<VERSION>-<TOPIC> or v<N>-<TOPIC>
     let name = name.strip_prefix('v')?;
     let dash_pos = name.find('-')?;
     let version = &name[..dash_pos];
@@ -765,7 +765,7 @@ pub fn parse_archive_dir_name(name: &str) -> Option<(String, String)> {
     Some((version.to_string(), topic.to_string()))
 }
 
-/// 迁移一个归档目录到 SQLite
+/// Migrate an archive directory to SQLite
 pub fn migrate_archive_dir(
     conn: &Connection,
     dir: &Path,
@@ -775,7 +775,7 @@ pub fn migrate_archive_dir(
 ) -> Result<u32, DowError> {
     let mut count = 0u32;
 
-    // 读取目录下的 task 文件
+    // Read task files from directory
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -791,7 +791,7 @@ pub fn migrate_archive_dir(
         }
     }
 
-    // 读取 issue 子目录
+    // Read issue subdirectory
     let issue_dir = dir.join("issue");
     if issue_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&issue_dir) {
@@ -810,7 +810,7 @@ pub fn migrate_archive_dir(
         }
     }
 
-    // 读取文档
+    // Read documents
     for doc_type in &["PRD", "SPEC", "TEST"] {
         let doc_file = dir.join(format!("{}.md", doc_type));
         if doc_file.exists() {
@@ -821,7 +821,7 @@ pub fn migrate_archive_dir(
         }
     }
 
-    // 读取 CHANGELOG
+    // Read CHANGELOG
     let changelog_file = dir.join("CHANGELOG.md");
     if changelog_file.exists() {
         if let Ok(content) = fs::read_to_string(&changelog_file) {
@@ -833,7 +833,7 @@ pub fn migrate_archive_dir(
         }
     }
 
-    // 插入 iteration 记录
+    // Insert iteration record
     let released_at = extract_date_from_dir(dir);
     insert_iteration(conn, &IterationRecord {
         version: version.to_string(),
@@ -848,7 +848,7 @@ pub fn migrate_archive_dir(
     Ok(count)
 }
 
-// ─── 内部辅助函数 ───
+// ─── Internal Helper Functions ───
 
 fn parse_frontmatter_field(content: &str, field: &str) -> Option<String> {
     let lines: Vec<&str> = content.lines().collect();
@@ -875,7 +875,7 @@ fn strip_field(text: &str, prefix: &str) -> Option<String> {
 }
 
 fn split_id_title(text: &str) -> (String, String) {
-    // 格式：`TASK-T001: title` 或 `T1：title` 或 `I1: title`
+    // Format: `TASK-T001: title` or `T1：title` or `I1: title`
     if let Some(pos) = text.find(": ") {
         (text[..pos].to_string(), text[pos + 2..].to_string())
     } else if let Some(pos) = text.find("：") {
@@ -888,7 +888,7 @@ fn split_id_title(text: &str) -> (String, String) {
 }
 
 fn normalize_task_id(raw_id: &str, seq: u32) -> String {
-    // 如果已经是新格式 TASK-T001 就保留，否则统一转换
+    // If already in new format TASK-T001, keep it; otherwise convert uniformly
     if raw_id.starts_with("TASK-T") {
         raw_id.to_string()
     } else {
@@ -898,13 +898,13 @@ fn normalize_task_id(raw_id: &str, seq: u32) -> String {
 
 fn normalize_array(val: &str) -> String {
     let val = val.trim();
-    if val == "无" || val == "[]" || val.is_empty() {
+    if val == "none" || val == "[]" || val.is_empty() {
         return "[]".to_string();
     }
     if val.starts_with('[') {
         return val.to_string();
     }
-    // 逗号分隔转 JSON array
+    // Convert comma-separated to JSON array
     let items: Vec<&str> = val.split(',').map(|s| s.trim()).collect();
     serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string())
 }
@@ -919,14 +919,14 @@ fn extract_json_array(line: &str, prefix: &str) -> String {
 }
 
 fn extract_date_from_dir(dir: &Path) -> String {
-    // 从 task 文件名提取日期
-    // done_task_2026-05-26_1.md → 取 "2026-05-26"
-    // task_2026-05-27_1.md → 取 "2026-05-27"
+    // Extract date from task filename
+    // done_task_2026-05-26_1.md → extract "2026-05-26"
+    // task_2026-05-27_1.md → extract "2026-05-27"
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             let stem = name.strip_suffix(".md").unwrap_or(&name);
-            // 查找符合日期模式的部分（YYYY-MM-DD）
+            // Find segment matching date pattern (YYYY-MM-DD)
             for segment in stem.split('_') {
                 if segment.len() == 10 && segment.chars().nth(4) == Some('-') && segment.chars().nth(7) == Some('-') {
                     return segment.to_string();
@@ -934,7 +934,7 @@ fn extract_date_from_dir(dir: &Path) -> String {
             }
         }
     }
-    // 回退：尝试从 CHANGELOG 提取
+    // Fallback: try extracting from CHANGELOG
     let changelog = dir.join("CHANGELOG.md");
     if let Ok(content) = fs::read_to_string(&changelog) {
         for line in content.lines() {

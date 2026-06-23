@@ -1,8 +1,8 @@
 // dow/src/commands/
-// ├── issue.rs  -- dow issue（issue 管理）
+// ├── issue.rs  -- dow issue (issue management)
 //
 // Related Docs:
-// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
+// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::IssueArgs;
@@ -35,14 +35,14 @@ pub fn run(args: IssueArgs, human: bool) -> Result<i32, DowError> {
         return list_issues(human);
     }
 
-    Err(DowError::new("用法：dow issue --list", 1))
+    Err(DowError::new("Usage: dow issue --list", 1))
 }
 
 fn list_issues(human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let issue_dir = doc_root_path.join("issue");
 
-    // 合法性校验
+    // Validity validation
     let validation_errors = doc_validator::validate_all_issues(&doc_root_path);
     if !validation_errors.is_empty() {
         let msg = doc_validator::format_errors_human(&validation_errors);
@@ -79,9 +79,9 @@ fn list_issues(human: bool) -> Result<i32, DowError> {
 
     if human {
         if result.total == 0 {
-            println!("[dev-flow] 无未关闭的 issue");
+            println!("[dev-flow] No open issues");
         } else {
-            println!("[dev-flow] 未关闭 issue：{} 条", result.total);
+            println!("[dev-flow] Open issues: {}", result.total);
             println!("━━━━━━━━━━━━━━━━━━━━━━");
             for entry in &result.open {
                 println!("{}:", entry.file);
@@ -127,7 +127,7 @@ fn parse_open_items(content: &str) -> Vec<IssueItem> {
         }
     }
 
-    // 没有 severity 行的 open item 也要收集
+    // Collect open items without severity line as well
     if in_open && !current_title.is_empty() {
         items.push(IssueItem {
             title: current_title,

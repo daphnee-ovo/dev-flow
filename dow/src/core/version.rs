@@ -1,7 +1,7 @@
 // dow/src/core/
-// ├── version.rs  -- VERSION 文件多分支读写
+// ├── version.rs  -- VERSION file multi-branch read/write
 //
-// 格式：每行 (<branch>)<version>，如：
+// Format: Each line (<branch>)<version>, e.g.:
 //   (main)3.4.0
 //   (feature-x)3.4.0
 //
@@ -17,31 +17,31 @@ struct VersionEntry {
     version: String,
 }
 
-/// 读取当前分支的版本号
+/// Read current branch version number
 pub fn read_current() -> Result<String, DowError> {
     let branch = doc_root::current_branch()
-        .ok_or_else(|| DowError::new("无法获取当前分支", 1))?;
+        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
     read_branch(&branch)
 }
 
-/// 读取指定分支的版本号
+/// Read specified branch version number
 pub fn read_branch(branch: &str) -> Result<String, DowError> {
     let entries = parse_file()?;
     entries
         .iter()
         .find(|e| e.branch == branch)
         .map(|e| e.version.clone())
-        .ok_or_else(|| DowError::new(format!("VERSION 中无分支 {} 的记录", branch), 1))
+        .ok_or_else(|| DowError::new(format!("No record for branch {} in VERSION", branch), 1))
 }
 
-/// 写入当前分支的版本号（更新已有行或追加新行）
+/// Write current branch version number (update existing line or append new line)
 pub fn write_current(version: &str) -> Result<(), DowError> {
     let branch = doc_root::current_branch()
-        .ok_or_else(|| DowError::new("无法获取当前分支", 1))?;
+        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
     write_branch(&branch, version)
 }
 
-/// 写入指定分支的版本号
+/// Write specified branch version number
 pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
     validate_semver(version)?;
     let mut entries = parse_file().unwrap_or_default();
@@ -58,23 +58,23 @@ pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
     write_file(&entries)
 }
 
-/// 删除指定分支的版本记录
+/// Delete specified branch version record
 pub fn remove_branch(branch: &str) -> Result<(), DowError> {
     let mut entries = parse_file().unwrap_or_default();
     entries.retain(|e| e.branch != branch);
     write_file(&entries)
 }
 
-/// 为新分支初始化版本（继承 main 的版本号）
+/// Initialize version for new branch (inherit from main)
 pub fn init_branch(branch: &str) -> Result<String, DowError> {
     let entries = parse_file().unwrap_or_default();
 
-    // 已存在则直接返回
+    // If already exists, return directly
     if let Some(entry) = entries.iter().find(|e| e.branch == branch) {
         return Ok(entry.version.clone());
     }
 
-    // 继承 main/master 的版本
+    // Inherit version from main/master
     let base_version = entries
         .iter()
         .find(|e| e.branch == "main" || e.branch == "master")
@@ -85,7 +85,7 @@ pub fn init_branch(branch: &str) -> Result<String, DowError> {
     Ok(base_version)
 }
 
-/// bump 当前分支版本号（读取 + 计算 + 写入）
+/// Bump current branch version number (read + calculate + write)
 pub fn bump(bump_type: &str) -> Result<(String, String), DowError> {
     let current = read_current()?;
     let new = bump_version(&current, bump_type)?;
@@ -93,15 +93,15 @@ pub fn bump(bump_type: &str) -> Result<(String, String), DowError> {
     Ok((current, new))
 }
 
-/// 纯计算：给定版本号 + bump 类型，返回新版本号（不写入文件）
+/// Pure calculation: given version number + bump type, return new version number (don't write to file)
 pub fn bump_version_str(version: &str, bump_type: &str) -> Result<String, DowError> {
     bump_version(version, bump_type)
 }
 
-/// 解析版本文件，兼容旧格式（纯版本号，视为 main）
+/// Parse version file, compatible with old format (plain version number, treated as main)
 fn parse_file() -> Result<Vec<VersionEntry>, DowError> {
     let content = fs::read_to_string("VERSION")
-        .map_err(|_| DowError::new("VERSION 文件不存在或不可读", 1))?;
+        .map_err(|_| DowError::new("VERSION file does not exist or is not readable", 1))?;
 
     let mut entries = Vec::new();
     for line in content.lines() {
@@ -113,7 +113,7 @@ fn parse_file() -> Result<Vec<VersionEntry>, DowError> {
         if let Some(entry) = parse_line(trimmed) {
             entries.push(entry);
         } else if is_plain_semver(trimmed) {
-            // 旧格式兼容：纯版本号视为 main
+            // Old format compatibility: plain version number treated as main
             entries.push(VersionEntry {
                 branch: "main".to_string(),
                 version: trimmed.to_string(),
@@ -122,13 +122,13 @@ fn parse_file() -> Result<Vec<VersionEntry>, DowError> {
     }
 
     if entries.is_empty() {
-        return Err(DowError::new("VERSION 文件为空或格式无法解析", 1));
+        return Err(DowError::new("VERSION file is empty or format cannot be parsed", 1));
     }
 
     Ok(entries)
 }
 
-/// 解析单行：(branch)version
+/// Parse single line: (branch)version
 fn parse_line(line: &str) -> Option<VersionEntry> {
     if !line.starts_with('(') {
         return None;
@@ -167,11 +167,11 @@ fn write_file(entries: &[VersionEntry]) -> Result<(), DowError> {
 fn validate_semver(version: &str) -> Result<(), DowError> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 3 {
-        return Err(DowError::new(format!("版本格式非法（需要 X.Y.Z）：{}", version), 1));
+        return Err(DowError::new(format!("Invalid version format (need X.Y.Z): {}", version), 1));
     }
     for part in &parts {
         if part.parse::<u32>().is_err() {
-            return Err(DowError::new(format!("版本格式非法（非数字）：{}", version), 1));
+            return Err(DowError::new(format!("Invalid version format (non-numeric): {}", version), 1));
         }
     }
     Ok(())
@@ -184,7 +184,7 @@ fn bump_version(version: &str, bump_type: &str) -> Result<String, DowError> {
         .collect();
 
     if parts.len() != 3 {
-        return Err(DowError::new(format!("版本格式非法：{}", version), 1));
+        return Err(DowError::new(format!("Invalid version format: {}", version), 1));
     }
 
     let (major, minor, patch) = (parts[0], parts[1], parts[2]);
@@ -192,6 +192,6 @@ fn bump_version(version: &str, bump_type: &str) -> Result<String, DowError> {
         "major" => Ok(format!("{}.0.0", major + 1)),
         "minor" => Ok(format!("{}.{}.0", major, minor + 1)),
         "patch" => Ok(format!("{}.{}.{}", major, minor, patch + 1)),
-        _ => Err(DowError::new(format!("未知 bump 类型：{}", bump_type), 1)),
+        _ => Err(DowError::new(format!("Unknown bump type: {}", bump_type), 1)),
     }
 }

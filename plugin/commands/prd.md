@@ -1,82 +1,82 @@
 ---
-description: 启动 PRD 阶段 — 将探索成果格式化为正式需求文档
+description: Start PRD phase — formalize exploration results into formal requirements document
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# PRD — 产品需求定义
+# PRD — Product Requirements Definition
 
-## 执行步骤
+## Execution Steps
 
-1. 检测项目模式，确定 `DOC_ROOT`（见下方脚本）
-2. 如果 `.dev-doc/` 不存在，创建目录结构
-3. 检查是否存在 `BRAINSTORM.md`（决定工作模式）
-4. 读取本插件的 `agents/prd-agent.md`
-5. **启动独立 Agent（严格按模板）**
-6. Agent 完成后，更新 `STATUS.yaml`
+1. Detect project mode, determine `DOC_ROOT` (see script below)
+2. If `.dev-doc/` doesn't exist, create directory structure
+3. Check if `BRAINSTORM.md` exists (determines working mode)
+4. Read this plugin's `agents/prd-agent.md`
+5. **Launch independent Agent (strictly follow template)**
+6. After Agent completes, update `STATUS.yaml`
 
-## 模式检测
+## Mode Detection
 
-`DOC_ROOT` 通过 `dow status --field doc_root` 获取。
+`DOC_ROOT` obtained via `dow status --field doc_root`.
 
-## 新项目初始化
+## New Project Initialization
 
 ```bash
-dow init --name <项目名> --mode <mode>
+dow init --name <project_name> --mode <mode>
 ```
 
-## 两种工作模式
+## Two Working Modes
 
-### 模式 A：有 BRAINSTORM.md（来自 /brainstorm）
-- PRD agent 读取 BRAINSTORM.md，提取结构化需求
-- 识别缺失信息，逐个向用户确认
-- 输出正式 PRD.md
+### Mode A: Has BRAINSTORM.md (from /brainstorm)
+- PRD agent reads BRAINSTORM.md, extracts structured requirements
+- Identifies missing info, confirms with user one by one
+- Outputs formal PRD.md
 
-### 模式 B：无 BRAINSTORM.md（直接进入 /prd）
-- PRD agent 直接与用户对话式探索需求
-- 等同于原来的深度追问模式
-- 输出正式 PRD.md
+### Mode B: No BRAINSTORM.md (directly enter /prd)
+- PRD agent directly explores requirements through dialogue with user
+- Equivalent to original deep questioning mode
+- Outputs formal PRD.md
 
-## Agent 调度（隔离模板）
+## Agent Dispatch (Isolation Template)
 
-**必须启动独立子代理，不允许传入额外上下文。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
+**Must launch independent subagent, not allowed to pass additional context. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
 
 ```
-description: "PRD agent - 产品需求定义"
-prompt: `<读取 agents/prd-agent.md 的完整内容>
+description: "PRD agent - Product requirements definition"
+prompt: `<read complete content of agents/prd-agent.md>
 
-## 项目信息
+## Project Information
 
-<仅传入以下内容>
-- 用户本次描述的项目想法（原文）
-- 项目名称（如果用户提到了）
+<only pass following content>
+- User's project idea description this time (original text)
+- Project name (if user mentioned)
 
-## 已有探索成果
+## Existing Exploration Results
 
-<如果 BRAINSTORM.md 存在，粘贴完整内容>
-<如果不存在，写"无，需要从零开始探索需求">
+<if BRAINSTORM.md exists, paste complete content>
+<if doesn't exist, write "None, need to explore requirements from scratch">
 
-## 输出路径
+## Output Path
 
-通过 `dow doc prd` 创建文件，写入 `<DOC_ROOT>/PRD.md`。格式通过 `dow doc prd --json` 获取。
+Create file via `dow doc prd`, write to `<DOC_ROOT>/PRD.md`. Get format via `dow doc prd --json`.
 
-## 禁止
+## Prohibited
 
-- 不要设计技术方案（那是 SPEC 的事）
-- 不要拆解任务（那是 TASK 的事）
-- 不要阅读任何已有代码`
+- Don't design technical solutions (that's SPEC's job)
+- Don't decompose tasks (that's TASK's job)
+- Don't read any existing code`
 ```
 
-## 输入隔离规则
+## Input Isolation Rules
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| 用户对项目的描述原文 | 之前对话中的非需求讨论 |
-| agents/prd-agent.md 内容 | 已有代码内容 |
-| BRAINSTORM.md 内容（如存在） | 其他阶段的文档（SPEC/TASK） |
-| DOC_ROOT 路径 | 无关的会话历史 |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| User's project description original text | Non-requirement discussions from previous conversations |
+| agents/prd-agent.md content | Existing code content |
+| BRAINSTORM.md content (if exists) | Other phase docs (SPEC/TASK) |
+| DOC_ROOT path | Unrelated session history |
 
-## 完成后
+## After Completion
 
-1. 确认 PRD.md 已写入
-2. 更新 STATUS.yaml：当前阶段 → PRD
-3. 提示用户：确认 PRD 后执行 `/spec` 推进
+1. Confirm PRD.md written
+2. Update STATUS.yaml: current phase → PRD
+3. Prompt user: after confirming PRD execute `/spec` to progress

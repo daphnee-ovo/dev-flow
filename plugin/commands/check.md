@@ -1,21 +1,21 @@
 ---
-description: 检查开发工作是否已同步到 .dev-doc 文档
+description: Check if development work is synced to .dev-doc documentation
 allowed-tools: Bash, Read
 ---
 
-# CHECK — 文档同步检查
+# CHECK — Documentation Sync Check
 
-## 执行方式
+## Execution Method
 
-直接运行脚本，展示输出：
+Run script directly, display output:
 
 ```bash
 dow check
 ```
 
-脚本自动检查 CHANGELOG、task 完成度与 phase 匹配、issue 状态、代码变更 vs 文档更新时间、阶段必要文件。Agent 只需运行并展示结果。
+Script auto-checks CHANGELOG, task completion vs phase match, issue status, code changes vs doc update time, phase required files. Agent only needs to run and display results.
 
-## 注意
+## Notes
 
-- 这是只读检查，不修改任何文件
-- 输出建议但不自动执行
+- This is read-only check, doesn't modify any files
+- Outputs suggestions but doesn't auto-execute

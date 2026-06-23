@@ -1,5 +1,5 @@
 // dow/src/commands/setup.rs
-// dow setup 子命令 — TUI 交互 + agent 注册
+// dow setup subcommand — TUI interaction + agent registration
 
 use dialoguer::MultiSelect;
 use sha2::{Digest, Sha256};
@@ -19,7 +19,7 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
     let bundle = platform::bundle_dir();
     if !bundle.exists() {
         return Err(DowError::new(
-            "插件 bundle 不存在。请先运行安装脚本或检查 ~/.local/share/dow/bundle/ 目录。",
+            "Plugin bundle does not exist. Please run the installation script first or check the ~/.local/share/dow/bundle/ directory.",
             1,
         ));
     }
@@ -27,26 +27,26 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
     let mut config = DowConfig::load();
 
     for agent_name in &agents {
-        eprint!("[dow] 注册到 {}...", agent_display_name(agent_name));
+        eprint!("[dow] Registering to {}...", agent_display_name(agent_name));
 
         agent_registry::deploy_plugin(agent_name, &bundle)
-            .map_err(|e| DowError::new(&format!("部署 {} 插件失败: {}", agent_name, e), 1))?;
+            .map_err(|e| DowError::new(&format!("Failed to deploy {} plugin: {}", agent_name, e), 1))?;
 
         match agent_registry::inject_global_instructions(agent_name) {
-            Ok(true) => eprintln!(" 已注入全局指令"),
-            Ok(false) => eprintln!(" 全局指令已存在，跳过"),
-            Err(e) => eprintln!(" 全局指令注入失败: {}", e),
+            Ok(true) => eprintln!(" Global instructions injected"),
+            Ok(false) => eprintln!(" Global instructions already exist, skipped"),
+            Err(e) => eprintln!(" Failed to inject global instructions: {}", e),
         }
 
         register_with_agent(agent_name);
 
         config.add_agent(agent_name);
-        eprintln!("[dow] ✓ {} 注册完成", agent_display_name(agent_name));
+        eprintln!("[dow] ✓ {} registration completed", agent_display_name(agent_name));
     }
 
     config.save().map_err(|e| DowError::new(&e, 1))?;
 
-    eprintln!("\n[dow] 完成！在项目中运行 /init 开始使用 dev-flow。");
+    eprintln!("\n[dow] Done! Run /init in your project to start using dev-flow.");
     Ok(0)
 }
 
@@ -64,7 +64,7 @@ fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
                 Ok(vec![name.to_string()])
             } else {
                 Err(DowError::new(
-                    &format!("不支持的 agent: {}（可选: claude, codex, kiro, all）", name),
+                    &format!("Unsupported agent: {} (options: claude, codex, kiro, all)", name),
                     1,
                 ))
             }
@@ -83,14 +83,14 @@ fn interactive_select() -> Result<Vec<String>, DowError> {
     let defaults: Vec<bool> = items.iter().map(|_| false).collect();
 
     let selections = MultiSelect::new()
-        .with_prompt("选择要注册的 agent（空格选择，Enter 确认）")
+        .with_prompt("Select agents to register (Space to select, Enter to confirm)")
         .items(&items)
         .defaults(&defaults)
         .interact()
-        .map_err(|e| DowError::new(&format!("交互选择失败: {}", e), 1))?;
+        .map_err(|e| DowError::new(&format!("Interactive selection failed: {}", e), 1))?;
 
     if selections.is_empty() {
-        return Err(DowError::new("未选择任何 agent", 1));
+        return Err(DowError::new("No agent selected", 1));
     }
 
     let all_index = items.len() - 1;
@@ -113,12 +113,13 @@ fn register_with_agent(agent: &str) {
             if let Some(plugin_dir) = platform::agent_plugin_dir("claude") {
                 let path_str = plugin_dir.to_str().unwrap_or("");
 
-                // 注册/更新 marketplace 源
+                // Register/update marketplace source
                 let _ = std::process::Command::new("claude")
                     .args(["plugin", "marketplace", "add", path_str])
                     .output();
 
-                // 尝试 update；如果未安装则 install
+                // Try update; if not installed, fall back to install
+                // Try update; if not installed, fall back to install
                 let update = std::process::Command::new("claude")
                     .args(["plugin", "update", "dev-flow@dev-flow"])
                     .output();
@@ -138,14 +139,14 @@ fn register_with_agent(agent: &str) {
         "codex" => {
             if let Some(plugin_dir) = platform::agent_plugin_dir("codex") {
                 if let Err(e) = register_codex_plugin(&plugin_dir) {
-                    eprintln!("Codex 插件注册失败: {}", e);
+                    eprintln!("Codex plugin registration failed: {}", e);
                 }
             }
         }
         "kiro" => {
             if let Some(plugin_dir) = platform::agent_plugin_dir("kiro") {
                 if let Err(e) = register_kiro_plugin(&plugin_dir) {
-                    eprintln!("Kiro 插件注册失败: {}", e);
+                    eprintln!("Kiro plugin registration failed: {}", e);
                 }
             }
         }
@@ -156,16 +157,16 @@ fn register_with_agent(agent: &str) {
 fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
     let bundle = platform::bundle_dir().join("kiro");
     if !bundle.is_dir() {
-        return Err("kiro bundle 不存在，请先运行 assemble".to_string());
+        return Err("kiro bundle does not exist, please run assemble first".to_string());
     }
 
-    // 部署 skills 到 ~/.kiro/skills/ — 每个 skill 独立目录
-    // 命名策略：直接用 command name，若目标已存在非 dev-flow 管理的同名 skill 则加 dow- 前缀
+    // Deploy skills to ~/.kiro/skills/ — each skill in its own directory
+    // Naming strategy: use command name directly; if a non-dev-flow managed skill with the same name exists, add dow- prefix
     let skills_src = bundle.join("skills");
     let mut conflicts: Vec<(String, String)> = Vec::new();
     if skills_src.is_dir() {
         fs::create_dir_all(plugin_dir)
-            .map_err(|e| format!("创建 kiro skills 目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to create kiro skills directory: {}", e))?;
         if let Ok(entries) = fs::read_dir(&skills_src) {
             for entry in entries.flatten() {
                 if !entry.path().is_dir() {
@@ -186,18 +187,18 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
                     let _ = fs::remove_dir_all(&final_dst);
                 }
                 agent_registry::copy_dir_recursive(&entry.path(), &final_dst)
-                    .map_err(|e| format!("部署 kiro skill {:?} 失败: {}", skill_name, e))?;
+                    .map_err(|e| format!("Failed to deploy kiro skill {:?}: {}", skill_name, e))?;
             }
         }
     }
     if !conflicts.is_empty() {
-        eprintln!("[dow] kiro skill 命名冲突：");
+        eprintln!("[dow] kiro skill naming conflicts:");
         for (orig, renamed) in &conflicts {
-            eprintln!("  {} → {}（已有同名 skill）", orig, renamed);
+            eprintln!("  {} → {} (skill with same name already exists)", orig, renamed);
         }
     }
 
-    // 部署 agents 到 ~/.kiro/agents/<name>.json（扁平文件）
+    // Deploy agents to ~/.kiro/agents/<name>.json (flat files)
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
@@ -205,7 +206,7 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
     let agents_dst = PathBuf::from(&home).join(".kiro").join("agents");
     if agents_src.is_dir() {
         fs::create_dir_all(&agents_dst)
-            .map_err(|e| format!("创建 kiro agents 目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to create kiro agents directory: {}", e))?;
         if let Ok(entries) = fs::read_dir(&agents_src) {
             for entry in entries.flatten() {
                 let src_path = entry.path();
@@ -215,12 +216,12 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
                 let file_name = entry.file_name();
                 let dst_file = agents_dst.join(&file_name);
                 fs::copy(&src_path, &dst_file)
-                    .map_err(|e| format!("部署 kiro agent {:?} 失败: {}", file_name, e))?;
+                    .map_err(|e| format!("Failed to deploy kiro agent {:?}: {}", file_name, e))?;
             }
         }
     }
 
-    eprintln!("[dow] 提示：运行 /agent set-default dev-flow 可将 dev-flow 设为 kiro-cli 默认 agent");
+    eprintln!("[dow] Tip: Run /agent set-default dev-flow to set dev-flow as the default agent for kiro-cli");
 
     Ok(())
 }
@@ -246,12 +247,12 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Codex marketplace 注册命令失败: {}", stderr.trim());
+            eprintln!("Codex marketplace registration command failed: {}", stderr.trim());
         }
-        Err(e) => eprintln!("Codex CLI 不可用，已仅写入本地 marketplace: {}", e),
+        Err(e) => eprintln!("Codex CLI not available, only wrote to local marketplace: {}", e),
     }
 
-    // 先 remove 再 add，确保 Codex 重新安装插件到正确的 cache 结构
+    // Remove first then add to ensure Codex reinstalls plugin to correct cache structure
     let _ = std::process::Command::new("codex")
         .args(["plugin", "remove", "dev-flow@dev-flow-local"])
         .output();
@@ -264,9 +265,9 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Codex plugin install 失败: {}", stderr.trim());
+            eprintln!("Codex plugin install failed: {}", stderr.trim());
         }
-        Err(e) => eprintln!("Codex plugin install 不可用: {}", e),
+        Err(e) => eprintln!("Codex plugin install unavailable: {}", e),
     }
 
     remove_codex_config_section("[marketplaces.dev-flow]")?;
@@ -279,12 +280,12 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
 fn cleanup_legacy_codex_paths() -> Result<(), String> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
-        .map_err(|_| "无法确定用户 HOME 目录".to_string())?;
+        .map_err(|_| "Cannot determine user HOME directory".to_string())?;
     let home = Path::new(&home);
     let legacy_plugin = home.join(".codex").join("plugins").join(CODEX_PLUGIN_NAME);
     if legacy_plugin.exists() {
         fs::remove_dir_all(&legacy_plugin)
-            .map_err(|e| format!("清理旧 Codex 插件目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to clean up old Codex plugin directory: {}", e))?;
     }
     let legacy_cache = home
         .join(".codex")
@@ -293,7 +294,7 @@ fn cleanup_legacy_codex_paths() -> Result<(), String> {
         .join(CODEX_MARKETPLACE_NAME);
     if legacy_cache.exists() {
         fs::remove_dir_all(&legacy_cache)
-            .map_err(|e| format!("清理旧 Codex plugin cache 失败: {}", e))?;
+            .map_err(|e| format!("Failed to clean up old Codex plugin cache: {}", e))?;
     }
     Ok(())
 }
@@ -301,7 +302,7 @@ fn cleanup_legacy_codex_paths() -> Result<(), String> {
 fn install_codex_personal_skill(plugin_dir: &Path) -> Result<(), String> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
-        .map_err(|_| "无法确定用户 HOME 目录".to_string())?;
+        .map_err(|_| "Cannot determine user HOME directory".to_string())?;
     let source = plugin_dir.join("skills").join(CODEX_PLUGIN_NAME);
     let target = Path::new(&home)
         .join(".agents")
@@ -309,10 +310,10 @@ fn install_codex_personal_skill(plugin_dir: &Path) -> Result<(), String> {
         .join(CODEX_PLUGIN_NAME);
 
     if target.exists() {
-        fs::remove_dir_all(&target).map_err(|e| format!("清理 Codex skill 失败: {}", e))?;
+        fs::remove_dir_all(&target).map_err(|e| format!("Failed to clean up Codex skill: {}", e))?;
     }
 
-    copy_dir_recursive(&source, &target).map_err(|e| format!("安装 Codex skill 失败: {}", e))
+    copy_dir_recursive(&source, &target).map_err(|e| format!("Failed to install Codex skill: {}", e))
 }
 
 fn install_codex_marketplace_manifest(plugin_dir: &Path) -> Result<(), String> {
@@ -322,7 +323,7 @@ fn install_codex_marketplace_manifest(plugin_dir: &Path) -> Result<(), String> {
         .join("marketplace.json");
     if !source.exists() {
         return Err(format!(
-            "bundle 中缺少 Codex marketplace manifest: {}",
+            "Codex marketplace manifest missing from bundle: {}",
             source.display()
         ));
     }
@@ -332,21 +333,21 @@ fn install_codex_marketplace_manifest(plugin_dir: &Path) -> Result<(), String> {
 fn install_codex_personal_marketplace(plugin_dir: &Path) -> Result<std::path::PathBuf, String> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
-        .map_err(|_| "无法确定用户 HOME 目录".to_string())?;
+        .map_err(|_| "Cannot determine user HOME directory".to_string())?;
     let home = Path::new(&home);
     let marketplace_dir = platform::codex_personal_marketplace_dir()
-        .ok_or_else(|| "无法确定 Codex personal marketplace 目录".to_string())?;
+        .ok_or_else(|| "Cannot determine Codex personal marketplace directory".to_string())?;
     let plugin_root = marketplace_dir
         .parent()
         .and_then(|path| path.parent())
-        .ok_or_else(|| "无法确定 Codex personal marketplace 根目录".to_string())?;
+        .ok_or_else(|| "Cannot determine Codex personal marketplace root directory".to_string())?;
     let source = plugin_dir
         .join(".agents")
         .join("plugins")
         .join("marketplace.json");
     if !source.exists() {
         return Err(format!(
-            "bundle 中缺少 Codex personal marketplace manifest: {}",
+            "Codex personal marketplace manifest missing from bundle: {}",
             source.display()
         ));
     }
@@ -354,13 +355,13 @@ fn install_codex_personal_marketplace(plugin_dir: &Path) -> Result<std::path::Pa
     let target = marketplace_dir.join("marketplace.json");
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| format!("创建 Codex personal marketplace 目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to create Codex personal marketplace directory: {}", e))?;
     }
     fs::copy(&source, &target)
-        .map_err(|e| format!("写入 Codex personal marketplace 失败: {}", e))?;
+        .map_err(|e| format!("Failed to write Codex personal marketplace: {}", e))?;
 
     let plugin_target = platform::agent_plugin_dir("codex")
-        .ok_or_else(|| "无法确定 Codex plugin 目录".to_string())?;
+        .ok_or_else(|| "Cannot determine Codex plugin directory".to_string())?;
     let stage_root = home
         .join(".codex")
         .join(".tmp")
@@ -368,30 +369,30 @@ fn install_codex_personal_marketplace(plugin_dir: &Path) -> Result<std::path::Pa
         .join(CODEX_MARKETPLACE_NAME);
     if stage_root.exists() {
         fs::remove_dir_all(&stage_root)
-            .map_err(|e| format!("清理 Codex marketplace stage 失败: {}", e))?;
+            .map_err(|e| format!("Failed to clean up Codex marketplace stage: {}", e))?;
     }
     fs::create_dir_all(&stage_root)
-        .map_err(|e| format!("创建 Codex marketplace stage 失败: {}", e))?;
+        .map_err(|e| format!("Failed to create Codex marketplace stage: {}", e))?;
     let stage_marketplace = stage_root
         .join(".agents")
         .join("plugins")
         .join("marketplace.json");
     if let Some(parent) = stage_marketplace.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| format!("创建 Codex marketplace stage 目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to create Codex marketplace stage directory: {}", e))?;
     }
     fs::copy(&source, &stage_marketplace)
-        .map_err(|e| format!("写入 Codex marketplace stage 失败: {}", e))?;
+        .map_err(|e| format!("Failed to write Codex marketplace stage: {}", e))?;
     let stage_plugin_target = stage_root.join("plugins").join(CODEX_PLUGIN_NAME);
     copy_dir_recursive(&plugin_target, &stage_plugin_target)
-        .map_err(|e| format!("安装 Codex marketplace stage plugin 失败: {}", e))?;
+        .map_err(|e| format!("Failed to install Codex marketplace stage plugin: {}", e))?;
     let install_meta = stage_root.join(".codex-marketplace-install.json");
     let install_meta_body = format!(
         "{{\n  \"source_type\": \"local\",\n  \"source\": \"{}\",\n  \"ref_name\": null,\n  \"sparse_paths\": [],\n  \"revision\": null\n}}\n",
         plugin_root.display()
     );
     fs::write(&install_meta, install_meta_body)
-        .map_err(|e| format!("写入 Codex marketplace 安装元数据失败: {}", e))?;
+        .map_err(|e| format!("Failed to write Codex marketplace install metadata: {}", e))?;
 
     Ok(stage_root)
 }
@@ -410,14 +411,14 @@ fn trust_codex_plugin_hooks(plugin_dir: &Path) -> Result<(), String> {
 
 fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
     let content =
-        fs::read_to_string(hooks_path).map_err(|e| format!("读取 hooks.json 失败: {}", e))?;
+        fs::read_to_string(hooks_path).map_err(|e| format!("Failed to read hooks.json: {}", e))?;
     let parsed: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| format!("解析 hooks.json 失败: {}", e))?;
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse hooks.json: {}", e))?;
 
     let hooks_obj = parsed
         .get("hooks")
         .and_then(|v| v.as_object())
-        .ok_or_else(|| "hooks.json 缺少 hooks 字段".to_string())?;
+        .ok_or_else(|| "hooks.json missing hooks field".to_string())?;
 
     let event_map: &[(&str, &str)] = &[
         ("UserPromptSubmit", "user_prompt_submit"),
@@ -434,12 +435,12 @@ fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
 
     let config_path = codex_config_path()?;
     let mut config_content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("读取 config 失败: {}", e))?
+        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read config: {}", e))?
     } else {
         String::new()
     };
 
-    // 清理旧的 hooks.state section
+    // Clean up old hooks.state sections
     while let Some(start) = config_content.find("\n[hooks.state.\"dev-flow@dev-flow-local:") {
         let section_end = config_content[start + 1..]
             .find("\n[")
@@ -447,7 +448,7 @@ fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
             .unwrap_or(config_content.len());
         config_content.replace_range(start..section_end, "");
     }
-    // 也处理开头的情况
+    // Also handle cases at the beginning
     if config_content.starts_with("[hooks.state.\"dev-flow@dev-flow-local:") {
         let section_end = config_content[1..]
             .find("\n[")
@@ -455,7 +456,7 @@ fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
             .unwrap_or(config_content.len());
         config_content.replace_range(0..section_end, "");
     }
-    // 清理空的 [hooks.state] header
+    // Clean up empty [hooks.state] header
     config_content = config_content.replace("\n[hooks.state]\n\n", "\n");
     config_content = config_content.replace("\n[hooks.state]\n", "\n");
 
@@ -509,7 +510,7 @@ fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
     }
     config_content.push_str(&trust_sections);
 
-    fs::write(&config_path, config_content).map_err(|e| format!("写入 config 失败: {}", e))?;
+    fs::write(&config_path, config_content).map_err(|e| format!("Failed to write config: {}", e))?;
     Ok(())
 }
 
@@ -520,7 +521,7 @@ fn compute_hook_hash(
     timeout: u64,
     is_async: bool,
 ) -> String {
-    // 构造与 Codex 相同的 NormalizedHookIdentity 结构
+    // Construct the same NormalizedHookIdentity structure as Codex
     let mut identity = serde_json::Map::new();
     identity.insert(
         "event_name".to_string(),
@@ -590,7 +591,7 @@ fn remove_plugin_metadata_dirs(root: &Path, strip_skills: bool) -> Result<(), St
         if candidate.exists() {
             fs::remove_dir_all(&candidate).map_err(|e| {
                 format!(
-                    "清理 Codex 插件元数据目录 {} 失败: {}",
+                    "Failed to clean up Codex plugin metadata directory {}: {}",
                     candidate.display(),
                     e
                 )
@@ -601,11 +602,11 @@ fn remove_plugin_metadata_dirs(root: &Path, strip_skills: bool) -> Result<(), St
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| format!("创建目录 {} 失败: {}", dst.display(), e))?;
+    fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
 
-    for entry in fs::read_dir(src).map_err(|e| format!("读取目录 {} 失败: {}", src.display(), e))?
+    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
     {
-        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
 
@@ -614,7 +615,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
         } else {
             fs::copy(&src_path, &dst_path).map_err(|e| {
                 format!(
-                    "复制 {} → {} 失败: {}",
+                    "Failed to copy {} → {}: {}",
                     src_path.display(),
                     dst_path.display(),
                     e
@@ -630,11 +631,11 @@ fn set_codex_plugin_enabled(plugin_key: &str, enabled: bool) -> Result<(), Strin
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建 Codex config 目录失败: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("读取 Codex config 失败: {}", e))?
+        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };
@@ -660,7 +661,7 @@ fn set_codex_plugin_enabled(plugin_key: &str, enabled: bool) -> Result<(), Strin
             content.insert_str(section_body_start, &format!("\n{}", enabled_line));
         }
 
-        fs::write(&config_path, content).map_err(|e| format!("写入 Codex config 失败: {}", e))?;
+        fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
         return Ok(());
     }
 
@@ -671,7 +672,7 @@ fn set_codex_plugin_enabled(plugin_key: &str, enabled: bool) -> Result<(), Strin
     content.push_str(&header);
     content.push_str(&format!("\nenabled = {}\n", enabled));
 
-    fs::write(&config_path, content).map_err(|e| format!("写入 Codex config 失败: {}", e))?;
+    fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
 
     Ok(())
 }
@@ -683,7 +684,7 @@ fn remove_codex_config_section(header: &str) -> Result<(), String> {
     }
 
     let mut content =
-        fs::read_to_string(&config_path).map_err(|e| format!("读取 Codex config 失败: {}", e))?;
+        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?;
 
     if let Some(start) = content.find(header) {
         let section_end = content[start + header.len()..]
@@ -696,7 +697,7 @@ fn remove_codex_config_section(header: &str) -> Result<(), String> {
             start
         };
         content.replace_range(remove_start..section_end, "");
-        fs::write(&config_path, content).map_err(|e| format!("写入 Codex config 失败: {}", e))?;
+        fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
     }
 
     Ok(())
@@ -706,11 +707,11 @@ fn set_codex_feature_enabled(feature: &str, enabled: bool) -> Result<(), String>
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建 Codex config 目录失败: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("读取 Codex config 失败: {}", e))?
+        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };
@@ -748,7 +749,7 @@ fn set_codex_feature_enabled(feature: &str, enabled: bool) -> Result<(), String>
         content.push('\n');
     }
 
-    fs::write(&config_path, content).map_err(|e| format!("写入 Codex config 失败: {}", e))?;
+    fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
     Ok(())
 }
 
@@ -756,11 +757,11 @@ fn set_codex_root_bool(key: &str, enabled: bool) -> Result<(), String> {
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("创建 Codex config 目录失败: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("读取 Codex config 失败: {}", e))?
+        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };
@@ -795,14 +796,14 @@ fn set_codex_root_bool(key: &str, enabled: bool) -> Result<(), String> {
         content.insert_str(first_section_start, &format!("{}{}\n", prefix, key_line));
     }
 
-    fs::write(&config_path, content).map_err(|e| format!("写入 Codex config 失败: {}", e))?;
+    fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
     Ok(())
 }
 
 fn codex_config_path() -> Result<std::path::PathBuf, String> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
-        .map_err(|_| "无法确定用户 HOME 目录".to_string())?;
+        .map_err(|_| "Cannot determine user HOME directory".to_string())?;
     Ok(Path::new(&home).join(".codex").join("config.toml"))
 }
 

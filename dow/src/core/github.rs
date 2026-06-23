@@ -1,5 +1,5 @@
 // dow/src/core/github.rs
-// GitHub Release API 交互（版本检查、下载）
+// GitHub Release API interaction (version check, download)
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -45,7 +45,7 @@ pub fn check_latest_version() -> Result<ReleaseInfo, String> {
         .user_agent("dow-cli")
         .timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(|e| format!("HTTP 客户端创建失败: {}", e))?;
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let mut request = client.get(&url);
     if let Some(token) = resolve_github_token() {
@@ -54,24 +54,24 @@ pub fn check_latest_version() -> Result<ReleaseInfo, String> {
 
     let resp = request
         .send()
-        .map_err(|e| format!("请求 GitHub API 失败: {}", e))?;
+        .map_err(|e| format!("Failed to request GitHub API: {}", e))?;
 
     if !resp.status().is_success() {
-        return Err(format!("GitHub API 返回 {}", resp.status()));
+        return Err(format!("GitHub API returned {}", resp.status()));
     }
 
     let body: serde_json::Value = resp.json()
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let tag_name = body["tag_name"]
         .as_str()
-        .ok_or("响应中无 tag_name")?
+        .ok_or("Response missing tag_name")?
         .to_string();
 
     let version = tag_name.trim_start_matches('v').to_string();
     let published_at = body["published_at"]
         .as_str()
-        .ok_or("响应中无 published_at")?
+        .ok_or("Response missing published_at")?
         .to_string();
 
     let notes = body["body"].as_str().map(|s| truncate_notes(s, 3));
@@ -103,40 +103,40 @@ pub fn download_release_asset(tag: &str, platform: &str, dest: &Path) -> Result<
         .user_agent("dow-cli")
         .timeout(std::time::Duration::from_secs(300))
         .build()
-        .map_err(|e| format!("HTTP 客户端创建失败: {}", e))?;
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let resp = client.get(&url)
         .send()
-        .map_err(|e| format!("下载失败: {}", e))?;
+        .map_err(|e| format!("Download failed: {}", e))?;
 
     if !resp.status().is_success() {
-        return Err(format!("下载失败: HTTP {}", resp.status()));
+        return Err(format!("Download failed: HTTP {}", resp.status()));
     }
 
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
     let bytes = resp.bytes()
-        .map_err(|e| format!("读取响应体失败: {}", e))?;
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
     fs::write(dest, &bytes)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
+        .map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }
 
 pub fn extract_tarball(tarball_path: &Path, dest_dir: &Path) -> Result<(), String> {
     let file = fs::File::open(tarball_path)
-        .map_err(|e| format!("打开 tarball 失败: {}", e))?;
+        .map_err(|e| format!("Failed to open tarball: {}", e))?;
     let gz = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz);
 
     fs::create_dir_all(dest_dir)
-        .map_err(|e| format!("创建目标目录失败: {}", e))?;
+        .map_err(|e| format!("Failed to create destination directory: {}", e))?;
 
     archive.unpack(dest_dir)
-        .map_err(|e| format!("解压失败: {}", e))?;
+        .map_err(|e| format!("Failed to extract: {}", e))?;
 
     Ok(())
 }
@@ -162,19 +162,19 @@ pub fn is_update_available(current: &str, remote: &str, remote_published_at: &st
 
 pub fn self_replace_binary(new_binary: &Path) -> Result<(), String> {
     let current_exe = std::env::current_exe()
-        .map_err(|e| format!("无法获取当前二进制路径: {}", e))?;
+        .map_err(|e| format!("Failed to get current binary path: {}", e))?;
 
     let backup = current_exe.with_extension("old");
     if current_exe.exists() {
         fs::rename(&current_exe, &backup)
-            .map_err(|e| format!("备份旧二进制失败: {}", e))?;
+            .map_err(|e| format!("Failed to backup old binary: {}", e))?;
     }
 
     fs::copy(new_binary, &current_exe)
         .map_err(|e| {
-            // 恢复备份
+            // Restore backup
             let _ = fs::rename(&backup, &current_exe);
-            format!("替换二进制失败: {}", e)
+            format!("Failed to replace binary: {}", e)
         })?;
 
     let _ = fs::remove_file(&backup);

@@ -1,5 +1,5 @@
 // dow/src/hooks/
-// ├── post_bash.rs  -- Bash 执行后检测分支切换
+// ├── post_bash.rs  -- detect branch switch after Bash execution
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
@@ -17,7 +17,7 @@ pub fn run(command: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Resul
 
     let cmd = command
         .or_else(|| {
-            // 从 stdin 读取 Claude Code hook JSON
+            // read Claude Code hook JSON from stdin
             let mut buf = String::new();
             std::io::stdin().read_to_string(&mut buf).ok()?;
             serde_json::from_str::<serde_json::Value>(&buf)
@@ -35,30 +35,30 @@ pub fn run(command: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Resul
         return Ok(0);
     }
 
-    // 检测是否执行了分支切换命令
+    // Detect if branch switch command was executed
     if !is_branch_switch_command(&cmd) {
         return Ok(0);
     }
 
-    // 获取当前分支并报告
+    // Get current branch and report
     let branch = doc_root::current_branch().unwrap_or_else(|| "unknown".to_string());
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     let mut messages = vec![format!(
-        "[dev-flow] 检测到分支切换 → 当前分支：`{}`，doc_root：{}",
+        "[dev-flow] Branch switch detected → current branch: `{}`, doc_root: {}",
         branch,
         doc_root_path.display()
     )];
 
-    // 检查新分支是否有 STATUS.yaml（resolve 会自动创建，但这里给提示）
+    // Check if new branch has STATUS.yaml (resolve creates it automatically, but show hint here)
     if doc_root_path.join("STATUS.yaml").exists() {
         let phase = crate::core::yaml::get(&doc_root_path.join("STATUS.yaml"), "phase")
             .ok()
             .flatten()
             .unwrap_or_else(|| "unknown".to_string());
-        messages.push(format!("  阶段：{}，文档目录已就绪。", phase));
+        messages.push(format!("  Phase: {}, doc directory ready.", phase));
     } else {
-        messages.push("  ⚠ 新分支尚未初始化 .dev-doc，将自动创建。".to_string());
+        messages.push("  ⚠ New branch not yet initialized with .dev-doc, will be created automatically.".to_string());
     }
 
     emit_messages(codex_hook, &messages)?;

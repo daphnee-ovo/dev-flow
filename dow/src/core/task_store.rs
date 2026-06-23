@@ -1,10 +1,10 @@
 // dow/src/core/task_store.rs
-// Task 文件遍历与状态检查公共函数
+// Task file traversal and status check utilities
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// 遍历 task 目录，返回所有 task_ 前缀的 .md 文件路径
+/// Traverse task directory, return all task_ prefixed .md file paths
 pub fn iter_task_files(task_dir: &Path) -> Vec<PathBuf> {
     if !task_dir.is_dir() {
         return Vec::new();
@@ -24,20 +24,20 @@ pub fn iter_task_files(task_dir: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// 检查文件内容中是否有未完成的 checklist 项（`- [ ]`）
+/// Check if file content has uncompleted checklist items
 pub fn has_undone_items(content: &str) -> bool {
     content.lines().any(|l| l.starts_with("- [ ]"))
 }
 
-/// 统计文件内容中 checklist 项的完成情况
-/// 返回 (done_count, total_count)
+/// Count checklist item completion in file content
+/// Returns (done_count, total_count)
 pub fn count_checklist(content: &str) -> (usize, usize) {
     let done = content.lines().filter(|l| l.starts_with("- [x]")).count();
     let total = content.lines().filter(|l| l.starts_with("- [")).count();
     (done, total)
 }
 
-/// 检查 task 目录下是否有任何未完成的 checklist 项
+/// Check if task directory has any uncompleted checklist items
 pub fn has_active_work(task_dir: &Path) -> bool {
     let task_files = iter_task_files(task_dir);
 
@@ -52,7 +52,7 @@ pub fn has_active_work(task_dir: &Path) -> bool {
     false
 }
 
-/// 统计所有 active task 文件中未完成的 checklist 项总数
+/// Count total uncompleted checklist items across all active task files
 pub fn count_undone_items(task_dir: &Path) -> u32 {
     let task_files = iter_task_files(task_dir);
     let mut undone = 0u32;
@@ -66,8 +66,8 @@ pub fn count_undone_items(task_dir: &Path) -> u32 {
     undone
 }
 
-/// 统计所有 active task 文件中 checklist 的完成情况
-/// 返回 (done_total, item_total)
+/// Count checklist completion across all active task files
+/// Returns (done_total, item_total)
 pub fn count_all_checklist(task_dir: &Path) -> (u32, u32) {
     let task_files = iter_task_files(task_dir);
     let mut done = 0u32;

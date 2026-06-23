@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── validate.rs  -- dow validate（校验 .dev-doc 目录结构与文件规范）
+// ├── validate.rs  -- dow validate (validate .dev-doc directory structure and file format)
 
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
@@ -26,7 +26,7 @@ struct ValidateOutput {
 }
 
 pub fn run(human: bool) -> Result<i32, DowError> {
-    // 0. 旧版 dev-doc/ 目录迁移检测
+    // 0. Legacy dev-doc/ directory migration detection
     if let Some(msg) = check_legacy_doc_dir() {
         if human {
             println!("{}", msg);
@@ -45,19 +45,19 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         warnings: Vec::new(),
     };
 
-    // 1. 目录结构校验（自动创建缺失目录）
+    // 1. Directory structure validation (auto-create missing directories)
     check_directories(&doc_root_path, &mut result);
 
-    // 2. 统一文档校验
+    // 2. Unified document validation
     collect_validation_errors(&doc_root_path, &mut result);
 
-    // 3. CHANGELOG 校验
+    // 3. CHANGELOG validation
     check_changelog(&doc_root_path, &mut result);
 
-    // 4. .gitignore 检查
+    // 4. .gitignore check
     check_gitignore(&mut result);
 
-    // 5. 根级残留文件检查
+    // 5. Root-level stale file check
     check_stale_root_files(&doc_root_path, &mut result);
 
     let has_problems = !result.needs_confirm.is_empty() || !result.warnings.is_empty();
@@ -77,7 +77,7 @@ fn collect_validation_errors(doc_root: &Path, result: &mut ValidateOutput) {
         return;
     }
 
-    // 按 (kind, message) 归类，合并同类文件
+    // Group by (kind, message), merge files of the same type
     use std::collections::BTreeMap;
 
     struct Group {
@@ -125,27 +125,27 @@ fn collect_validation_errors(doc_root: &Path, result: &mut ValidateOutput) {
 fn classify_error(e: &doc_validator::ValidationError) -> (String, Option<String>) {
     let msg = &e.message;
 
-    if msg.contains("非工作流文件") {
+    if msg.contains("non-workflow file") {
         (
             "illegal_files".into(),
             Some("move to docs/ or remove (valid: PRD/SPEC/TEST/BRAINSTORM/CHANGELOG/STATUS.yaml)".into()),
         )
-    } else if msg.contains("非工作流目录") {
+    } else if msg.contains("non-workflow directory") {
         (
             "illegal_dirs".into(),
             Some("remove if migrated to SQLite (valid: task/, issue/)".into()),
         )
-    } else if msg.contains("只允许 task_") || msg.contains("只允许 issue_") {
+    } else if msg.contains("only task_") || msg.contains("only issue_") {
         (
             "illegal_subdir_files".into(),
             Some("remove or rename to valid pattern".into()),
         )
-    } else if msg.contains("未重命名为 closed_") || msg.contains("已勾选但文件未重命名") {
+    } else if msg.contains("not renamed to closed_") || msg.contains("checked but file not renamed") {
         (
             "issue_status_mismatch".into(),
             Some("rename to closed_ prefix".into()),
         )
-    } else if msg.contains("closed_ 前缀但存在未勾选") {
+    } else if msg.contains("closed_ prefix but unchecked items exist") {
         (
             "issue_closed_but_open".into(),
             Some("reopen items or remove closed_ prefix".into()),
@@ -158,9 +158,9 @@ fn classify_error(e: &doc_validator::ValidationError) -> (String, Option<String>
         ("missing_frontmatter".into(), Some("run `dow fix` to auto-fix".into()))
     } else if msg.contains("priority") || msg.contains("severity") || msg.contains("complexity") {
         ("invalid_field_value".into(), None)
-    } else if msg.contains("缺少必填字段") || msg.contains("缺少 ") {
+    } else if msg.contains("missing required field") || msg.contains("missing ") {
         ("missing_required_field".into(), None)
-    } else if msg.contains("序号") {
+    } else if msg.contains("sequence") {
         ("sequence_error".into(), None)
     } else {
         ("other".into(), None)
@@ -184,7 +184,7 @@ fn check_directories(doc_root: &Path, result: &mut ValidateOutput) {
     for dir in &dirs {
         if !dir.exists() {
             if let Err(e) = fs::create_dir_all(dir) {
-                eprintln!("[dow] 警告: 创建目录失败 ({}): {}", dir.display(), e);
+                eprintln!("[dow] warning: failed to create directory ({}): {}", dir.display(), e);
             } else {
                 result.auto_fixed.push(format!("created_dir:{}", dir.display()));
             }
@@ -205,7 +205,7 @@ fn check_changelog(doc_root: &Path, result: &mut ValidateOutput) {
         }
     } else {
         if let Err(e) = fs::write(&changelog, "# Changelog\n") {
-            eprintln!("[dow] 警告: 创建 CHANGELOG.md 失败: {}", e);
+            eprintln!("[dow] warning: failed to create CHANGELOG.md: {}", e);
         } else {
             result.auto_fixed.push("created_changelog".to_string());
         }
@@ -263,14 +263,14 @@ fn check_gitignore(result: &mut ValidateOutput) {
             new_content.push_str(project_temp);
             new_content.push('\n');
             if let Err(e) = fs::write(".gitignore", new_content) {
-                eprintln!("[dow] 警告: 更新 .gitignore 失败: {}", e);
+                eprintln!("[dow] warning: failed to update .gitignore: {}", e);
             } else {
                 result.auto_fixed.push("gitignore_added_project_temp".to_string());
             }
         }
     } else {
         if let Err(e) = fs::write(".gitignore", format!("{}\n", project_temp)) {
-            eprintln!("[dow] 警告: 创建 .gitignore 失败: {}", e);
+            eprintln!("[dow] warning: failed to create .gitignore: {}", e);
         } else {
             result.auto_fixed.push("gitignore_created".to_string());
         }
@@ -320,24 +320,24 @@ fn print_human(result: &ValidateOutput) {
     }
 }
 
-/// 检测旧版 dev-doc/ 目录是否存在且含 dev-flow 特征文件
-/// 只有包含 STATUS.yaml 的才视为 dev-flow 管理的旧目录需要迁移
+/// Detect if legacy dev-doc/ directory exists and contains dev-flow characteristic files
+/// Only those containing STATUS.yaml are considered old directories managed by dev-flow that need migration
 fn check_legacy_doc_dir() -> Option<String> {
     let legacy = Path::new(crate::core::DOC_DIR_LEGACY);
     if !legacy.is_dir() {
         return None;
     }
-    // 检查是否含 dev-flow 特征：任意子目录中有 STATUS.yaml
+    // Check if it contains dev-flow characteristics: STATUS.yaml in any subdirectory
     let has_status = fs::read_dir(legacy).ok()?.flatten().any(|e| {
         e.path().is_dir() && e.path().join("STATUS.yaml").exists()
     });
-    // 顶层也可能有（旧格式）
+    // Top level may also have it (old format)
     let has_top_status = legacy.join("STATUS.yaml").exists();
     if !has_status && !has_top_status {
         return None;
     }
     Some(format!(
-        "[dev-flow] 检测到旧版文档目录 `dev-doc/`（含 STATUS.yaml）。\n\
-         dev-flow 已迁移到 `.dev-doc/`，请执行 `mv dev-doc .dev-doc` 完成迁移，否则 dev-flow 无法正常工作。"
+        "[dev-flow] Detected legacy documentation directory `dev-doc/` (containing STATUS.yaml).\n\
+         dev-flow has migrated to `.dev-doc/`, please execute `mv dev-doc .dev-doc` to complete migration, otherwise dev-flow will not work properly."
     ))
 }

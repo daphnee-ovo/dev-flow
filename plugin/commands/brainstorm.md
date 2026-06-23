@@ -1,116 +1,116 @@
 ---
-description: 实现前的协作式需求探索与设计（对话式头脑风暴）
+description: Pre-implementation collaborative requirement exploration and design (conversational brainstorm)
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# BRAINSTORM — 将想法变成设计
+# BRAINSTORM — Turn Ideas into Design
 
-通过自然对话将模糊想法变成完整设计方案，在实现前达成共识。
+Transform vague ideas into complete design through natural conversation, reaching consensus before implementation.
 
 <HARD-GATE>
-在呈现设计方案并获得用户明确同意之前，不得开始任何实现工作。不得调用实现相关的 skill 或写任何业务代码。这适用于所有项目，无论看起来多"简单"。
+No implementation work may begin before presenting the design and obtaining explicit user agreement. No implementation-related skills may be invoked and no business code written. This applies to all projects, no matter how "simple" they seem.
 </HARD-GATE>
 
-## Anti-Pattern："这个太简单不需要设计"
+## Anti-Pattern: "This is too simple, doesn't need design"
 
-每个项目都要走这个流程。一个工具函数、一个配置改动、一个单页应用——都需要。"简单"的项目恰恰是未经审视的假设造成最多返工的地方。设计可以很短（简单项目几句话），但必须呈现并获得同意。
+Every project needs this process. A utility function, a config change, a single-page app — all need it. "Simple" projects are exactly where unexamined assumptions cause most rework. Design can be short (simple projects just a few sentences), but must be presented and approved.
 
-## Checklist（必须按顺序完成）
+## Checklist (must complete in order)
 
-1. **探索项目上下文** — 检查文件、文档、最近 commit
-2. **评估范围** — 如果过大则先拆解为子项目
-3. **逐个提问澄清** — 每条消息一个问题，理解目的/约束/成功标准
-4. **提出 2-3 种方案** — 带 trade-off 和推荐
-5. **分段呈现设计** — 按复杂度分段，每段确认后再继续
-6. **写入设计文档** — 通过 `dow doc brainstorm` 创建，写入 `<DOC_ROOT>/BRAINSTORM.md`
-7. **设计自检** — 检查 placeholder、矛盾、歧义、范围
-8. **用户审阅** — 请用户审阅文档，确认后才继续
-9. **过渡到下一阶段** — 建议进入 `/prd` 或 `/spec`
+1. **Explore project context** — check files, docs, recent commits
+2. **Assess scope** — if too large, decompose into sub-projects first
+3. **Ask clarifying questions one by one** — one question per message, understand purpose/constraints/success criteria
+4. **Propose 2-3 approaches** — with trade-offs and recommendation
+5. **Present design in segments** — segment by complexity, confirm each segment before continuing
+6. **Write design doc** — create via `dow doc brainstorm`, write to `<DOC_ROOT>/BRAINSTORM.md`
+7. **Design self-check** — check for placeholders, contradictions, ambiguities, scope
+8. **User review** — ask user to review doc, only continue after confirmation
+9. **Transition to next phase** — suggest entering `/prd` or `/spec`
 
-## 探索阶段
+## Exploration Phase
 
-**理解想法：**
+**Understand the idea:**
 
-- 先检查当前项目状态（文件、文档、git 历史）
-- 评估范围：如果描述包含多个独立子系统（如"做一个带聊天、存储、计费的平台"），**立即指出**，帮助拆解为子项目。不要在过大的范围上深入细节。每个子项目独立走 brainstorm → prd → spec → 实现周期。
-- 对于合理范围的项目，逐个提问澄清
+- First check current project state (files, docs, git history)
+- Assess scope: if description contains multiple independent subsystems (e.g., "build a platform with chat, storage, billing"), **point out immediately**, help decompose into sub-projects. Don't dive into details on overly broad scope. Each sub-project goes through brainstorm → prd → spec → implementation cycle independently.
+- For reasonably scoped projects, clarify with questions one by one
 
-**提问原则：**
+**Questioning principles:**
 
-- **每条消息只问一个问题** — 不要一次抛多个问题
-- **优先选择题** — 给出 2-4 个选项比开放题更容易回答
-- **聚焦关键维度** — 目的、用户群体、约束、成功标准、技术偏好
-- 如果某个话题需要深入探索，拆成多个问题逐步推进
+- **One question per message** — don't throw multiple questions at once
+- **Prioritize multiple choice** — giving 2-4 options is easier to answer than open-ended
+- **Focus on key dimensions** — purpose, user groups, constraints, success criteria, technical preferences
+- If a topic needs deep exploration, break into multiple questions progressing step by step
 
-## 方案探索
+## Solution Exploration
 
-**提出方案：**
+**Propose approaches:**
 
-- 提出 2-3 种不同方案，每种说明 trade-off
-- 对话式呈现，先说推荐方案和理由
-- 不要写报告式的冗长文档
+- Propose 2-3 different approaches, explain trade-offs for each
+- Present conversationally, start with recommended approach and rationale
+- Don't write lengthy report-style documents
 
-## 呈现设计
+## Present Design
 
-**分段呈现：**
+**Segment presentation:**
 
-- 按复杂度调整每段长度：简单的几句话，复杂的详细说明
-- 每段之后问用户"这部分是否 OK"，确认后再继续下一段
-- 覆盖维度：架构、组件、数据流、错误处理、测试策略
+- Adjust segment length by complexity: simple ones a few sentences, complex ones detailed explanation
+- After each segment ask user "is this part OK", continue to next segment after confirmation
+- Cover dimensions: architecture, components, data flow, error handling, test strategy
 
-**设计隔离原则：**
+**Design isolation principle:**
 
-- 将系统拆成小单元，每个有**一个明确职责**
-- 单元之间通过**定义清晰的接口**通信
-- 每个单元可以被**独立理解和测试**
-- 对每个单元，能回答：它做什么、怎么用它、它依赖什么
-- 能否不读内部实现就理解单元功能？能否改内部实现不破坏调用方？如果不能，边界需要重新设计
-- 小而聚焦的单元也更容易推理和修改——当文件变大时，通常意味着它承担了过多职责
+- Break system into small units, each with **one clear responsibility**
+- Units communicate through **clearly defined interfaces**
+- Each unit can be **independently understood and tested**
+- For each unit, can answer: what does it do, how to use it, what does it depend on
+- Can you understand unit function without reading internal implementation? Can you change internal implementation without breaking callers? If not, boundaries need redesign
+- Small, focused units also easier to reason about and modify — when files grow large, usually means they bear too many responsibilities
 
-**在已有代码库中工作：**
+**Working in existing codebase:**
 
-- 在提出改动前，先探索现有结构。遵循现有模式。
-- 如果现有代码有影响本次工作的问题（文件过大、边界不清、职责纠缠），将针对性改进纳入设计——像一个好工程师改进自己工作区域的代码。
-- 不要提出无关的重构。保持聚焦。
+- Before proposing changes, explore existing structure first. Follow existing patterns.
+- If existing code has problems affecting this work (files too large, boundaries unclear, responsibilities tangled), include targeted improvements in design — like a good engineer improving code in their work area.
+- Don't propose unrelated refactoring. Stay focused.
 
-## 写入设计文档
+## Write Design Doc
 
-确认后通过 `dow doc brainstorm` 创建文件（自动写入 `<DOC_ROOT>/BRAINSTORM.md`），格式通过 `dow doc brainstorm --json` 获取。
+After confirmation, create file via `dow doc brainstorm` (auto-writes to `<DOC_ROOT>/BRAINSTORM.md`), get format via `dow doc brainstorm --json`.
 
-## 设计自检
+## Design Self-Check
 
-写完文档后，用新鲜视角审视一遍：
+After writing doc, review with fresh perspective:
 
-1. **Placeholder 扫描** — 有没有 TBD、TODO、未完成的部分、模糊的需求？修复它们。
-2. **内部一致性** — 各部分之间有矛盾吗？架构和功能描述匹配吗？
-3. **范围检查** — 是否聚焦到可以进入单个 PRD/SPEC 的程度？还是需要进一步拆解？
-4. **歧义检查** — 有没有哪条需求可以被两种方式理解？如果有，选一种并明确写出。
+1. **Placeholder scan** — any TBD, TODO, incomplete parts, vague requirements? Fix them.
+2. **Internal consistency** — contradictions between parts? Architecture and feature descriptions match?
+3. **Scope check** — focused enough to enter single PRD/SPEC? Or needs further decomposition?
+4. **Ambiguity check** — any requirement that can be understood two ways? If so, pick one and write explicitly.
 
-发现问题直接修复，不需要重新走流程。
+Fix problems directly, no need to restart process.
 
-## 用户审阅 Gate
+## User Review Gate
 
-自检通过后，请用户审阅：
+After self-check passes, ask user to review:
 
-> "设计文档已写入 `<DOC_ROOT>/BRAINSTORM.md`。请审阅，有需要修改的地方告诉我。确认后我们进入下一步。"
+> "Design doc written to `<DOC_ROOT>/BRAINSTORM.md`. Please review, tell me if anything needs modification. We'll proceed to next step after confirmation."
 
-等待用户回复。如果要求修改，改完后重新走自检。只有用户确认后才过渡。
+Wait for user response. If modification requested, revise then re-run self-check. Only transition after user confirms.
 
-## 过渡到下一阶段
+## Transition to Next Phase
 
-- 需求已经很清晰、可以直接出技术规范 → 建议 `/spec`
-- 还需要更正式的需求文档定义范围 → 建议 `/prd`
-- 由用户决定
+- Requirements already clear, can directly produce technical spec → suggest `/spec`
+- Still need more formal requirements doc to define scope → suggest `/prd`
+- User decides
 
-## 核心原则
+## Core Principles
 
-- **YAGNI** — 砍掉不必要的功能，每个设计都问"真的需要吗？"
-- **一次一问** — 不要用问题淹没用户
-- **渐进验证** — 每步确认后再前进，不假设
-- **灵活退出** — 如果用户说"够了直接开始"，尊重判断，写入当前状态后过渡
+- **YAGNI** — cut unnecessary features, ask for every design "is this really needed?"
+- **One at a time** — don't drown user with questions
+- **Progressive validation** — confirm each step before moving forward, don't assume
+- **Flexible exit** — if user says "enough, just start", respect judgment, write current state then transition
 
-## 注意
+## Notes
 
-- 纯对话式流程，主 agent 直接执行，不启动子 agent
-- BRAINSTORM.md 在 `/iterate` 时不归档（作为项目持久参考保留）
-- 如果 .dev-doc/ 不存在，brainstorm 会创建它
+- Pure conversational process, main agent executes directly, doesn't launch subagent
+- BRAINSTORM.md not archived during `/iterate` (kept as persistent project reference)
+- If .dev-doc/ doesn't exist, brainstorm will create it

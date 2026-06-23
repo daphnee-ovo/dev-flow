@@ -1,5 +1,5 @@
 // dow/src/core/config.rs
-// 全局配置（~/.config/dow/config.toml）读写
+// Global configuration (~/.config/dow/config.toml) read/write
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -39,12 +39,12 @@ impl DowConfig {
         let path = Self::path();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
-                .map_err(|e| format!("无法创建配置目录: {}", e))?;
+                .map_err(|e| format!("Failed to create config directory: {}", e))?;
         }
         let content = toml::to_string_pretty(self)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
         fs::write(&path, content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 // dow/src/core/platform.rs
-// 平台检测与 XDG 路径约定
+// Platform detection and XDG path conventions
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -53,15 +53,15 @@ pub fn bin_dir() -> PathBuf {
 }
 
 pub fn bundle_dir() -> PathBuf {
-    // 优先检查 exe 相邻的 bundle（支持 winget portable / 手动解压）
+    // Prioritize checking bundle adjacent to exe (supports winget portable / manual extraction)
     if let Ok(exe) = env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            // tar.gz 结构: ./bin/dow.exe + ./bundle/
+            // tar.gz structure: ./bin/dow.exe + ./bundle/
             let adjacent = exe_dir.parent().unwrap_or(exe_dir).join("bundle");
             if adjacent.is_dir() {
                 return adjacent;
             }
-            // 平级: dow.exe + bundle/ (zip 场景)
+            // Sibling: dow.exe + bundle/ (zip scenario)
             let sibling = exe_dir.join("bundle");
             if sibling.is_dir() {
                 return sibling;

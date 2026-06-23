@@ -1,9 +1,9 @@
 // dow/src/commands/
-// ├── fix.rs  -- dow fix（自动修复 .dev-doc 文件格式问题）
+// ├── fix.rs  -- dow fix (auto-fix .dev-doc file format issues)
 //
 // Related Docs:
-// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
-// - [TASK 规范](../../../references/.dev-doc/TASK-FILE.md)
+// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
+// - [TASK Specification](../../../references/.dev-doc/TASK-FILE.md)
 
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
@@ -23,7 +23,7 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
 
-    // 修复 issue 文件
+    // Fix issue files
     let issue_dir = doc_root_path.join("issue");
     if issue_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&issue_dir) {
@@ -40,7 +40,7 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 修复 task 文件
+    // Fix task files
     let task_dir = doc_root_path.join("task");
     if task_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&task_dir) {
@@ -57,13 +57,13 @@ pub fn run(human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 修复 issue 状态一致性：全部勾选的 issue 文件加 closed_ 前缀
+    // Fix issue state consistency: add closed_ prefix to fully checked issue files
     fix_issue_rename(&issue_dir, &mut fixed);
 
-    // 修复 task 状态一致性：全部勾选的 task 文件加 done_ 前缀
+    // Fix task state consistency: add done_ prefix to fully checked task files
     fix_task_rename(&task_dir, &mut fixed);
 
-    // 修复 issue 全局序号冲突：按文件日期排序重编号
+    // Fix issue global sequence conflicts: renumber by file date
     fix_issue_renumber(&issue_dir, &mut fixed);
 
     let result = FixOutput { fixed, unfixable };
@@ -81,7 +81,7 @@ pub fn run(human: bool) -> Result<i32, DowError> {
     }
 }
 
-/// 修复单个 issue 文件，返回 (已修复, 无法修复) 列表
+/// Fix a single issue file, returns (fixed, unfixable) lists
 fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
@@ -103,44 +103,44 @@ fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
     for error in &errors {
         match error.kind {
             doc_validator::ErrorKind::MissingFrontmatter => {
-                // 从文件名提取 source，补 frontmatter
+                // Extract source from filename and add frontmatter
                 let source = extract_source_from_filename(&filename).unwrap_or("other");
                 let item_count = new_content.lines().filter(|l| l.starts_with("- [")).count();
                 let fm = format!("---\nsource: {}\nnums: {}\n---\n\n", source, item_count);
                 new_content = format!("{}{}", fm, new_content);
                 needs_write = true;
-                fixed.push(format!("{}：补充 frontmatter", filename));
+                fixed.push(format!("{}: added frontmatter", filename));
             }
             doc_validator::ErrorKind::MissingRequiredField if error.fixable => {
                 if error.message.contains("source") {
                     let source = extract_source_from_filename(&filename).unwrap_or("other");
                     new_content = insert_fm_field(&new_content, "source", source);
                     needs_write = true;
-                    fixed.push(format!("{}：补充 source 字段", filename));
+                    fixed.push(format!("{}: added source field", filename));
                 } else if error.message.contains("nums") {
                     let item_count = new_content.lines().filter(|l| l.starts_with("- [")).count();
                     new_content = insert_fm_field(&new_content, "nums", &item_count.to_string());
                     needs_write = true;
-                    fixed.push(format!("{}：补充 nums 字段", filename));
+                    fixed.push(format!("{}: added nums field", filename));
                 }
             }
             _ => {
-                unfixable.push(format!("{}：{}", filename, error.message));
+                unfixable.push(format!("{}: {}", filename, error.message));
             }
         }
     }
 
     if needs_write {
         if let Err(e) = fs::write(path, &new_content) {
-            eprintln!("[dev-flow] 警告：写入 {} 失败: {}", filename, e);
-            unfixable.push(format!("{}：写入失败 - {}", filename, e));
+            eprintln!("[dev-flow] Warning: failed to write {}: {}", filename, e);
+            unfixable.push(format!("{}: write failed - {}", filename, e));
         }
     }
 
     (fixed, unfixable)
 }
 
-/// 修复单个 task 文件，返回 (已修复, 无法修复) 列表
+/// Fix a single task file, returns (fixed, unfixable) lists
 fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
@@ -166,37 +166,37 @@ fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
                 let fm = format!("---\ntitle: TASK - \nnums: {}\n---\n\n", item_count);
                 new_content = format!("{}{}", fm, new_content);
                 needs_write = true;
-                fixed.push(format!("{}：补充 frontmatter", filename));
+                fixed.push(format!("{}: added frontmatter", filename));
             }
             doc_validator::ErrorKind::MissingRequiredField if error.fixable => {
                 if error.message.contains("title") {
                     new_content = insert_fm_field(&new_content, "title", "TASK - ");
                     needs_write = true;
-                    fixed.push(format!("{}：补充 title 字段", filename));
+                    fixed.push(format!("{}: added title field", filename));
                 } else if error.message.contains("nums") {
                     let item_count = new_content.lines().filter(|l| l.starts_with("- [")).count();
                     new_content = insert_fm_field(&new_content, "nums", &item_count.to_string());
                     needs_write = true;
-                    fixed.push(format!("{}：补充 nums 字段", filename));
+                    fixed.push(format!("{}: added nums field", filename));
                 }
             }
             _ => {
-                unfixable.push(format!("{}：{}", filename, error.message));
+                unfixable.push(format!("{}: {}", filename, error.message));
             }
         }
     }
 
     if needs_write {
         if let Err(e) = fs::write(path, &new_content) {
-            eprintln!("[dev-flow] 警告：写入 {} 失败: {}", filename, e);
-            unfixable.push(format!("{}：写入失败 - {}", filename, e));
+            eprintln!("[dev-flow] Warning: failed to write {}: {}", filename, e);
+            unfixable.push(format!("{}: write failed - {}", filename, e));
         }
     }
 
     (fixed, unfixable)
 }
 
-/// 从 issue 文件名提取 source
+/// Extract source from issue filename
 fn extract_source_from_filename(filename: &str) -> Option<&str> {
     let stem = filename.strip_suffix(".md")?;
     let rest = if stem.starts_with("closed_issue_") {
@@ -210,7 +210,7 @@ fn extract_source_from_filename(filename: &str) -> Option<&str> {
     rest.split('_').next()
 }
 
-/// 在已有 frontmatter 中插入字段（如果 frontmatter 存在但缺少字段）
+/// Insert a field into existing frontmatter (if frontmatter exists but field is missing)
 fn insert_fm_field(content: &str, key: &str, value: &str) -> String {
     if !content.starts_with("---") {
         return content.to_string();
@@ -226,16 +226,16 @@ fn insert_fm_field(content: &str, key: &str, value: &str) -> String {
 }
 
 fn print_human(result: &FixOutput) {
-    println!("[dev-flow] 文档格式修复");
+    println!("[dev-flow] Document Format Fixes");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
 
     if result.fixed.is_empty() && result.unfixable.is_empty() {
-        println!("所有文件格式正确，无需修复。");
+        println!("All files are correctly formatted, no fixes needed.");
         return;
     }
 
     if !result.fixed.is_empty() {
-        println!("已修复（{}项）：", result.fixed.len());
+        println!("Fixed ({} items):", result.fixed.len());
         for item in &result.fixed {
             println!("  ✓ {}", item);
         }
@@ -243,16 +243,16 @@ fn print_human(result: &FixOutput) {
     }
 
     if !result.unfixable.is_empty() {
-        println!("需手动修复（{}项）：", result.unfixable.len());
+        println!("Requires manual fix ({} items):", result.unfixable.len());
         for item in &result.unfixable {
             println!("  ✗ {}", item);
         }
         println!();
-        println!("提示：以上问题无法自动修复，请手动编辑对应文件。");
+        println!("Hint: The above issues cannot be auto-fixed, please edit the corresponding files manually.");
     }
 }
 
-/// issue 文件全部勾选时重命名为 closed_ 前缀
+/// Rename issue files with all items checked to closed_ prefix
 fn fix_issue_rename(issue_dir: &Path, fixed: &mut Vec<String>) {
     if !issue_dir.is_dir() {
         return;
@@ -277,16 +277,16 @@ fn fix_issue_rename(issue_dir: &Path, fixed: &mut Vec<String>) {
             let new_path = issue_dir.join(&new_name);
             if !new_path.exists() {
                 if let Err(e) = fs::rename(entry.path(), &new_path) {
-                    eprintln!("[dow fix] 警告：重命名 {} → {} 失败: {}", name, new_name, e);
+                    eprintln!("[dow fix] Warning: failed to rename {} → {}: {}", name, new_name, e);
                 } else {
-                    fixed.push(format!("{}：重命名为 {}", name, new_name));
+                    fixed.push(format!("{}: renamed to {}", name, new_name));
                 }
             }
         }
     }
 }
 
-/// task 文件全部勾选时重命名为 done_ 前缀
+/// Rename task files with all items checked to done_ prefix
 fn fix_task_rename(task_dir: &Path, fixed: &mut Vec<String>) {
     if !task_dir.is_dir() {
         return;
@@ -311,16 +311,16 @@ fn fix_task_rename(task_dir: &Path, fixed: &mut Vec<String>) {
             let new_path = task_dir.join(&new_name);
             if !new_path.exists() {
                 if let Err(e) = fs::rename(entry.path(), &new_path) {
-                    eprintln!("[dow fix] 警告：重命名 {} → {} 失败: {}", name, new_name, e);
+                    eprintln!("[dow fix] Warning: failed to rename {} → {}: {}", name, new_name, e);
                 } else {
-                    fixed.push(format!("{}：重命名为 {}", name, new_name));
+                    fixed.push(format!("{}: renamed to {}", name, new_name));
                 }
             }
         }
     }
 }
 
-/// 修复 issue 全局序号冲突：按文件日期+序号排序后重新分配连续编号
+/// Fix issue global sequence conflicts: reassign continuous numbers sorted by file date + sequence
 fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
     if !issue_dir.is_dir() {
         return;
@@ -395,14 +395,14 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
         }
     }
 
-    // 按文件日期、文件序号、文件内行号排序
+    // Sort by file date, file sequence, and line index
     items.sort_by(|a, b| {
         a.file_date.cmp(&b.file_date)
             .then(a.file_seq.cmp(&b.file_seq))
             .then(a.line_idx.cmp(&b.line_idx))
     });
 
-    // 分配新序号
+    // Assign new sequence numbers
     let mut renames: std::collections::HashMap<std::path::PathBuf, Vec<(usize, u32, u32)>> =
         std::collections::HashMap::new();
     for (new_idx, item) in items.iter().enumerate() {
@@ -419,7 +419,7 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
         return;
     }
 
-    // 执行替换
+    // Apply replacements
     let mut total_fixed = 0u32;
     for (file_path, changes) in &renames {
         let content = match fs::read_to_string(file_path) {
@@ -441,14 +441,14 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
             new_content
         };
         if let Err(e) = fs::write(file_path, &final_content) {
-            eprintln!("[dow fix] 警告：写入 {} 失败: {}", file_path.display(), e);
+            eprintln!("[dow fix] Warning: failed to write {}: {}", file_path.display(), e);
         } else {
             total_fixed += changes.len() as u32;
         }
     }
 
     if total_fixed > 0 {
-        fixed.push(format!("issue 全局序号重编号：修正 {} 个条目", total_fixed));
+        fixed.push(format!("issue global sequence renumbering: fixed {} items", total_fixed));
     }
 }
 

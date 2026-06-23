@@ -1,61 +1,61 @@
 ---
-description: 迭代交付 — 交付检查 + 归档 + commit & tag + bump 版本
+description: Iteration delivery — delivery check + archive + commit & tag + bump version
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# ITERATE — 迭代交付
+# ITERATE — Iteration Delivery
 
-## 总则
+## General Principles
 
-`/iterate` 是 dev-flow 的迭代收尾命令。执行后完成当前版本的交付并开启下一个迭代。
-包含原 `/done`（交付检查）和原 `/iterate`（归档 + 重置）的全部职责。
+`/iterate` is dev-flow's iteration wrap-up command. After execution completes current version delivery and starts next iteration.
+Includes all responsibilities of original `/done` (delivery check) and original `/iterate` (archive + reset).
 
-## 前置检查（阻断）
+## Pre-checks (blocking)
 
-`dow iterate` 自动执行，任一不通过则停止：
-1. task 文件中所有任务必须全部勾选 `[x]`（audit 模式跳过）
-2. 无未关闭的 P0 issue
-3. VERSION 文件存在且格式合法
-4. `.dev-doc/preIterate.ci` 中的 CI steps 必须全部成功（如果文件存在）
+`dow iterate` auto-executes, stops if any fails:
+1. All tasks in task files must be checked `[x]` (audit mode skips)
+2. No unclosed P0 issues
+3. VERSION file exists and format legal
+4. All CI steps in `.dev-doc/preIterate.ci` must succeed (if file exists)
 
-## 参数
+## Parameters
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--topic` | 归档主题（用于归档目录命名） | 必填 |
-| `--type` | commit 类型（feat/fix/refactor/docs/perf/test/style/workflow） | 必填 |
-| `--files` | 额外提交的源码文件/目录列表（空格分隔）。**无需传入 .dev-doc/ 下的文件**——它们由 iterate 自动管理（归档删除 + `git add -u`） | 可选 |
-| `-v`/`--bump` | 版本递增类型：major/minor/patch | minor |
-| `--confirm` | 确认执行（需配合环境变量 token） | - |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--topic` | Archive topic (for archive directory naming) | Required |
+| `--type` | commit type (feat/fix/refactor/docs/perf/test/style/workflow) | Required |
+| `--files` | Additional source code files/directories to commit (space-separated). **No need to pass .dev-doc/ files** — they're auto-managed by iterate (archive delete + `git add -u`) | Optional |
+| `-v`/`--bump` | Version increment type: major/minor/patch | minor |
+| `--confirm` | Confirm execution (requires environment variable token) | - |
 
-## 执行流程
+## Execution Flow
 
-### 阶段 1：预览（不带 --confirm）
+### Phase 1: Preview (without --confirm)
 
 ```bash
 dow iterate --topic <topic> --type <type> [--files f1 f2...] [-v minor]
 ```
 
-输出预览信息：归档内容、版本号、将打的 tag、提交文件列表、确认 token。
+Outputs preview info: archive content, version number, tag to be created, commit file list, confirmation token.
 
-### 阶段 2：确认执行（带 --confirm + 环境变量）
+### Phase 2: Confirm Execution (with --confirm + environment variable)
 
 ```bash
 DOW_ITERATE_<token>=1 dow iterate --confirm --topic <topic> --type <type> [--files f1 f2...]
 ```
 
-Token 通过环境变量前缀传递，有效期 5 分钟。确认后依次执行：
+Token passed via environment variable prefix, valid for 5 minutes. After confirmation executes in sequence:
 
-1. **preIterate CI** — 如果存在 `.dev-doc/preIterate.ci`，先按顺序执行其中的 steps；任一步失败则整个 iterate 停止，不归档、不 commit、不 tag、不 bump
-2. **归档** — 解析 task_*、done_task_*、closed_issue_*、PRD.md、SPEC.md、TEST.md、CHANGELOG.md 并写入 `.dev-doc/archive.db`（SQLite），然后删除源文件
-3. **重置 CHANGELOG** — 清空为 `# Changelog\n`
-4. **git commit + tag** — `git add -u` + 显式 add 指定文件和 archive.db，commit message 格式为 `<type>: Release v<版本> <topic>`，CHANGELOG 条目作为 commit body
-5. **bump 版本** — 递增版本号写入 VERSION
-6. **重置 phase** — 按 mode 确定新迭代初始阶段
+1. **preIterate CI** — if `.dev-doc/preIterate.ci` exists, execute its steps in order first; any step fails stops entire iterate, no archive, no commit, no tag, no bump
+2. **Archive** — parse task_*, done_task_*, closed_issue_*, PRD.md, SPEC.md, TEST.md, CHANGELOG.md and write to `.dev-doc/archive.db` (SQLite), then delete source files
+3. **Reset CHANGELOG** — clear to `# Changelog\n`
+4. **git commit + tag** — `git add -u` + explicitly add specified files and archive.db, commit message format `<type>: Release v<version> <topic>`, CHANGELOG entries as commit body
+5. **bump version** — increment version number write to VERSION
+6. **reset phase** — determine new iteration initial phase by mode
 
 ## preIterate CI
 
-可在项目根目录创建 `.dev-doc/preIterate.ci`：
+Can create `.dev-doc/preIterate.ci` in project root:
 
 ```yaml
 sync-version: dow/Cargo.toml
@@ -64,69 +64,69 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 run: npm run build
 ```
 
-支持两类 step：
+Supports two step types:
 
-| Step | 说明 |
-|------|------|
-| `sync-version: <path>` | 将明确声明的 Cargo、npm、uv/pyproject 清单版本同步为本次交付版本 |
-| `run: <command>` | 在项目根目录执行命令；退出码非 0 时阻断整个 iterate |
+| Step | Description |
+|------|-------------|
+| `sync-version: <path>` | Sync explicitly declared Cargo, npm, uv/pyproject manifest version to this delivery version |
+| `run: <command>` | Execute command in project root; exit code non-0 blocks entire iterate |
 
-preIterate 一定在 `git commit` 之前执行。step 产生的文件改动会进入同一次 iterate commit。`dow` 不自动扫描或猜测哪些清单、lockfile、生成物需要同步；项目特定同步必须显式写在 `preIterate.ci` 中。
+preIterate always executes before `git commit`. File changes produced by steps go into same iterate commit. `dow` doesn't auto-scan or guess which manifests, lockfiles, artifacts need syncing; project-specific syncing must be explicitly written in `preIterate.ci`.
 
-## Commit Message 格式
+## Commit Message Format
 
 ```
-<type>: Release v<版本> <topic>
+<type>: Release v<version> <topic>
 
-- <CHANGELOG 条目 1>
-- <CHANGELOG 条目 2>
+- <CHANGELOG entry 1>
+- <CHANGELOG entry 2>
 ...
 ```
 
-## Bump 类型决策
+## Bump Type Decision
 
-1. 默认 minor（每次迭代 = 新功能周期）
-2. 用户指定 `--major` → major
-3. Agent 检测到架构重构/破坏性变更 → 推荐 major，询问用户确认
+1. Default minor (each iteration = new feature cycle)
+2. User specifies `--major` → major
+3. Agent detects architecture refactor/breaking changes → recommend major, ask user confirmation
 
-## 执行方式
+## Execution Method
 
 ```bash
-# 预览
+# Preview
 dow iterate --topic "<topic>" --type <type> --files <file1> <file2>
 
-# 确认执行（token 从预览输出获取）
+# Confirm execution (token from preview output)
 DOW_ITERATE_<token>=1 dow iterate --confirm --topic "<topic>" --type <type> --files <file1> <file2>
 ```
 
-agent 在调用前：
-1. 询问用户本轮迭代主题和 commit 类型
-2. 判断 bump 类型（默认 minor，检测到大变更推荐 major）
-3. 运行预览，展示摘要输出
-4. 获取用户确认后，使用 token 执行完整流程
+Before agent calls:
+1. Ask user for this iteration's topic and commit type
+2. Judge bump type (default minor, recommend major if big changes detected)
+3. Run preview, display summary output
+4. After getting user confirmation, execute full flow with token
 
-## audit 模式行为
+## audit Mode Behavior
 
-当 `mode` 为 `audit/xxx` 格式时（即通过 `/mode audit` 进入的审计模式）：
+When `mode` is `audit/xxx` format (i.e., entered audit mode via `/mode audit`):
 
-1. **跳过 task 完成度检查** — audit 模式下允许在任务未全部完成时执行 iterate
-2. **P0 issue 检查仍然保留** — 即使是 audit 模式，也必须关闭所有 P0 issue 后才能 iterate
-3. **iterate 完成后自动恢复原模式** — 从 `audit/xxx` 中提取原始模式 `xxx`，写回 STATUS.yaml 的 mode 字段，并按该模式确定新迭代的起始 phase（如 `audit/quick` → 恢复为 `quick`，phase 重置为 SPEC）
-4. 如果原始模式无效或为空，默认恢复为 `quick`
+1. **Skip task completion check** — audit mode allows iterate when tasks not all complete
+2. **P0 issue check still retained** — even in audit mode, must close all P0 issues before iterate
+3. **Auto-restore original mode after iterate completes** — extract original mode `xxx` from `audit/xxx`, write back to STATUS.yaml mode field, and determine new iteration start phase by that mode (e.g., `audit/quick` → restore to `quick`, phase resets to SPEC)
+4. If original mode invalid or empty, default restore to `quick`
 
-## 注意
+## Notes
 
-- 归档写入 SQLite（`.dev-doc/archive.db`），源文件删除，iterate 后 .dev-doc/ 中不残留 PRD/SPEC/TEST/CHANGELOG
-- 如果 SQLite 中已存在同版本记录，说明重复操作，INSERT OR IGNORE 跳过
-- `git add -u` 处理已跟踪文件的修改/删除；`--files` 和 preIterate 产生的文件会被显式加入提交
-- 查询历史归档使用 `dow archive` 子命令（list/show/tasks/issues/doc/stats）
+- Archive written to SQLite (`.dev-doc/archive.db`), source files deleted, no PRD/SPEC/TEST/CHANGELOG remains in .dev-doc/ after iterate
+- If SQLite already has same version record, means duplicate operation, INSERT OR IGNORE skips
+- `git add -u` handles tracked file modifications/deletions; `--files` and preIterate-produced files explicitly added to commit
+- Query historical archives use `dow archive` subcommands (list/show/tasks/issues/doc/stats)
 
-## 完成后输出
+## After Completion Output
 
 ```
-[dev-flow] 迭代完成
+[dev-flow] Iteration Complete
 ━━━━━━━━━━━━━━━━━━━━━━
-交付版本：v2.2.0 (tagged)
-新版本：v2.3.0
-阶段重置：SPEC
+Delivered Version: v2.2.0 (tagged)
+New Version: v2.3.0
+Phase Reset: SPEC
 ```

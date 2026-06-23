@@ -1,11 +1,11 @@
 // dow/src/commands/
-// ├── mod.rs       -- 子命令入口
-// ├── archive.rs   -- SQLite 归档查询
-// ├── status.rs    -- 读写 STATUS.yaml
-// ├── validate.rs  -- 校验 .dev-doc
-// ├── fix.rs       -- 自动修复 .dev-doc 格式
-// ├── scan.rs      -- 项目扫描
-// ├── doc.rs       -- 文档模板生成
+// ├── mod.rs       -- Subcommand entry point
+// ├── archive.rs   -- SQLite archive queries
+// ├── status.rs    -- Read/write STATUS.yaml
+// ├── validate.rs  -- Validate .dev-doc structure
+// ├── fix.rs       -- Auto-fix .dev-doc format issues
+// ├── scan.rs      -- Project scanning
+// ├── doc.rs       -- Document template generation
 
 pub mod archive;
 pub mod check;

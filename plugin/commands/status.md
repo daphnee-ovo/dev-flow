@@ -1,16 +1,16 @@
 ---
-description: 报告当前项目状态和进度
+description: Report current project status and progress
 allowed-tools: Bash, Read
 ---
 
-# STATUS — 项目状态报告
+# STATUS — Project Status Report
 
-## 执行方式
+## Execution Method
 
-直接运行脚本，展示输出：
+Run script directly, display output:
 
 ```bash
 dow status -H
 ```
 
-脚本自动处理多工程检测、统计、格式化输出。Agent 只需运行并展示结果。
+Script auto-handles multi-project detection, statistics, formatted output. Agent only needs to run and display results.

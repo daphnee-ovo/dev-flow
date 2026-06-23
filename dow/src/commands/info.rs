@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── info.rs  -- dow info context（生成项目上下文摘要，供 agent 子代理使用）
+// ├── info.rs  -- dow info context (Generate project context summary for agent subagents)
 
 use crate::error::DowError;
 use std::fs;
@@ -15,14 +15,14 @@ pub fn context() -> Result<i32, DowError> {
 }
 
 fn generate_context(root: &Path) -> String {
-    let mut out = String::from("# 项目上下文\n");
+    let mut out = String::from("# Project Context\n");
 
     if !root.is_dir() {
-        out.push_str("（目录不存在）\n");
+        out.push_str("(Directory does not exist)\n");
         return out;
     }
 
-    // 空项目检测
+    // Empty project detection
     let has_files = fs::read_dir(root)
         .map(|entries| {
             entries.flatten().any(|e| {
@@ -33,12 +33,12 @@ fn generate_context(root: &Path) -> String {
         .unwrap_or(false);
 
     if !has_files {
-        out.push_str("（空项目）\n");
+        out.push_str("(Empty project)\n");
         return out;
     }
 
-    // 技术栈
-    out.push_str("\n## 技术栈\n");
+    // Tech stack
+    out.push_str("\n## Tech Stack\n");
     let mut stack = Vec::new();
     if root.join("package.json").exists() {
         stack.push("Node.js/JavaScript");
@@ -68,15 +68,15 @@ fn generate_context(root: &Path) -> String {
         stack.push("Docker");
     }
     if stack.is_empty() {
-        out.push_str("- （无法自动推断）\n");
+        out.push_str("- (Unable to auto-detect)\n");
     } else {
         for s in &stack {
             out.push_str(&format!("- {}\n", s));
         }
     }
 
-    // 目录结构
-    out.push_str("\n## 目录结构\n");
+    // Directory structure
+    out.push_str("\n## Directory Structure\n");
     if let Ok(result) = Command::new("tree")
         .args([
             root.to_str().unwrap_or("."),
@@ -92,10 +92,10 @@ fn generate_context(root: &Path) -> String {
         out.push_str(&lines.join("\n"));
         out.push('\n');
     } else {
-        out.push_str("（tree 命令不可用）\n");
+        out.push_str("(tree command not available)\n");
     }
 
-    // 已有测试
+    // Existing tests
     let test_dir = if root.join("tests").is_dir() {
         Some(root.join("tests"))
     } else if root.join("test").is_dir() {
@@ -104,11 +104,11 @@ fn generate_context(root: &Path) -> String {
         None
     };
     if let Some(ref td) = test_dir {
-        out.push_str("\n## 已有测试\n");
+        out.push_str("\n## Existing Tests\n");
         let mut test_files = Vec::new();
         collect_test_files(td, root, &mut test_files, 20);
         if test_files.is_empty() {
-            out.push_str("（tests/ 目录存在但无匹配的测试文件）\n");
+            out.push_str("(tests/ directory exists but no matching test files found)\n");
         } else {
             for f in &test_files {
                 out.push_str(&format!("- {}\n", f));
@@ -116,41 +116,41 @@ fn generate_context(root: &Path) -> String {
         }
     }
 
-    // 运行方式
-    out.push_str("\n## 运行方式\n");
+    // How to run
+    out.push_str("\n## How to Run\n");
     let mut run_info = Vec::new();
     if root.join("Makefile").exists() {
-        run_info.push("Makefile 可用（make）");
+        run_info.push("Makefile available (make)");
     }
     if root.join("package.json").exists() {
-        run_info.push("npm scripts 可用（npm run）");
+        run_info.push("npm scripts available (npm run)");
     }
     if root.join("Dockerfile").exists() {
-        run_info.push("Docker 构建可用");
+        run_info.push("Docker build available");
     }
     if root.join("Cargo.toml").exists() {
-        run_info.push("cargo build/run 可用");
+        run_info.push("cargo build/run available");
     }
     if run_info.is_empty() {
-        out.push_str("- （无标准运行入口）\n");
+        out.push_str("- (No standard run entry)\n");
     } else {
         for r in &run_info {
             out.push_str(&format!("- {}\n", r));
         }
     }
 
-    // 核心模块
-    out.push_str("\n## 核心模块\n");
+    // Core modules
+    out.push_str("\n## Core Modules\n");
     let mut modules = Vec::new();
     for dir_name in &["src", "lib", "scripts", "commands", "agents"] {
         let dir = root.join(dir_name);
         if dir.is_dir() {
             let count = count_files(&dir);
-            modules.push(format!("- {}/（{} 个文件）", dir_name, count));
+            modules.push(format!("- {}/ ({} files)", dir_name, count));
         }
     }
     if modules.is_empty() {
-        out.push_str("- （无标准模块目录）\n");
+        out.push_str("- (No standard module directories)\n");
     } else {
         for m in &modules {
             out.push_str(m);
@@ -158,7 +158,7 @@ fn generate_context(root: &Path) -> String {
         }
     }
 
-    // 截断到 200 行
+    // Truncate to 200 lines
     let lines: Vec<&str> = out.lines().take(200).collect();
     lines.join("\n") + "\n"
 }

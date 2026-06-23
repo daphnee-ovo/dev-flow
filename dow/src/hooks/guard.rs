@@ -1,5 +1,5 @@
 // dow/src/hooks/
-// ├── guard.rs  -- dow hooks guard（文件写入守护）
+// ├── guard.rs  -- dow hooks guard (file write guardian)
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
@@ -10,7 +10,7 @@ use serde_json;
 use std::io::Read as IoRead;
 use std::path::{Component, Path, PathBuf};
 
-// ─── GuardPath: 规范化绝对路径 ───────────────────────────────────────────────
+// ─── GuardPath: normalized absolute path ───────────────────────────────────────────────
 
 struct GuardPath {
     abs: PathBuf,
@@ -51,7 +51,7 @@ impl GuardPath {
         self.abs == file
     }
 
-    /// 取相对于某目录的剩余路径
+    /// Get relative path from a directory
     fn relative_to(&self, dir: &Path) -> Option<PathBuf> {
         self.abs.strip_prefix(dir).ok().map(|p| p.to_path_buf())
     }
@@ -77,7 +77,7 @@ impl GuardPath {
     }
 }
 
-// ─── GuardContext: 预计算的项目路径 ──────────────────────────────────────────
+// ─── GuardContext: precomputed project paths ──────────────────────────────────────────
 
 struct GuardContext {
     root: PathBuf,
@@ -101,7 +101,7 @@ impl GuardContext {
             ".kiro",
         ];
         let ai_config_dirs: Vec<PathBuf> = ai_names.iter().map(|d| root.join(d)).collect();
-        // .github/copilot 特殊处理
+        // Special handling for .github/copilot
         let mut dirs = ai_config_dirs;
         dirs.push(root.join(".github/copilot"));
 
@@ -146,11 +146,11 @@ impl GuardContext {
     }
 }
 
-// ─── Hook 输出 ───────────────────────────────────────────────────────────────
+// ─── Hook output ───────────────────────────────────────────────────────────────
 
 fn deny(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
     if kiro_hook {
-        // kiro-cli: exit code 2 + stderr = 阻止工具执行
+        // kiro-cli: exit code 2 + stderr = block tool execution
         eprintln!("{}", reason);
         return Ok(2);
     }
@@ -167,7 +167,7 @@ fn deny(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
 
 fn ask(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
     if kiro_hook {
-        // kiro-cli: exit code 2 阻止（kiro 没有 ask 中间态，只有 allow/block）
+        // kiro-cli: exit code 2 blocks (kiro has no ask intermediate state, only allow/block)
         eprintln!("{}", reason);
         return Ok(2);
     }
@@ -182,7 +182,7 @@ fn ask(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-// ─── 主入口 ──────────────────────────────────────────────────────────────────
+// ─── Main entry ──────────────────────────────────────────────────────────────────
 
 pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
     let targets = resolve_targets(&file);
@@ -196,44 +196,44 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
     for raw_target in &targets {
         let path = GuardPath::new(raw_target, &ctx.root);
 
-        // 1. 项目边界检查
+        // 1. Project boundary check
         if !path.is_under(&ctx.root) {
             if is_dangerous_system_path(&path) {
-                return deny(&format!("[dev-flow] 禁止写入系统敏感路径：{}", raw_target), kiro_hook);
+                return deny(&format!("[dev-flow] BLOCKED: writing to system-sensitive path is prohibited: {}", raw_target), kiro_hook);
             }
             return ask(&format!(
-                "[dev-flow] 写入目标在项目外：{}。请确认是否允许。",
+                "[dev-flow] Write target is outside project: {}. Please confirm if allowed.",
                 raw_target
             ), kiro_hook);
         }
 
-        // 2. VERSION 保护
+        // 2. VERSION protection
         if path.is_exact(&ctx.version_file) {
             return deny(
-                "[dev-flow] 禁止直接修改 VERSION 文件。请使用 `dow version --set X.Y.Z` 或 `dow version --bump minor`。",
+                "[dev-flow] BLOCKED: direct modification of VERSION file is prohibited. Use `dow version --set X.Y.Z` or `dow version --bump minor`.",
                 kiro_hook,
             );
         }
 
-        // 3. STATUS.yaml 保护
+        // 3. STATUS.yaml protection
         if path.file_name() == Some("STATUS.yaml") && path.is_under(&ctx.devdoc_dir) {
             return deny(
-                "[dev-flow] 禁止直接创建或修改 STATUS.yaml。请使用 `dow status --phase/--mode/--name` 或 `dow init`。",
+                "[dev-flow] BLOCKED: direct creation or modification of STATUS.yaml is prohibited. Use `dow status --phase/--mode/--name` or `dow init`.",
                 kiro_hook,
             );
         }
 
-        // 4. .dev-doc 文件创建保护
+        // 4. .dev-doc file creation protection
         if let Some(reason) = check_devdoc_direct_create(&path, &ctx) {
             return deny(&reason, kiro_hook);
         }
 
-        // 5. 跨分支写入保护
+        // 5. Cross-branch write protection
         if let Some(reason) = check_cross_branch(&path, &ctx) {
             return deny(&reason, kiro_hook);
         }
 
-        // 6. 阶段性写入控制
+        // 6. Phase-based write control
         if let Some(decision) = check_phase_write(&path, &ctx) {
             return match decision {
                 PhaseDecision::Deny(reason) => deny(&reason, kiro_hook),
@@ -250,7 +250,7 @@ enum PhaseDecision {
     Ask(String),
 }
 
-// ─── 检查函数 ────────────────────────────────────────────────────────────────
+// ─── Check functions ────────────────────────────────────────────────────────────────
 
 fn is_dangerous_system_path(path: &GuardPath) -> bool {
     let prefixes: &[&str] = &[
@@ -268,7 +268,7 @@ fn check_cross_branch(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
     let rel = path.relative_to(&ctx.devdoc_dir)?;
     let rel_str = rel.to_string_lossy();
 
-    // 直接在 .dev-doc/ 下的文件（如 archive.db）
+    // Files directly under .dev-doc/ (like archive.db)
     if !rel_str.contains('/') && !rel_str.contains('\\') {
         return None;
     }
@@ -276,12 +276,12 @@ fn check_cross_branch(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
     let current = doc_root::current_branch()?;
     let current_branch_dir = ctx.devdoc_dir.join(&current);
 
-    // 在当前分支目录下 → 允许
+    // Under current branch directory → allow
     if path.is_under(&current_branch_dir) {
         return None;
     }
 
-    // 逐级检查是否属于其他已知分支目录
+    // Check level by level if belongs to another known branch directory
     let parts: Vec<&str> = rel_str.split('/').collect();
     let mut candidate = String::new();
     for (i, part) in parts.iter().enumerate() {
@@ -297,7 +297,7 @@ fn check_cross_branch(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
         let branch_path = ctx.devdoc_dir.join(&candidate);
         if branch_path.join("STATUS.yaml").exists() {
             return Some(format!(
-                "[dev-flow] BLOCKED: 当前分支为 `{}`，禁止写入其他分支的文档目录：{}\n→ 请确认你已切换到正确的分支，或使用 `git checkout {}` 切换。",
+                "[dev-flow] BLOCKED: current branch is `{}`, writing to another branch's doc directory is prohibited: {}\n→ Please confirm you have switched to the correct branch, or use `git checkout {}` to switch.",
                 current, path.display(), candidate
             ));
         }
@@ -313,12 +313,12 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
 
     let (phase, mode) = ctx.read_phase_mode()?;
 
-    // DEV/TEST 阶段
+    // DEV/TEST phase
     if phase == "DEV" || phase == "TEST" {
         if mode.starts_with("audit/") {
             return None;
         }
-        // 白名单
+        // Whitelist
         if path.is_under(&ctx.devdoc_dir)
             || path.is_under(&ctx.tmp_dir)
             || path.is_under(&ctx.docs_dir)
@@ -326,22 +326,22 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         {
             return None;
         }
-        // DEV 无活跃 claim → 区分原因
+        // DEV phase with no active claim → distinguish reason
         if phase == "DEV" && !has_active_claim(&ctx.doc_root_path()) {
             let doc_root = ctx.doc_root_path();
             let has_undone = has_pending_work(&doc_root);
             if has_undone {
                 return Some(PhaseDecision::Deny(format!(
-                    "[dev-flow] DEV 阶段有未完成的 task/issue 但未 claim，不允许写入 {}。请先执行：\n\
-                    → `dow claim <TASK_ID>` 认领要开发的任务",
+                    "[dev-flow] BLOCKED: DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
+                    → `dow claim <TASK_ID>` to claim a task to work on",
                     path.display()
                 )));
             } else {
                 return Some(PhaseDecision::Deny(format!(
-                    "[dev-flow] DEV 阶段所有 task 已完成且无 open issue，不允许写入 {}。请选择：\n\
-                    → /task 创建新任务\n\
-                    → /issue 创建 issue\n\
-                    → /test 进入测试阶段",
+                    "[dev-flow] BLOCKED: DEV phase has no pending tasks or open issues, writing to {} not allowed. Please choose:\n\
+                    → /task to create new task\n\
+                    → /issue to create issue\n\
+                    → /test to enter test phase",
                     path.display()
                 )));
             }
@@ -349,13 +349,13 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         return None;
     }
 
-    // 非 DEV/TEST 阶段（PRD/SPEC/TASK 等）
+    // Non-DEV/TEST phase (PRD/SPEC/TASK etc.)
 
-    // 白名单 1: tmp（代码文件需确认）
+    // Whitelist 1: tmp (code files need confirmation)
     if path.is_under(&ctx.tmp_dir) {
         if is_code_file(path) {
             return Some(PhaseDecision::Ask(format!(
-                "[dev-flow] 当前阶段为 {}，tmp/ 下写入代码文件：{}。确认是探索性 demo 吗？",
+                "[dev-flow] Current phase is {}, writing code file under tmp/: {}. Confirm this is an exploratory demo?",
                 phase,
                 path.display()
             )));
@@ -363,28 +363,28 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         return None;
     }
 
-    // 白名单 2: AI 配置
+    // Whitelist 2: AI config
     if ctx.is_ai_config(path) {
         return None;
     }
 
-    // 白名单 3: docs（禁止代码文件）
+    // Whitelist 3: docs (code files prohibited)
     if path.is_under(&ctx.docs_dir) {
         if is_code_file(path) {
             return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] 当前阶段为 {}，docs/ 下不允许写入代码文件：{}。代码文件请在 DEV 阶段创建。",
+                "[dev-flow] BLOCKED: current phase is {}, writing code files under docs/ is not allowed: {}. Code files should be created in DEV phase.",
                 phase, path.display()
             )));
         }
         return None;
     }
 
-    // 白名单 4: .dev-doc 工作流文件
+    // Whitelist 4: .dev-doc workflow files
     if path.is_under(&ctx.devdoc_dir) {
-        // STATUS.yaml 只允许通过 dow status 命令修改
+        // STATUS.yaml can only be modified via dow status command
         if path.file_name().map(|f| f == "STATUS.yaml").unwrap_or(false) {
             return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] STATUS.yaml 不允许手动编辑，请使用 `dow status` 命令修改。"
+                "[dev-flow] BLOCKED: STATUS.yaml cannot be manually edited, please use `dow status` command."
             )));
         }
         if path.exists() || path.is_dir() {
@@ -394,14 +394,14 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             return None;
         }
         return Some(PhaseDecision::Deny(format!(
-            "[dev-flow] .dev-doc/ 下不允许创建非工作流文件：{}。合法文件：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、task/task_*.md、issue/issue_*.md、STATUS.yaml",
+            "[dev-flow] BLOCKED: creating non-workflow files under .dev-doc/ is not allowed: {}. Valid files: PRD.md, SPEC.md, TEST.md, BRAINSTORM.md, CHANGELOG.md, task/task_*.md, issue/issue_*.md, STATUS.yaml",
             path.display()
         )));
     }
 
-    // 其余 → deny
+    // Everything else → deny
     Some(PhaseDecision::Deny(format!(
-        "[dev-flow] 当前阶段为 {}，只允许写入 .dev-doc/、docs/ 和 tmp/。要写入 {} 请先完成规划并进入 DEV 阶段：创建任务（/task）或创建 issue（/issue）后即可进入 DEV。（探索性代码、demo 可放 tmp/ 下）",
+        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase: create task (/task) or issue (/issue) to enter DEV. (Exploratory code/demos can go under tmp/)",
         phase, path.display()
     )))
 }
@@ -411,7 +411,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         return None;
     }
 
-    // 需要 branch 目录下的相对路径
+    // Need relative path under branch directory
     let branch_dir = ctx.current_branch_dir()?;
     let rel = path.relative_to(&branch_dir)?;
     let rel_str = rel.to_string_lossy().to_string();
@@ -428,7 +428,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         if rel_str == *filename {
             if !path.exists() {
                 return Some(format!(
-                    "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {}`",
+                    "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow doc {}`",
                     path.display(),
                     doc_type
                 ));
@@ -437,7 +437,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         }
     }
 
-    // task/ 和 issue/ 下的新文件
+    // New files under task/ and issue/
     if (rel_str.starts_with("task/task_") || rel_str.starts_with("issue/issue_"))
         && rel_str.ends_with(".md")
         && is_standard_doc_filename(&rel_str)
@@ -449,7 +449,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
                 "issue"
             };
             return Some(format!(
-                "[dev-flow] BLOCKED: 禁止手动创建 {}，请使用 `dow doc {} [-n N]`",
+                "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow doc {} [-n N]`",
                 path.display(),
                 doc_type
             ));
@@ -459,7 +459,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
     None
 }
 
-// ─── 辅助函数 ────────────────────────────────────────────────────────────────
+// ─── Helper functions ────────────────────────────────────────────────────────────────
 
 fn has_active_claim(doc_root: &Path) -> bool {
     !crate::core::claim::get_active_claims(doc_root).is_empty()
@@ -587,7 +587,7 @@ fn is_standard_doc_filename(rel: &str) -> bool {
         && filename.contains(|c: char| c.is_ascii_digit())
 }
 
-// ─── 输入解析（不变） ────────────────────────────────────────────────────────
+// ─── Input parsing (unchanged) ────────────────────────────────────────────────────────
 
 fn resolve_targets(file: &str) -> Vec<String> {
     if !file.is_empty() {
@@ -659,7 +659,7 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
 fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
     let mut targets = Vec::new();
 
-    // 重定向写入：> file、>> file
+    // Redirect write: > file, >> file
     let redirect_parts: Vec<&str> = cmd.split('>').collect();
     for (i, part) in redirect_parts.iter().enumerate().skip(1) {
         if part.is_empty() {
@@ -690,7 +690,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // tee 写入
+    // tee write
     if cmd.contains("tee") {
         let segments: Vec<&str> = cmd.split("tee").collect();
         for segment in segments.iter().skip(1) {
@@ -710,7 +710,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         }
     }
 
-    // cp/mv 目标
+    // cp/mv target
     for prefix in &["cp ", "mv "] {
         if let Some(pos) = cmd.find(prefix) {
             let args_str = &cmd[pos + prefix.len()..];

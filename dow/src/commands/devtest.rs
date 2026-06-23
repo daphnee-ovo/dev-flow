@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── devtest.rs  -- dow devtest（任务级测试）
+// ├── devtest.rs  -- dow devtest (task-level testing)
 
 use crate::cli::DevtestArgs;
 use crate::core::doc_root;
@@ -31,10 +31,10 @@ pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
     let task_dir = doc_root_path.join("task");
 
     if !task_dir.is_dir() {
-        return Err(DowError::new("task/ 目录不存在", 1));
+        return Err(DowError::new("task/ directory does not exist", 1));
     }
 
-    // 找到目标任务
+    // Find target task
     let (task_file, task_line, task_title, test_files) = find_target_task(&task_dir, args.task.as_deref())?;
 
     if test_files.is_empty() {
@@ -50,14 +50,14 @@ pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
             task_unchecked: None,
         };
         if human {
-            println!("[dev-flow] devtest NEEDS_CONTEXT：无测试文件");
+            println!("[dev-flow] devtest NEEDS_CONTEXT: no test files");
         } else {
             output::print_json(&result);
         }
         return Ok(2);
     }
 
-    // 运行测试
+    // Run tests
     let mut total = 0u32;
     let mut passed = 0u32;
     let mut failed = 0u32;
@@ -67,7 +67,7 @@ pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
         total += 1;
         if !Path::new(test_file).exists() {
             failed += 1;
-            failures.push(format!("{}: 文件不存在", test_file));
+            failures.push(format!("{}: file does not exist", test_file));
             continue;
         }
         let output = Command::new("bash").arg(test_file).output();
@@ -101,13 +101,13 @@ pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
             task_unchecked: None,
         };
         if human {
-            println!("[dev-flow] devtest PASS：{}", task_title);
+            println!("[dev-flow] devtest PASS: {}", task_title);
         } else {
             output::print_json(&result);
         }
         Ok(0)
     } else {
-        // FAIL：取消勾选 + 创建 issue
+        // FAIL: uncheck task + create issue
         uncheck_task(&task_file, task_line);
         let issue_path = create_devtest_issue(&doc_root_path, &task_title, &failures);
 
@@ -123,9 +123,9 @@ pub fn run(args: DevtestArgs, human: bool) -> Result<i32, DowError> {
             task_unchecked: Some(true),
         };
         if human {
-            println!("[dev-flow] devtest FAIL：{}", task_title);
+            println!("[dev-flow] devtest FAIL: {}", task_title);
             if let Some(ref issue) = result.issue_created {
-                println!("→ 已创建 issue：{}", issue);
+                println!("→ Issue created: {}", issue);
             }
         } else {
             output::print_json(&result);
@@ -155,14 +155,14 @@ fn find_target_task(
                 if line.starts_with("- [x]") {
                     let title = line.trim_start_matches("- [x] ").to_string();
 
-                    // 如果指定了 task id，检查是否匹配
+                    // If task id is specified, check if it matches
                     if let Some(id) = target_id {
                         if !title.contains(id) {
                             continue;
                         }
                     }
 
-                    // 查找 files.test 字段
+                    // Find files.test field
                     let test_files = extract_test_files(&lines, i);
 
                     return Ok((
@@ -176,7 +176,7 @@ fn find_target_task(
         }
     }
 
-    Err(DowError::new("未找到已完成的任务", 1))
+    Err(DowError::new("No completed task found", 1))
 }
 
 fn extract_test_files(lines: &[&str], task_line: usize) -> Vec<String> {
@@ -184,13 +184,13 @@ fn extract_test_files(lines: &[&str], task_line: usize) -> Vec<String> {
     let mut tests = Vec::new();
 
     for line in lines.iter().skip(task_line + 1) {
-        // 下一个任务条目开始
+        // Next task entry starts
         if line.starts_with("- [") {
             break;
         }
         if line.contains("test:") {
             in_test = true;
-            // 内联格式: test: ["tests/xxx.sh"]
+            // Inline format: test: ["tests/xxx.sh"]
             if let Some(bracket_start) = line.find('[') {
                 if let Some(bracket_end) = line.find(']') {
                     let inner = &line[bracket_start + 1..bracket_end];
@@ -204,7 +204,7 @@ fn extract_test_files(lines: &[&str], task_line: usize) -> Vec<String> {
                 }
             }
         } else if in_test {
-            // 多行列表格式
+            // Multi-line list format
             let trimmed = line.trim();
             if trimmed.starts_with('-') || trimmed.starts_with("\"") {
                 let cleaned = trimmed
@@ -262,7 +262,7 @@ fn create_devtest_issue(doc_root: &Path, task_title: &str, failures: &[String]) 
 
     let detail = failures.join("; ");
     let content = format!(
-        "---\nsource: devtest\nnums: 1\n---\n\n- [ ] ISSUE-I001: devtest 未通过：{}\n  - severity: P1\n  - source: devtest\n  - location: {}\n  - current: {}\n  - expected: task 通过 devtest\n  - reproduce: dow devtest\n  - root_cause:\n  - fix:\n  - close_when: 重新执行 devtest 返回 PASS\n",
+        "---\nsource: devtest\nnums: 1\n---\n\n- [ ] ISSUE-I001: devtest failed: {}\n  - severity: P1\n  - source: devtest\n  - location: {}\n  - current: {}\n  - expected: task passes devtest\n  - reproduce: dow devtest\n  - root_cause:\n  - fix:\n  - close_when: Re-running devtest returns PASS\n",
         task_title, task_title, detail
     );
 

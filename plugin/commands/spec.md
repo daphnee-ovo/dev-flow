@@ -1,76 +1,76 @@
 ---
-description: 启动 SPEC 阶段 — 技术方案设计
+description: Start SPEC phase — technical solution design
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# SPEC — 技术规范设计
+# SPEC — Technical Specification Design
 
-## 前置检查（模式感知）
+## Pre-checks (mode-aware)
 
-1. 读取 STATUS.yaml 中的 mode
-2. 按模式决定输入源：
-   - **full 模式**：检查 `<DOC_ROOT>/PRD.md` 是否存在，不存在 → 停止，告知用户先执行 /prd
-   - **quick/mvp 模式**：PRD.md 不要求存在。输入源降级为 BRAINSTORM.md（如有）或用户描述
-3. 生成项目上下文：`dow inbox context`
+1. Read mode from STATUS.yaml
+2. Decide input source by mode:
+   - **full mode**: check if `<DOC_ROOT>/PRD.md` exists, if not → stop, tell user to execute /prd first
+   - **quick/mvp mode**: PRD.md not required to exist. Input source downgrades to BRAINSTORM.md (if any) or user description
+3. Generate project context: `dow inbox context`
 
-## 输入组装（模式感知）
+## Input Assembly (mode-aware)
 
-| 模式 | 需求输入 | 项目上下文 |
-|------|----------|-----------|
-| full | PRD.md（必须存在） | 始终传入 |
-| quick | BRAINSTORM.md（如有）或用户描述 | 始终传入 |
-| mvp | BRAINSTORM.md（如有）或用户描述 | 始终传入 |
+| Mode | Requirements Input | Project Context |
+|------|-------------------|-----------------|
+| full | PRD.md (must exist) | Always passed |
+| quick | BRAINSTORM.md (if any) or user description | Always passed |
+| mvp | BRAINSTORM.md (if any) or user description | Always passed |
 
-## Agent 调度（隔离模板）
+## Agent Dispatch (Isolation Template)
 
-**必须启动独立子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
+**Must launch independent subagent. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
 
 ```
-description: "SPEC agent - 技术规范设计"
-prompt: `<读取 agents/spec-agent.md 的完整内容>
+description: "SPEC agent - Technical specification design"
+prompt: `<read complete content of agents/spec-agent.md>
 
-## 输入文档
+## Input Documents
 
-### 需求来源
-<按模式传入：PRD.md 完整内容 / BRAINSTORM.md 内容 / 用户描述>
+### Requirements Source
+<pass by mode: PRD.md complete content / BRAINSTORM.md content / user description>
 
-### 项目上下文
-<执行 dow inbox context 的输出，原样粘贴>
+### Project Context
+<execute dow inbox context output, paste as-is>
 
-## 输出路径
+## Output Path
 
-通过 `dow doc spec` 创建文件，写入 `<DOC_ROOT>/SPEC.md`。格式通过 `dow doc spec --json` 获取。
+Create file via `dow doc spec`, write to `<DOC_ROOT>/SPEC.md`. Get format via `dow doc spec --json`.
 
-## 禁止
+## Prohibited
 
-- 不要阅读无关的历史文件
-- 不要参考 PRD/BRAINSTORM 的讨论过程（你看不到，也不需要）
-- 不要拆解任务（那是 TASK 阶段的事）
-- 不要开始写代码`
+- Don't read unrelated historical files
+- Don't reference PRD/BRAINSTORM discussion process (you can't see it, and don't need to)
+- Don't decompose tasks (that's TASK phase's job)
+- Don't start writing code`
 ```
 
-## 输入隔离规则
+## Input Isolation Rules
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| agents/spec-agent.md 内容 | PRD/BRAINSTORM 阶段的对话讨论过程 |
-| PRD.md / BRAINSTORM.md 内容（按模式） | 用户与 agent 的交互历史 |
-| 项目上下文（context.sh 输出） | TASK.md / TEST.md |
-| DOC_ROOT 路径 | 无关历史记录 |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| agents/spec-agent.md content | PRD/BRAINSTORM phase conversation discussion process |
+| PRD.md / BRAINSTORM.md content (by mode) | User-agent interaction history |
+| Project context (context.sh output) | TASK.md / TEST.md |
+| DOC_ROOT path | Unrelated historical records |
 
-## 隔离边界说明
+## Isolation Boundary Explanation
 
-隔离的是**讨论过程**，不是**项目现状**。SPEC agent 需要了解项目当前结构（目录、技术栈、已有模块）才能做出合理的架构决策，但不应看到需求讨论中被否决的方案。
+What's isolated is **discussion process**, not **project current state**. SPEC agent needs to understand project current structure (directories, tech stack, existing modules) to make reasonable architecture decisions, but shouldn't see rejected approaches from requirements discussion.
 
-## 完成后
+## After Completion
 
-1. 确认 SPEC.md 已写入
-2. 更新 STATUS.yaml：当前阶段 → SPEC
-3. 提示用户：确认 SPEC 后执行 `/task` 推进
+1. Confirm SPEC.md written
+2. Update STATUS.yaml: current phase → SPEC
+3. Prompt user: after confirming SPEC execute `/task` to progress
 
-## 输出约束
+## Output Constraints
 
-- SPEC 保持轻量，默认包含 Goal、Scope、Requirements Trace、Design、Acceptance、Risks、Test Plan、Self Check。
-- quick/fast/mvp 按模式降级，不为了模板完整性补无用章节。
-- Change 直接写在 Requirements Trace 的 Notes 里，不单独创建 Change Delta。
-- 不要开始写代码，不要拆 task。
+- SPEC stays lightweight, default includes Goal, Scope, Requirements Trace, Design, Acceptance, Risks, Test Plan, Self Check.
+- quick/fast/mvp degrade by mode, don't supplement useless sections for template completeness.
+- Write Change directly in Requirements Trace Notes, don't separately create Change Delta.
+- Don't start writing code, don't decompose tasks.

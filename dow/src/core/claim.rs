@@ -1,5 +1,5 @@
 // dow/src/core/
-// ├── claim.rs  -- claim.lock 读写与验证
+// ├── claim.rs  -- claim.lock read/write and validation
 //
 // Related Docs:
 // - [Guard Hook](../hooks/guard.rs)
@@ -62,7 +62,7 @@ pub fn is_valid_claim(claim: &Claim, ttl: u64) -> bool {
     now.saturating_sub(claim.ts) < ttl
 }
 
-/// 返回所有尚未过期的 claim ID
+/// Return all non-expired claim IDs
 pub fn get_active_claims(doc_root: &Path) -> Vec<String> {
     let lock = match read_claim_lock(doc_root) {
         Some(l) => l,
@@ -75,7 +75,7 @@ pub fn get_active_claims(doc_root: &Path) -> Vec<String> {
         .collect()
 }
 
-/// 添加 claim（合并到现有列表，已存在则更新时间戳）
+/// Add claim (merge into existing list, update timestamp if already exists)
 pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);
     let ts = now_ts();
@@ -94,7 +94,7 @@ pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
     write_claim_lock(doc_root, &lock)
 }
 
-/// 释放指定 claim，若 id 为 None 则全部释放
+/// Release specified claim; if id is None, release all claims
 pub fn revoke_claims(doc_root: &Path, id: Option<&str>) -> std::io::Result<()> {
     match id {
         None => {

@@ -1,6 +1,6 @@
 // dow/src/hooks/
-// ├── post_write.rs  -- dow hooks post-write（写后联动）
-//    合并：update-status / audit 触发 / 任务完成度 / done_/closed_ 重命名 / 同步提醒
+// ├── post_write.rs  -- dow hooks post-write (post-write hooks)
+//    Merged: update-status / audit trigger / task completion / done_/closed_ rename / sync reminder
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
@@ -13,7 +13,7 @@ use std::io::Read as IoRead;
 use std::path::Path;
 
 pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
-    // 从命令行参数、stdin hook JSON、或环境变量获取文件路径
+    // Get file path from CLI arg, stdin hook JSON, or environment variable
     let changed_file = file
         .or_else(|| read_file_path_from_stdin())
         .unwrap_or_default();
@@ -25,12 +25,12 @@ pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
-    // 分支校验：写入 .dev-doc/ 内文件时检查是否属于当前分支
+    // Branch validation: check if file written under .dev-doc/ belongs to current branch
     if changed_file.starts_with(".dev-doc/") {
         if let Some(branch) = doc_root::current_branch() {
             let expected_prefix = format!(".dev-doc/{}/", branch);
             let normalized = changed_file.replace('\\', "/");
-            // 只对有分支子目录格式的路径做校验
+            // Only validate paths with branch subdirectory format
             if !normalized.starts_with(&expected_prefix)
                 && !normalized.starts_with(".dev-doc/archive/")
             {
@@ -42,13 +42,13 @@ pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i
                         emit_message(
                             codex_hook,
                             format!(
-                            "[dev-flow] ⚠ 写入了其他分支的文件：{}（当前分支：{}）",
+                            "[dev-flow] ⚠ Wrote to another branch's file: {} (current branch: {})",
                             changed_file, branch
                             ),
                         );
                         emit_message(
                             codex_hook,
-                            "→ 这可能是误操作，guard 应已在 PreToolUse 阶段拦截。".to_string(),
+                            "→ This may be an error, guard should have blocked it in PreToolUse phase.".to_string(),
                         );
                     }
                 }
@@ -56,14 +56,14 @@ pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i
         }
     }
 
-    // 1. 更新时间戳（.dev-doc 内文件变更时）
+    // 1. Update timestamp (when .dev-doc files change)
     if changed_file.starts_with(".dev-doc/") && status_file.exists() {
         let is_status = changed_file == status_file.to_string_lossy();
         let is_changelog = changed_file.ends_with("CHANGELOG.md");
         if !is_status && !is_changelog {
             if let Err(e) = yaml::touch_updated(&status_file) {
                 emit_warning(format!(
-                    "[dow] 警告: 更新时间戳失败 ({}): {}",
+                    "[dow] Warning: failed to update timestamp ({}): {}",
                     status_file.display(),
                     e
                 ));
@@ -84,20 +84,20 @@ pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i
         .flatten()
         .unwrap_or_default();
 
-    // 1.5 audit 模式自动触发
+    // 1.5 Auto-trigger audit mode
     if changed_file.contains("/issue/issue_") && !mode.starts_with("audit/") && phase != "DEV" {
         enter_audit_mode(&status_file, &mode, codex_hook);
-        // enter_audit_mode 已将 phase 设为 DEV，刷新本地变量
+        // enter_audit_mode already set phase to DEV, refresh local variable
         phase = "DEV".to_string();
     }
 
-    // 2. 任务完成度检测（仅 DEV 阶段）
+    // 2. Task completion detection (DEV phase only)
     if phase == "DEV" {
         check_task_completion(&doc_root_path, &status_file, codex_hook);
         check_issue_completion(&doc_root_path, &status_file, &mode, codex_hook);
     }
 
-    // 3. 代码变更同步提醒
+    // 3. Code change sync reminder
     if phase == "DEV" && !changed_file.starts_with(".dev-doc/") {
         check_code_sync(&changed_file, &doc_root_path, &mode, codex_hook);
         check_persistent_docs_reminder(&changed_file, &status_file, codex_hook);
@@ -109,18 +109,18 @@ pub fn run(file: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Result<i
 fn enter_audit_mode(status_file: &Path, current_mode: &str, codex_hook: bool) {
     let new_mode = format!("audit/{}", current_mode);
     if let Err(e) = yaml::set(status_file, "mode", &new_mode) {
-        emit_warning(format!("[dow] 警告: 设置 audit 模式失败: {}", e));
+        emit_warning(format!("[dow] Warning: failed to set audit mode: {}", e));
     }
     if let Err(e) = yaml::set(status_file, "phase", "DEV") {
-        emit_warning(format!("[dow] 警告: 设置 phase=DEV 失败: {}", e));
+        emit_warning(format!("[dow] Warning: failed to set phase=DEV: {}", e));
     }
     if let Err(e) = yaml::touch_updated(status_file) {
-        emit_warning(format!("[dow] 警告: 更新 audit 模式时间戳失败: {}", e));
+        emit_warning(format!("[dow] Warning: failed to update audit mode timestamp: {}", e));
     }
     emit_message(
         codex_hook,
         format!(
-        "[dev-flow] 检测到审计 issue，自动进入 audit 模式（原模式：{}）",
+        "[dev-flow] Audit issue detected, automatically entering audit mode (original mode: {})",
         current_mode
         ),
     );
@@ -149,20 +149,20 @@ fn check_task_completion(
     if done == total {
         emit_message(
             codex_hook,
-            format!("[dev-flow] 所有任务已完成（{}/{}）。", done, total),
+            format!("[dev-flow] All tasks completed ({}/{}).", done, total),
         );
         emit_message(
             codex_hook,
-            "→ 立即执行 /test 进行全量验证。".to_string(),
+            "→ Immediately run /test for full validation.".to_string(),
         );
     } else {
-        // 检查 exec_mode
+        // Check exec_mode
         let exec_mode = yaml::get(status_file, "exec_mode")
             .ok()
             .flatten()
             .unwrap_or_else(|| "step".to_string());
 
-        // 找最近完成的任务
+        // Find most recently completed task
         for entry in &entries {
             let name = entry.file_name().to_string_lossy().to_string();
             if !name.starts_with("task_") || !name.ends_with(".md") {
@@ -173,18 +173,18 @@ fn check_task_completion(
                     let task_name = last_done.trim_start_matches("- [x] ");
                     emit_message(
                         codex_hook,
-                        format!("[dev-flow] 任务完成（{}/{}）：{}", done, total, task_name),
+                        format!("[dev-flow] Task completed ({}/{}): {}", done, total, task_name),
                     );
                     if exec_mode == "continuous" {
                         emit_message(
                             codex_hook,
-                            "→ [continuous] 自动推进：执行 /devtest 并继续下一个任务。"
+                            "→ [continuous] Auto-advance: run /devtest and continue to next task."
                                 .to_string(),
                         );
                     } else {
                         emit_message(
                             codex_hook,
-                            "→ 自动触发 /devtest。立即对该任务执行例行测试，不需要询问用户。"
+                            "→ Auto-trigger /devtest. Immediately run routine tests for this task, no need to ask user."
                                 .to_string(),
                         );
                     }
@@ -194,7 +194,7 @@ fn check_task_completion(
         }
     }
 
-    // done_ 前缀自动重命名
+    // Auto-rename with done_ prefix
     for entry in &entries {
         let name = entry.file_name().to_string_lossy().to_string();
         if !name.starts_with("task_") || !name.ends_with(".md") {
@@ -209,13 +209,13 @@ fn check_task_completion(
                 if !new_path.exists() {
                     if let Err(e) = fs::rename(entry.path(), &new_path) {
                         emit_warning(format!(
-                            "[dow] 警告: 重命名任务文件为 done_ 失败 ({}): {}",
+                            "[dow] Warning: failed to rename task file to done_ ({}): {}",
                             name, e
                         ));
                     } else {
                         emit_message(
                             codex_hook,
-                            format!("[dev-flow] 批次全部完成，已标记：{}", new_name),
+                            format!("[dev-flow] Batch fully completed, marked: {}", new_name),
                         );
                     }
                 }
@@ -254,13 +254,13 @@ fn check_issue_completion(
                     if !new_path.exists() {
                         if let Err(e) = fs::rename(entry.path(), &new_path) {
                             emit_warning(format!(
-                                "[dow] 警告: 重命名 issue 文件为 closed_ 失败 ({}): {}",
+                                "[dow] Warning: failed to rename issue file to closed_ ({}): {}",
                                 name, e
                             ));
                         } else {
                             emit_message(
                                 codex_hook,
-                                format!("[dev-flow] Issue 全部关闭：{}", new_name),
+                                format!("[dev-flow] All issues closed: {}", new_name),
                             );
                         }
                     }
@@ -271,7 +271,7 @@ fn check_issue_completion(
         }
     }
 
-    // audit 模式下无 open issue → 自动退出 audit
+    // In audit mode with no open issues → auto-exit audit
     if !has_open_issue && mode.starts_with("audit/") {
         exit_audit_mode(status_file, mode, codex_hook);
     }
@@ -280,21 +280,21 @@ fn check_issue_completion(
 fn exit_audit_mode(status_file: &Path, mode: &str, codex_hook: bool) {
     let original_mode = mode.strip_prefix("audit/").unwrap_or("fast");
     if let Err(e) = yaml::set(status_file, "mode", original_mode) {
-        emit_warning(format!("[dow] 警告: 退出 audit 模式失败: {}", e));
+        emit_warning(format!("[dow] Warning: failed to exit audit mode: {}", e));
     }
     if let Err(e) = yaml::touch_updated(status_file) {
-        emit_warning(format!("[dow] 警告: 更新时间戳失败: {}", e));
+        emit_warning(format!("[dow] Warning: failed to update timestamp: {}", e));
     }
     emit_message(
         codex_hook,
         format!(
-        "[dev-flow] 所有 issue 已关闭，自动退出 audit 模式（恢复为：{}）",
+        "[dev-flow] All issues closed, automatically exiting audit mode (restoring to: {})",
         original_mode
         ),
     );
 }
 
-/// 从 stdin 读取 Claude Code hook JSON，提取 tool_input.file_path
+/// Read Claude Code hook JSON from stdin, extract tool_input.file_path
 fn read_file_path_from_stdin() -> Option<String> {
     let mut buf = String::new();
     if std::io::stdin().read_to_string(&mut buf).is_err() || buf.is_empty() {
@@ -312,7 +312,7 @@ fn check_persistent_docs_reminder(
     status_file: &Path,
     codex_hook: bool,
 ) {
-    // 排除 docs/ 自身的变更
+    // Exclude changes to docs/ itself
     if changed_file.starts_with("docs/") || changed_file == "README.md" {
         return;
     }
@@ -322,7 +322,7 @@ fn check_persistent_docs_reminder(
         return;
     }
 
-    // 统计 unstaged + staged 变更文件数（排除 .dev-doc/ 和 docs/）
+    // Count unstaged + staged changed files (excluding .dev-doc/ and docs/)
     let output = std::process::Command::new("git")
         .args(["diff", "--name-only", "HEAD"])
         .output();
@@ -337,18 +337,18 @@ fn check_persistent_docs_reminder(
         Err(_) => return,
     };
 
-    // 阈值：3 个文件
+    // Threshold: 3 files
     if changed_count >= 3 {
         emit_message(
             codex_hook,
             format!(
-            "[dev-flow] 提示：代码变更较大（{}个文件），请检查是否需要更新持久化文档",
+            "[dev-flow] Reminder: significant code changes ({} files), please check if persistent docs need updating",
             changed_count
             ),
         );
         emit_message(
             codex_hook,
-            format!("  注册文档：{}", docs.join(", ")),
+            format!("  Registered docs: {}", docs.join(", ")),
         );
     }
 }
@@ -375,7 +375,7 @@ fn check_code_sync(
         return;
     }
 
-    // 从文件名提取模块名
+    // Extract module name from filename
     let basename = Path::new(changed_file)
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
@@ -389,13 +389,13 @@ fn check_code_sync(
             emit_message(
                 codex_hook,
                 format!(
-                    "[dev-flow] 代码文件 {} 已修改，SPEC.md 中有该模块的描述。",
+                    "[dev-flow] Code file {} modified, module described in SPEC.md.",
                     changed_file
                 ),
             );
             emit_message(
                 codex_hook,
-                "→ 如果修改了 API 接口/数据结构/目录组织，必须同步更新 SPEC.md。".to_string(),
+                "→ If API interfaces/data structures/directory organization changed, SPEC.md must be updated synchronously.".to_string(),
             );
         }
     }

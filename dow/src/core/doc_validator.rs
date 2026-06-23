@@ -1,25 +1,25 @@
 // dow/src/core/
-// ├── doc_validator.rs  -- .dev-doc 文件合法性校验
-//    从 references/.dev-doc/*.md 编译时嵌入规范，运行时解析并校验文件
+// ├── doc_validator.rs  -- .dev-doc file validity validation
+//    Embed specifications from references/.dev-doc/*.md at compile time, parse and validate files at runtime
 //
 // Related Docs:
-// - [ISSUE 规范](../../../references/.dev-doc/ISSUE.md)
-// - [TASK 规范](../../../references/.dev-doc/TASK-FILE.md)
+// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
+// - [TASK Specification](../../../references/.dev-doc/TASK-FILE.md)
 
 use std::fs;
 use std::path::Path;
 
-// 编译时嵌入规范 md
+// Embed specification md at compile time
 const REF_ISSUE: &str = include_str!("../../references/.dev-doc/ISSUE.md");
 const REF_TASK: &str = include_str!("../../references/.dev-doc/TASK-FILE.md");
 
-/// 验证错误
+/// Validation error
 #[derive(Debug, Clone)]
 pub struct ValidationError {
     pub file: String,
     pub kind: ErrorKind,
     pub message: String,
-    /// 是否可通过 dow fix 自动修复
+    /// Whether it can be auto-fixed by dow fix
     pub fixable: bool,
 }
 
@@ -32,27 +32,27 @@ pub enum ErrorKind {
     InvalidFieldValue,
 }
 
-/// 从 ISSUE.md 规范解析出的验证规则
+/// Validation rules parsed from ISSUE.md specification
 struct IssueSpec {
     valid_sources: Vec<String>,
     valid_severities: Vec<String>,
 }
 
-/// 从 TASK-FILE.md 规范解析出的验证规则
+/// Validation rules parsed from TASK-FILE.md specification
 struct TaskSpec {
     valid_priorities: Vec<String>,
     valid_complexities: Vec<String>,
     required_fields: Vec<String>,
 }
 
-/// 解析 ISSUE.md 规范
+/// Parse ISSUE.md specification
 fn parse_issue_spec() -> IssueSpec {
     let mut valid_sources = Vec::new();
     let mut valid_severities = Vec::new();
 
     for line in REF_ISSUE.lines() {
-        // 从字段说明表格提取枚举值
-        // 格式：| source | `test` / `devtest` / `other` / `audit` | ... |
+        // Extract enum values from field description table
+        // Format: | source | `test` / `devtest` / `other` / `audit` | ... |
         if line.contains("| source") || line.contains("| source") {
             valid_sources = extract_enum_values(line);
         }
@@ -72,7 +72,7 @@ fn parse_issue_spec() -> IssueSpec {
     IssueSpec { valid_sources, valid_severities }
 }
 
-/// 解析 TASK-FILE.md 规范
+/// Parse TASK-FILE.md specification
 fn parse_task_spec() -> TaskSpec {
     let mut valid_priorities = Vec::new();
     let mut valid_complexities = Vec::new();
@@ -81,8 +81,8 @@ fn parse_task_spec() -> TaskSpec {
     let mut in_fields_table = false;
 
     for line in REF_TASK.lines() {
-        // 检测字段说明表格区域
-        if line.starts_with("## 字段说明") {
+        // Detect field description table region
+        if line.starts_with("## Field Description") {
             in_fields_table = true;
             continue;
         }
@@ -90,17 +90,17 @@ fn parse_task_spec() -> TaskSpec {
             in_fields_table = false;
         }
 
-        // priority 枚举（从表格或 Priority 定义部分）
+        // priority enum (from table or Priority definition section)
         if line.contains("| priority") && line.contains("P0") {
             valid_priorities = extract_enum_values(line);
         }
-        // complexity 枚举
-        if line.contains("| complexity") || (line.contains("| `S`") && line.contains("小任务")) {
+        // complexity enum
+        if line.contains("| complexity") || (line.contains("| `S`") && line.contains("small task")) {
             if valid_complexities.is_empty() {
                 valid_complexities = extract_complexity_values(REF_TASK);
             }
         }
-        // done_when 是必填（规范中说"必须客观具体"）
+        // done_when is required (specification says "must be objective and concrete")
         if in_fields_table && line.contains("| done_when") {
             required_fields.push("done_when".into());
         }
@@ -123,10 +123,10 @@ fn parse_task_spec() -> TaskSpec {
     TaskSpec { valid_priorities, valid_complexities, required_fields }
 }
 
-/// 从 md 表格行中提取 `value` / `value` 格式的枚举值
+/// Extract enum values in `value` / `value` format from md table row
 fn extract_enum_values(line: &str) -> Vec<String> {
     let mut values = Vec::new();
-    // 匹配 `xxx` 格式
+    // Match `xxx` format
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '`' {
@@ -145,7 +145,7 @@ fn extract_enum_values(line: &str) -> Vec<String> {
     values
 }
 
-/// 从 TASK-FILE.md 提取 complexity 枚举值（Complexity 定义表格）
+/// Extract complexity enum values from TASK-FILE.md (Complexity definition table)
 fn extract_complexity_values(content: &str) -> Vec<String> {
     let mut values = Vec::new();
     let mut in_section = false;
@@ -158,7 +158,7 @@ fn extract_complexity_values(content: &str) -> Vec<String> {
             break;
         }
         if in_section && line.starts_with("| `") {
-            // | `S` | 小任务 | ...
+            // | `S` | small task | ...
             if let Some(val) = extract_first_backtick_value(line) {
                 values.push(val);
             }
@@ -174,20 +174,20 @@ fn extract_first_backtick_value(line: &str) -> Option<String> {
     if val.is_empty() { None } else { Some(val.to_string()) }
 }
 
-// ==================== 验证逻辑 ====================
+// ==================== Validation Logic ====================
 
-/// 验证单个 issue 文件
+/// Validate single issue file
 pub fn validate_issue_file(path: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let spec = parse_issue_spec();
     let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
 
-    // 1. 文件名验证
+    // 1. Filename validation
     if let Some(e) = validate_issue_filename(&filename, &spec) {
         errors.push(e);
     }
 
-    // 2. 内容验证
+    // 2. Content validation
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return errors,
@@ -197,31 +197,31 @@ pub fn validate_issue_file(path: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 验证单个 task 文件
+/// Validate single task file
 pub fn validate_task_file(path: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let spec = parse_task_spec();
     let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
 
-    // 1. 文件名验证
+    // 1. Filename validation
     if let Some(e) = validate_task_filename(&filename) {
         errors.push(e);
     }
 
-    // 2. 内容验证
+    // 2. Content validation
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return errors,
     };
 
-    // doc_root = task 文件的 parent (task/) 的 parent
+    // doc_root = parent of task file's parent (task/)
     let doc_root = path.parent().and_then(|p| p.parent());
     errors.extend(validate_task_content(&filename, &content, &spec, doc_root));
     errors
 }
 
-/// 验证 issue 文件名
-/// 合法格式：issue_<source>_<YYYY-MM-DD>_<seq>.md 或 closed_issue_<source>_<YYYY-MM-DD>_<seq>.md
+/// Validate issue filename
+/// Valid format: issue_<source>_<YYYY-MM-DD>_<seq>.md or closed_issue_<source>_<YYYY-MM-DD>_<seq>.md
 fn validate_issue_filename(filename: &str, spec: &IssueSpec) -> Option<ValidationError> {
     let stem = filename.strip_suffix(".md")?;
     let parts: Vec<&str> = if stem.starts_with("closed_issue_") {
@@ -232,21 +232,20 @@ fn validate_issue_filename(filename: &str, spec: &IssueSpec) -> Option<Validatio
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: "文件名不符合规范（应为 issue_<source>_<YYYY-MM-DD>_<seq>.md）".into(),
+            message: "Filename does not conform to specification (should be issue_<source>_<YYYY-MM-DD>_<seq>.md)".into(),
             fixable: false,
         });
     };
 
-    // 至少需要 source + 日期年 + 日期月日 + seq = 从 splitn(4, '_') 得到的 parts
-    // 实际：source_YYYY-MM-DD_seq → splitn(4, '_') → [source, YYYY-MM-DD, seq] 不对
-    // issue_test_2026-05-29_1.md → stem去掉prefix后 → "test_2026-05-29_1"
-    // splitn(4, '_') → ["test", "2026-05-29", "1"]  — 不对，"-" 不是 split 字符
-    // 实际 split('_') → ["test", "2026-05-29", "1"]
+    // Need at least source + date + seq = parts obtained from splitn(4, '_')
+    // Actual: source_YYYY-MM-DD_seq → splitn(4, '_') → [source, YYYY-MM-DD, seq]
+    // issue_test_2026-05-29_1.md → after removing prefix → "test_2026-05-29_1"
+    // splitn(4, '_') → ["test", "2026-05-29", "1"]
     if parts.len() < 3 {
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: "文件名缺少必要部分（需要 source、日期、序号）".into(),
+            message: "Filename missing required parts (need source, date, sequence number)".into(),
             fixable: false,
         });
     }
@@ -257,7 +256,7 @@ fn validate_issue_filename(filename: &str, spec: &IssueSpec) -> Option<Validatio
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
             message: format!(
-                "source '{}' 不合法，有效值：{}",
+                "source '{}' is invalid, valid values: {}",
                 source,
                 spec.valid_sources.join("/")
             ),
@@ -265,24 +264,24 @@ fn validate_issue_filename(filename: &str, spec: &IssueSpec) -> Option<Validatio
         });
     }
 
-    // 验证日期格式 YYYY-MM-DD
+    // Validate date format YYYY-MM-DD
     let date = parts[1];
     if !is_valid_date(date) {
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: format!("日期 '{}' 格式不合法（需要 YYYY-MM-DD）", date),
+            message: format!("Date '{}' format is invalid (need YYYY-MM-DD)", date),
             fixable: false,
         });
     }
 
-    // 验证序号为数字
+    // Validate sequence number is numeric
     let seq = parts[2];
     if seq.parse::<u32>().is_err() {
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: format!("序号 '{}' 不是有效数字", seq),
+            message: format!("Sequence number '{}' is not a valid number", seq),
             fixable: false,
         });
     }
@@ -290,8 +289,8 @@ fn validate_issue_filename(filename: &str, spec: &IssueSpec) -> Option<Validatio
     None
 }
 
-/// 验证 task 文件名
-/// 合法格式：task_<YYYY-MM-DD>_<seq>.md 或 done_task_<YYYY-MM-DD>_<seq>.md
+/// Validate task filename
+/// Valid format: task_<YYYY-MM-DD>_<seq>.md or done_task_<YYYY-MM-DD>_<seq>.md
 fn validate_task_filename(filename: &str) -> Option<ValidationError> {
     let stem = filename.strip_suffix(".md")?;
     let name_part = if stem.starts_with("done_task_") {
@@ -302,12 +301,12 @@ fn validate_task_filename(filename: &str) -> Option<ValidationError> {
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: "文件名不符合规范（应为 task_<YYYY-MM-DD>_<seq>.md）".into(),
+            message: "Invalid filename (expected task_<YYYY-MM-DD>_<seq>.md)".into(),
             fixable: false,
         });
     };
 
-    // name_part 应为 "YYYY-MM-DD_seq"，按最后一个 _ 分割（日期里没有 _）
+    // name_part should be "YYYY-MM-DD_seq", split at last underscore
     if let Some(last_underscore) = name_part.rfind('_') {
         let date = &name_part[..last_underscore];
         let seq = &name_part[last_underscore + 1..];
@@ -316,7 +315,7 @@ fn validate_task_filename(filename: &str) -> Option<ValidationError> {
             return Some(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::BadFilename,
-                message: format!("日期 '{}' 格式不合法（需要 YYYY-MM-DD）", date),
+                message: format!("date '{}' is invalid (expected YYYY-MM-DD)", date),
                 fixable: false,
             });
         }
@@ -324,7 +323,7 @@ fn validate_task_filename(filename: &str) -> Option<ValidationError> {
             return Some(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::BadFilename,
-                message: format!("序号 '{}' 不是有效数字", seq),
+                message: format!("sequence '{}' is not a valid number", seq),
                 fixable: false,
             });
         }
@@ -332,7 +331,7 @@ fn validate_task_filename(filename: &str) -> Option<ValidationError> {
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::BadFilename,
-            message: "文件名缺少序号部分".into(),
+            message: "Filename missing sequence number".into(),
             fixable: false,
         });
     }
@@ -340,28 +339,28 @@ fn validate_task_filename(filename: &str) -> Option<ValidationError> {
     None
 }
 
-/// 验证 issue 文件内容
+/// Validate issue file content
 fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
-    // 检查 YAML frontmatter
+    // Check YAML frontmatter
     if !content.starts_with("---") {
         errors.push(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::MissingFrontmatter,
-            message: "缺少 YAML frontmatter（---）".into(),
+            message: "Missing YAML frontmatter (---)".into(),
             fixable: true,
         });
     } else {
         let fm = extract_frontmatter(content);
-        // source 字段
+        // source field
         if let Some(source_val) = extract_fm_value(&fm, "source") {
             if !spec.valid_sources.contains(&source_val) {
                 errors.push(ValidationError {
                     file: filename.to_string(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "frontmatter source '{}' 不合法，有效值：{}",
+                        "frontmatter source '{}' is invalid, valid values: {}",
                         source_val,
                         spec.valid_sources.join("/")
                     ),
@@ -372,22 +371,22 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
             errors.push(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::MissingRequiredField,
-                message: "frontmatter 缺少 source 字段".into(),
+                message: "frontmatter missing source field".into(),
                 fixable: true,
             });
         }
-        // nums 字段
+        // nums field
         if extract_fm_value(&fm, "nums").is_none() {
             errors.push(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::MissingRequiredField,
-                message: "frontmatter 缺少 nums 字段".into(),
+                message: "frontmatter missing nums field".into(),
                 fixable: true,
             });
         }
     }
 
-    // 检查每个 issue item 的 severity 和序号
+    // Check severity and sequence for each issue item
     let mut in_item = false;
     let mut item_title = String::new();
     let mut has_severity = false;
@@ -395,19 +394,19 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
 
     for line in content.lines() {
         if line.starts_with("- [ ]") || line.starts_with("- [x]") {
-            // 之前 item 没有 severity
+            // previous item missing severity
             if in_item && !has_severity {
                 errors.push(ValidationError {
                     file: filename.to_string(),
                     kind: ErrorKind::MissingRequiredField,
-                    message: format!("issue item '{}' 缺少 severity 字段", item_title),
+                    message: format!("issue item '{}' missing severity field", item_title),
                     fixable: false,
                 });
             }
             in_item = true;
             item_title = line[5..].trim().to_string();
             has_severity = false;
-            // 验证 issue 序号格式：ISSUE-I + 三位数字 + ：
+            // Validate issue sequence: ISSUE-I + digits
             if let Some(e) = validate_issue_item_seq(&item_title, expected_issue_seq, filename) {
                 errors.push(e);
             }
@@ -420,7 +419,7 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
                     file: filename.to_string(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "severity '{}' 不合法，有效值：{}",
+                        "severity '{}' is invalid, valid values: {}",
                         val,
                         spec.valid_severities.join("/")
                     ),
@@ -429,12 +428,12 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
             }
         }
     }
-    // 最后一个 item
+    // last item
     if in_item && !has_severity {
         errors.push(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::MissingRequiredField,
-            message: format!("issue item '{}' 缺少 severity 字段", item_title),
+            message: format!("issue item '{}' missing severity field", item_title),
             fixable: false,
         });
     }
@@ -442,16 +441,16 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
     errors
 }
 
-/// 验证 task 文件内容
+/// Validate task file content
 fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_root: Option<&Path>) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
-    // 检查 YAML frontmatter
+    // Check YAML frontmatter
     if !content.starts_with("---") {
         errors.push(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::MissingFrontmatter,
-            message: "缺少 YAML frontmatter（---）".into(),
+            message: "Missing YAML frontmatter (---)".into(),
             fixable: true,
         });
     } else {
@@ -460,7 +459,7 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
             errors.push(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::MissingRequiredField,
-                message: "frontmatter 缺少 title 字段".into(),
+                message: "frontmatter missing title field".into(),
                 fixable: true,
             });
         }
@@ -468,13 +467,13 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
             errors.push(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::MissingRequiredField,
-                message: "frontmatter 缺少 nums 字段".into(),
+                message: "frontmatter missing nums field".into(),
                 fixable: true,
             });
         }
     }
 
-    // 检查每个 task item 的必填字段和序号
+    // Check required fields and sequence for each task item
     let mut in_item = false;
     let mut item_title = String::new();
     let mut found_fields: Vec<String> = Vec::new();
@@ -483,18 +482,18 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
 
     for line in content.lines() {
         if line.starts_with("- [ ]") || line.starts_with("- [x]") {
-            // 检查上一个 item
+            // check previous item
             check_task_item_fields(filename, &item_title, &found_fields, spec, &mut errors);
             in_item = true;
             item_title = line[5..].trim().to_string();
             found_fields.clear();
-            // 验证 task 序号格式：TASK-T + 三位数字 + :
+            // Validate task sequence: TASK-T + digits
             if let Some(e) = validate_task_item_seq(&item_title, expected_task_seq, filename) {
                 errors.push(e);
             }
             expected_task_seq += 1;
         } else if in_item {
-            // 收集字段
+            // collect fields
             let trimmed = line.trim_start();
             if trimmed.starts_with("- priority:") {
                 found_fields.push("priority".into());
@@ -504,7 +503,7 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                         file: filename.to_string(),
                         kind: ErrorKind::InvalidFieldValue,
                         message: format!(
-                            "task '{}' priority '{}' 不合法，有效值：{}",
+                            "task '{}' priority '{}' is invalid, valid values: {}",
                             item_title, val, spec.valid_priorities.join("/")
                         ),
                         fixable: false,
@@ -518,7 +517,7 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                         file: filename.to_string(),
                         kind: ErrorKind::InvalidFieldValue,
                         message: format!(
-                            "task '{}' complexity '{}' 不合法，有效值：{}",
+                            "task '{}' complexity '{}' is invalid, valid values: {}",
                             item_title, val, spec.valid_complexities.join("/")
                         ),
                         fixable: false,
@@ -528,7 +527,7 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                 found_fields.push("done_when".into());
             } else if trimmed.starts_with("- refs:") {
                 let val = trimmed.split("refs:").nth(1).unwrap_or("").trim();
-                // 收集 SPEC-AC 引用
+                // Collect SPEC-AC references
                 for part in val.split(',') {
                     let r = part.trim();
                     if r.starts_with("SPEC-AC-") {
@@ -538,10 +537,10 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
             }
         }
     }
-    // 最后一个 item
+    // Last item
     check_task_item_fields(filename, &item_title, &found_fields, spec, &mut errors);
 
-    // 验证 refs 引用的 SPEC-AC 是否在 SPEC.md 中存在
+    // Validate that SPEC-AC refs exist in SPEC.md
     if !task_refs.is_empty() {
         if let Some(root) = doc_root {
             let spec_path = root.join("SPEC.md");
@@ -552,7 +551,7 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                         errors.push(ValidationError {
                             file: filename.to_string(),
                             kind: ErrorKind::InvalidFieldValue,
-                            message: format!("refs 引用 '{}' 在 SPEC.md 中不存在", r),
+                            message: format!("refs reference '{}' does not exist in SPEC.md", r),
                             fixable: false,
                         });
                     }
@@ -579,16 +578,16 @@ fn check_task_item_fields(
             errors.push(ValidationError {
                 file: filename.to_string(),
                 kind: ErrorKind::MissingRequiredField,
-                message: format!("task '{}' 缺少必填字段 '{}'", item_title, req),
+                message: format!("task '{}' missing required field '{}'", item_title, req),
                 fixable: false,
             });
         }
     }
 }
 
-// ==================== 批量验证入口 ====================
+// ==================== Batch validation ====================
 
-/// 验证指定目录下所有 issue 文件，返回错误列表
+/// Validate all issue files in directory
 pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
@@ -619,7 +618,7 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
         }
     }
 
-    // 全局序号连续性检查
+    // Global sequence continuity check
     if !all_issue_ids.is_empty() {
         all_issue_ids.sort_by_key(|(num, _)| *num);
 
@@ -629,7 +628,7 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
                     file: all_issue_ids[i].1.clone(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "issue 序号重复：ISSUE-I{:03} 出现在 {} 和 {}",
+                        "Duplicate issue sequence: ISSUE-I{:03} found in {} and {}",
                         all_issue_ids[i].0, all_issue_ids[i - 1].1, all_issue_ids[i].1
                     ),
                     fixable: false,
@@ -644,7 +643,7 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
                     file: filename.clone(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "issue 全局序号不连续：期望 ISSUE-I{:03}，实际 ISSUE-I{:03}",
+                        "Issue global sequence not continuous: expected ISSUE-I{:03}, got ISSUE-I{:03}",
                         expected, num
                     ),
                     fixable: false,
@@ -667,7 +666,7 @@ fn extract_issue_id_num(title: &str) -> Option<u32> {
     num_str.parse().ok()
 }
 
-/// 验证指定目录下所有 task 文件，返回错误列表
+/// Validate all task files in directory
 pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
@@ -684,7 +683,7 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
                 && (name.starts_with("task_") || name.starts_with("done_task_"))
             {
                 all_errors.extend(validate_task_file(&entry.path()));
-                // 收集所有 task ID
+                // collect all task IDs
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
                         if line.starts_with("- [") {
@@ -699,18 +698,18 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
         }
     }
 
-    // 全局序号连续性检查：排序后验证 1..N
+    // Global sequence continuity check: verify 1..N after sort
     if !all_task_ids.is_empty() {
         all_task_ids.sort_by_key(|(num, _)| *num);
 
-        // 检查重复
+        // check duplicates
         for i in 1..all_task_ids.len() {
             if all_task_ids[i].0 == all_task_ids[i - 1].0 {
                 all_errors.push(ValidationError {
                     file: all_task_ids[i].1.clone(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "task 序号重复：TASK-T{:03} 出现在 {} 和 {}",
+                        "Duplicate task sequence: TASK-T{:03} found in {} and {}",
                         all_task_ids[i].0, all_task_ids[i - 1].1, all_task_ids[i].1
                     ),
                     fixable: false,
@@ -718,7 +717,7 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
             }
         }
 
-        // 检查连续：从 1 开始到 max
+        // check continuity: from 1 to max
         for (idx, (num, filename)) in all_task_ids.iter().enumerate() {
             let expected = idx as u32 + 1;
             if *num != expected {
@@ -726,12 +725,12 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
                     file: filename.clone(),
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
-                        "task 全局序号不连续：期望 TASK-T{:03}，实际 TASK-T{:03}",
+                        "Task global sequence not continuous: expected TASK-T{:03}, got TASK-T{:03}",
                         expected, num
                     ),
                     fixable: false,
                 });
-                break; // 只报第一个断点
+                break; // report first gap only
             }
         }
     }
@@ -749,7 +748,7 @@ fn extract_task_id_num(title: &str) -> Option<u32> {
     num_str.parse().ok()
 }
 
-/// 验证 SPEC.md 的 SPEC-AC 序号递增不跳号
+/// Validate SPEC-AC sequence is monotonically increasing
 pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
     let spec_file = doc_root.join("SPEC.md");
     if !spec_file.exists() {
@@ -767,13 +766,13 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
     for line in content.lines() {
         let trimmed = line.trim_start_matches("- ").trim();
         if let Some(rest) = trimmed.strip_prefix("SPEC-AC-") {
-            // 提取序号（取到 : 或空格前的数字部分）
+            // extract sequence number
             let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
             if num_str.is_empty() {
                 errors.push(ValidationError {
                     file: "SPEC.md".into(),
                     kind: ErrorKind::InvalidFieldValue,
-                    message: format!("SPEC-AC 序号格式不合法：SPEC-AC-{}", rest.chars().take(10).collect::<String>()),
+                    message: format!("SPEC-AC sequence format invalid: SPEC-AC-{}", rest.chars().take(10).collect::<String>()),
                     fixable: false,
                 });
                 continue;
@@ -784,7 +783,7 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
                         file: "SPEC.md".into(),
                         kind: ErrorKind::InvalidFieldValue,
                         message: format!(
-                            "SPEC-AC 序号不连续：期望 SPEC-AC-{:03}，实际 SPEC-AC-{:03}",
+                            "SPEC-AC sequence not continuous: expected SPEC-AC-{:03}, got SPEC-AC-{:03}",
                             expected_seq, actual
                         ),
                         fixable: false,
@@ -798,8 +797,8 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 验证所有 .dev-doc 文件，返回错误列表
-/// 包含：STATUS.yaml 校验、task/issue 内容校验、SPEC 序号校验、issue 状态一致性、非法文件检测
+/// Validate all .dev-doc files
+/// Includes: STATUS.yaml, task/issue content, SPEC sequence, issue consistency, illegal files
 pub fn validate_all(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = validate_status_yaml(doc_root);
     errors.extend(validate_all_issues(doc_root));
@@ -810,7 +809,7 @@ pub fn validate_all(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 校验 STATUS.yaml 必填字段和枚举值
+/// Validate STATUS.yaml required fields and enum values
 fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let status_file = doc_root.join("STATUS.yaml");
@@ -818,7 +817,7 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
         errors.push(ValidationError {
             file: "STATUS.yaml".into(),
             kind: ErrorKind::MissingRequiredField,
-            message: "STATUS.yaml 不存在".into(),
+            message: "STATUS.yaml does not exist".into(),
             fixable: false,
         });
         return errors;
@@ -847,7 +846,7 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
             errors.push(ValidationError {
                 file: "STATUS.yaml".into(),
                 kind: ErrorKind::MissingRequiredField,
-                message: format!("缺少必填字段：{}", field),
+                message: format!("Missing required field: {}", field),
                 fixable: false,
             });
         }
@@ -859,7 +858,7 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
             errors.push(ValidationError {
                 file: "STATUS.yaml".into(),
                 kind: ErrorKind::InvalidFieldValue,
-                message: format!("phase '{}' 不合法（有效值：{}）", phase, valid.join("/")),
+                message: format!("phase '{}' is invalid (valid values: {})", phase, valid.join("/")),
                 fixable: false,
             });
         }
@@ -875,7 +874,7 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
             errors.push(ValidationError {
                 file: "STATUS.yaml".into(),
                 kind: ErrorKind::InvalidFieldValue,
-                message: format!("mode '{}' 不合法（有效值：full/quick/fast/mvp/audit/*）", mode),
+                message: format!("mode '{}' is invalid (valid values: full/quick/fast/mvp/audit/*)", mode),
                 fixable: false,
             });
         }
@@ -884,7 +883,7 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 校验 issue 文件状态一致性（checkbox 与 closed_ 前缀）
+/// Validate issue file status consistency (checkbox vs closed_ prefix)
 fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let issue_dir = doc_root.join("issue");
@@ -908,7 +907,7 @@ fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
                 errors.push(ValidationError {
                     file: name.clone(),
                     kind: ErrorKind::InvalidFieldValue,
-                    message: "所有 issue 已勾选但文件未重命名为 closed_ 前缀".into(),
+                    message: "All issues checked but file not renamed with closed_ prefix".into(),
                     fixable: true,
                 });
             }
@@ -916,7 +915,7 @@ fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
                 errors.push(ValidationError {
                     file: name.clone(),
                     kind: ErrorKind::InvalidFieldValue,
-                    message: "文件有 closed_ 前缀但存在未勾选的 issue item".into(),
+                    message: "File has closed_ prefix but contains unchecked issue items".into(),
                     fixable: false,
                 });
             }
@@ -926,7 +925,7 @@ fn validate_issue_consistency(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 检测 .dev-doc/<branch>/ 下是否存在不属于工作流管理的文件
+/// Detect non-workflow files in .dev-doc/<branch>/
 fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
@@ -950,7 +949,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     errors.push(ValidationError {
                         file: name,
                         kind: ErrorKind::BadFilename,
-                        message: ".dev-doc 下不允许存在非工作流文件（合法：PRD.md、SPEC.md、TEST.md、BRAINSTORM.md、CHANGELOG.md、STATUS.yaml）".into(),
+                        message: "Non-workflow file not allowed in .dev-doc (valid: PRD.md, SPEC.md, TEST.md, BRAINSTORM.md, CHANGELOG.md, STATUS.yaml)".into(),
                         fixable: false,
                     });
                 }
@@ -959,7 +958,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     errors.push(ValidationError {
                         file: name,
                         kind: ErrorKind::BadFilename,
-                        message: ".dev-doc 下不允许存在非工作流目录（合法：task/、issue/）".into(),
+                        message: "Non-workflow directory not allowed in .dev-doc (valid: task/, issue/)".into(),
                         fixable: false,
                     });
                 }
@@ -967,7 +966,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
         }
     }
 
-    // 检查 task/ 下文件命名
+    // Check task/ file naming
     let task_dir = doc_root.join("task");
     if task_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&task_dir) {
@@ -981,7 +980,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                         errors.push(ValidationError {
                             file: format!("task/{}", name),
                             kind: ErrorKind::BadFilename,
-                            message: "task/ 下只允许 task_*.md 或 done_task_*.md 文件".into(),
+                            message: "Only task_*.md or done_task_*.md files allowed in task/".into(),
                             fixable: false,
                         });
                     }
@@ -990,7 +989,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
         }
     }
 
-    // 检查 issue/ 下文件命名
+    // Check issue/ file naming
     let issue_dir = doc_root.join("issue");
     if issue_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&issue_dir) {
@@ -1004,7 +1003,7 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                         errors.push(ValidationError {
                             file: format!("issue/{}", name),
                             kind: ErrorKind::BadFilename,
-                            message: "issue/ 下只允许 issue_*.md 或 closed_issue_*.md 文件".into(),
+                            message: "Only issue_*.md or closed_issue_*.md files allowed in issue/".into(),
                             fixable: false,
                         });
                     }
@@ -1016,23 +1015,23 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     errors
 }
 
-/// 格式化错误为人类可读输出
+/// Format errors as human-readable output
 pub fn format_errors_human(errors: &[ValidationError]) -> String {
     if errors.is_empty() {
         return String::new();
     }
 
     let mut out = String::new();
-    out.push_str(&format!("[dev-flow] 文档校验失败（{} 个错误）：\n", errors.len()));
+    out.push_str(&format!("[dev-flow] Document validation failed ({} errors):\n", errors.len()));
     for e in errors {
-        let fixable_hint = if e.fixable { " [可修复]" } else { "" };
+        let fixable_hint = if e.fixable { " [fixable]" } else { "" };
         out.push_str(&format!("  - {}：{}{}\n", e.file, e.message, fixable_hint));
     }
-    out.push_str("\n提示：运行 `dow fix` 自动修复可修复的问题。\n");
+    out.push_str("\nHint: run `dow fix` to auto-fix fixable issues.\n");
     out
 }
 
-// ==================== 工具函数 ====================
+// ==================== Utility functions ====================
 
 fn is_valid_date(s: &str) -> bool {
     // YYYY-MM-DD
@@ -1073,7 +1072,7 @@ fn extract_fm_value(fm: &str, key: &str) -> Option<String> {
     None
 }
 
-/// 验证 issue item 序号格式：ISSUE-I + 数字（不检查连续性，由全局检查负责）
+/// Validate issue item sequence format (continuity checked globally)
 fn validate_issue_item_seq(title: &str, _expected: u32, filename: &str) -> Option<ValidationError> {
     let prefix = "ISSUE-I";
     if !title.starts_with(prefix) {
@@ -1081,7 +1080,7 @@ fn validate_issue_item_seq(title: &str, _expected: u32, filename: &str) -> Optio
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
             message: format!(
-                "issue item 序号格式不合法（应以 ISSUE-I00N：开头）：'{}'",
+                "Invalid issue item sequence (expected ISSUE-I00N: prefix): '{}'",
                 title.chars().take(30).collect::<String>()
             ),
             fixable: false,
@@ -1093,14 +1092,14 @@ fn validate_issue_item_seq(title: &str, _expected: u32, filename: &str) -> Optio
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
-            message: format!("issue item 序号缺少数字：'{}'", title.chars().take(30).collect::<String>()),
+            message: format!("Issue item sequence missing number: '{}'", title.chars().take(30).collect::<String>()),
             fixable: false,
         });
     }
     None
 }
 
-/// 验证 task item 序号格式：TASK-T + 数字（不检查连续性，由全局检查负责）
+/// Validate task item sequence format (continuity checked globally)
 fn validate_task_item_seq(title: &str, _expected: u32, filename: &str) -> Option<ValidationError> {
     let prefix = "TASK-T";
     if !title.starts_with(prefix) {
@@ -1108,7 +1107,7 @@ fn validate_task_item_seq(title: &str, _expected: u32, filename: &str) -> Option
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
             message: format!(
-                "task item 序号格式不合法（应以 TASK-T00N: 开头）：'{}'",
+                "Invalid task item sequence (expected TASK-T00N: prefix): '{}'",
                 title.chars().take(30).collect::<String>()
             ),
             fixable: false,
@@ -1120,14 +1119,14 @@ fn validate_task_item_seq(title: &str, _expected: u32, filename: &str) -> Option
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
-            message: format!("task item 序号缺少数字：'{}'", title.chars().take(30).collect::<String>()),
+            message: format!("Task item sequence missing number: '{}'", title.chars().take(30).collect::<String>()),
             fixable: false,
         });
     }
     None
 }
 
-/// 从 SPEC.md 文件提取所有已定义的 SPEC-AC-xxx 标识
+/// Extract all defined SPEC-AC-xxx identifiers from SPEC.md
 fn extract_spec_acs_from_file(spec_path: &Path) -> Vec<String> {
     let content = match fs::read_to_string(spec_path) {
         Ok(c) => c,
@@ -1146,7 +1145,7 @@ fn extract_spec_acs_from_file(spec_path: &Path) -> Vec<String> {
     acs
 }
 
-// ==================== 忽略规则 ====================
+// ==================== Ignore rules ====================
 
 const OS_GENERATED_FILES: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini", "ehthumbs.db"];
 
@@ -1154,11 +1153,11 @@ struct IgnoreSet {
     patterns: Vec<String>,
 }
 
-/// 从项目 .gitignore 解析忽略模式，合并 OS 常见文件
+/// Parse .gitignore patterns, merge with OS-generated file list
 fn build_ignore_set(doc_root: &Path) -> IgnoreSet {
     let mut patterns = Vec::new();
 
-    // 向上查找 .gitignore（doc_root 的祖先目录）
+    // Walk up to find .gitignore (ancestor of doc_root)
     let mut search = doc_root.to_path_buf();
     loop {
         let gitignore = search.join(".gitignore");
@@ -1182,20 +1181,20 @@ fn build_ignore_set(doc_root: &Path) -> IgnoreSet {
     IgnoreSet { patterns }
 }
 
-/// 判断文件名是否应被忽略
+/// Check if filename should be ignored
 fn should_ignore(name: &str, ignore_set: &IgnoreSet) -> bool {
-    // OS 生成文件直接跳过
+    // Skip OS-generated files
     if OS_GENERATED_FILES.contains(&name) {
         return true;
     }
 
-    // 匹配 .gitignore 模式（简化版：精确匹配或尾部通配）
+    // Match .gitignore patterns (simplified: exact match or suffix wildcard)
     for pattern in &ignore_set.patterns {
         let pat = pattern.trim_end_matches('/');
         if pat == name {
             return true;
         }
-        // *.ext 通配
+        // *.ext wildcard
         if let Some(ext) = pat.strip_prefix("*.") {
             if name.ends_with(&format!(".{}", ext)) {
                 return true;

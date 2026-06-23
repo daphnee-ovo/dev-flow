@@ -1,5 +1,5 @@
 // dow/src/
-// ├── error.rs  -- 统一错误类型
+// ├── error.rs  -- Unified error type
 
 use std::fmt;
 

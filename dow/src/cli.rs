@@ -1,76 +1,76 @@
 // dow/src/
-// ├── cli.rs  -- clap 子命令与参数定义
+// ├── cli.rs  -- clap subcommand and parameter definitions
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "dow", about = "dev-flow 统一 CLI 调度器", version = env!("DOW_VERSION"))]
+#[command(name = "dow", about = "dev-flow unified CLI dispatcher", version = env!("DOW_VERSION"))]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
 
-    /// 人类友好输出（默认 JSON）
+    /// Human-friendly output (default JSON)
     #[arg(short = 'H', long = "human", global = true)]
     pub human: bool,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// 读写 STATUS.yaml
+    /// Read/write STATUS.yaml
     Status(StatusArgs),
 
-    /// 初始化 dev-flow 工作流管理
+    /// Initialize dev-flow workflow management
     Init(InitArgs),
 
-    /// 文档规范检查
+    /// Document spec check
     Check,
 
-    /// 迭代交付
+    /// Iteration delivery
     Iterate(IterateArgs),
 
-    /// 项目扫描
+    /// Project scan
     Scan,
 
-    /// 校验 .dev-doc 结构
+    /// Validate .dev-doc structure
     Validate,
 
-    /// 修复 .dev-doc 文件格式问题
+    /// Fix .dev-doc file format issues
     Fix,
 
-    /// 生成文档模板
+    /// Generate document template
     Doc(DocArgs),
 
-    /// 任务级测试
+    /// Task-level testing
     Devtest(DevtestArgs),
 
-    /// 运行全量测试
+    /// Run full test suite
     Test(TestArgs),
 
-    /// 内部公用库
+    /// Internal common library
     Inbox {
         #[command(subcommand)]
         command: InboxCommands,
     },
 
-    /// Issue 管理
+    /// Issue management
     Issue(IssueArgs),
 
-    /// 读写 VERSION
+    /// Read/write VERSION
     Version(VersionArgs),
 
-    /// 归档查询
+    /// Archive query
     Archive {
         #[command(subcommand)]
         command: ArchiveCommands,
     },
 
-    /// Hook 子命令
+    /// Hook subcommands
     Hooks {
-        /// 输出 Codex hook 协议 JSON
+        /// Output Codex hook protocol JSON
         #[arg(long, global = true)]
         codex_hook: bool,
 
-        /// 输出 Kiro hook 协议 JSON
+        /// Output Kiro hook protocol JSON
         #[arg(long, global = true)]
         kiro_hook: bool,
 
@@ -78,249 +78,249 @@ pub enum Commands {
         command: HooksCommands,
     },
 
-    /// 版本回退（仅回退流程状态，不撤销 git commit）
+    /// Version revoke (only revoke workflow state, does not undo git commit)
     Revoke(RevokeArgs),
 
-    /// 声明当前工作关联的 task/issue
+    /// Declare current work associated task/issue
     Claim(ClaimArgs),
 
-    /// 安装并注册到 agent
+    /// Install and register to agent
     Setup(SetupArgs),
 
-    /// 自更新二进制和插件
+    /// Self-update binary and plugins
     Update,
 
-    /// 安装状态诊断
+    /// Installation status diagnostics
     SelfCheck,
 }
 
 #[derive(clap::Args)]
 pub struct SetupArgs {
-    /// 目标 agent（claude/codex/all）
+    /// Target agent (claude/codex/all)
     #[arg(long)]
     pub agent: Option<String>,
 }
 
 #[derive(Subcommand)]
 pub enum ArchiveCommands {
-    /// 列出所有归档版本
+    /// List all archived versions
     List {
         #[arg(long)]
         branch: Option<String>,
     },
-    /// 显示某版本归档详情
+    /// Show archive details for a version
     Show { version: String },
-    /// 查询归档任务
+    /// Query archived tasks
     Tasks {
         #[arg(long)]
         version: Option<String>,
         #[arg(long)]
         priority: Option<String>,
     },
-    /// 查询归档 issue
+    /// Query archived issues
     Issues {
         #[arg(long)]
         version: Option<String>,
         #[arg(long)]
         severity: Option<String>,
     },
-    /// 输出归档文档原文
+    /// Output archived document raw text
     Doc {
         version: String,
-        /// 文档类型（PRD/SPEC/TEST）
+        /// Document type (PRD/SPEC/TEST)
         doc_type: String,
     },
-    /// 从目录迁移到 SQLite
+    /// Migrate from directory to SQLite
     Migrate {
-        /// 迁移后删除原始目录
+        /// Delete original directories after migration
         #[arg(long)]
         delete_originals: bool,
     },
-    /// 归档统计
+    /// Archive statistics
     Stats,
 }
 
 #[derive(clap::Args)]
 pub struct InitArgs {
-    /// 项目名称
+    /// Project name
     #[arg(long)]
     pub name: String,
 
-    /// 开发模式（full/quick/fast/mvp）
+    /// Development mode (full/quick/fast/mvp)
     #[arg(long, default_value = "quick")]
     pub mode: String,
 }
 
 #[derive(clap::Args)]
 pub struct StatusArgs {
-    /// 只获取某字段
+    /// Get specific field only
     #[arg(long)]
     pub field: Option<String>,
 
-    /// 设置阶段
+    /// Set phase
     #[arg(long)]
     pub phase: Option<String>,
 
-    /// 设置模式
+    /// Set mode
     #[arg(long)]
     pub mode: Option<String>,
 
-    /// 设置执行模式
+    /// Set execution mode
     #[arg(long)]
     pub exec_mode: Option<String>,
 
-    /// 设置项目名
+    /// Set project name
     #[arg(long)]
     pub name: Option<String>,
 
-    /// 设置 minor 版本目标
+    /// Set minor version goal
     #[arg(long)]
     pub goals_minor: Option<String>,
 
-    /// 设置 major 版本目标
+    /// Set major version goal
     #[arg(long)]
     pub goals_major: Option<String>,
 }
 
 #[derive(clap::Args)]
 pub struct IterateArgs {
-    /// 归档主题（必填，用于归档目录命名）
+    /// Archive topic (required, used for archive directory naming)
     #[arg(long)]
     pub topic: String,
 
-    /// commit 类型（feat/fix/refactor/docs/perf/test/style/workflow），必须显式指定
+    /// commit type (feat/fix/refactor/docs/perf/test/style/workflow), must be explicitly specified
     #[arg(long)]
     pub r#type: String,
 
-    /// 要提交的文件/目录列表（空格分隔）
+    /// List of files/directories to commit (space-separated)
     #[arg(long, num_args = 1..)]
     pub files: Vec<String>,
 
-    /// bump 类型（默认 patch，显式指定 minor/major 时打 tag）
+    /// bump type (default patch, create tag when explicitly specifying minor/major)
     #[arg(short = 'v', long, default_value = "patch")]
     pub bump: String,
 
-    /// 强制对本次 patch 打 tag
+    /// Force tag for this patch
     #[arg(long)]
     pub tag: bool,
 
-    /// 确认执行上次预览的迭代
+    /// Confirm execution of last previewed iteration
     #[arg(long)]
     pub confirm: bool,
 }
 
 #[derive(clap::Args)]
 pub struct DocArgs {
-    /// 文档类型（task/issue/prd/spec/test/brainstorm/changelog/init）
+    /// Document type (task/issue/prd/spec/test/brainstorm/changelog/init)
     pub doc_type: String,
 
-    /// 输出 markdown 格式的文档规范
+    /// Output markdown format document specification
     #[arg(long)]
     pub md: bool,
 
-    /// 输出 JSON 格式的文档规范
+    /// Output JSON format document specification
     #[arg(long)]
     pub json: bool,
 
-    /// 条目数量
+    /// Number of entries
     #[arg(short = 'n', long, default_value = "1")]
     pub count: u32,
 
-    /// issue 来源
+    /// issue source
     #[arg(long)]
     pub source: Option<String>,
 
-    /// 项目名称（用于 doc init）
+    /// Project name (for doc init)
     #[arg(long)]
     pub project_name: Option<String>,
 
-    /// git ref 起点（用于 doc check-sync）
+    /// git ref starting point (for doc check-sync)
     #[arg(long)]
     pub since: Option<String>,
 }
 
 #[derive(clap::Args)]
 pub struct DevtestArgs {
-    /// 指定任务 ID
+    /// Specify task ID
     #[arg(long)]
     pub task: Option<String>,
 }
 
 #[derive(clap::Args)]
 pub struct TestArgs {
-    /// 运行指定测试文件
+    /// Run specified test file
     #[arg(long)]
     pub file: Option<String>,
 }
 
 #[derive(clap::Args)]
 pub struct VersionArgs {
-    /// 手动设定版本号
+    /// Manually set version number
     #[arg(long)]
     pub set: Option<String>,
 
-    /// 按类型 bump（major/minor/patch）
+    /// Bump by type (major/minor/patch)
     #[arg(long)]
     pub bump: Option<String>,
 }
 
 #[derive(clap::Args)]
 pub struct RevokeArgs {
-    /// 回退到的目标版本号
+    /// Target version number to revoke to
     #[arg(long)]
     pub version: Option<String>,
 
-    /// 列出可回退的版本
+    /// List revokable versions
     #[arg(long)]
     pub list: bool,
 }
 
 #[derive(clap::Args)]
 pub struct ClaimArgs {
-    /// 要 claim 的 ID（TASK-xxx 或 ISSUE-xxx），不传则显示当前状态
+    /// ID to claim (TASK-xxx or ISSUE-xxx), show current status if not provided
     pub ids: Vec<String>,
 
-    /// 释放 claim（不带 ID 则全部释放）
+    /// Release claim (release all if no ID provided)
     #[arg(long)]
     pub revoke: bool,
 }
 
 #[derive(Subcommand)]
 pub enum InboxCommands {
-    /// 生成项目上下文摘要（供 agent 使用）
+    /// Generate project context summary (for agent use)
     Context,
 }
 
 #[derive(clap::Args)]
 pub struct IssueArgs {
-    /// 列出未关闭的 issue
+    /// List unclosed issues
     #[arg(long)]
     pub list: bool,
 }
 
 #[derive(Subcommand)]
 pub enum HooksCommands {
-    /// 注入上下文
+    /// Inject context
     Context,
 
-    /// 判断文件是否允许写入
+    /// Determine if file write is allowed
     Guard {
-        /// 文件路径
+        /// File path
         file: Option<String>,
     },
 
-    /// 文件写入后联动
+    /// Post-write linkage
     PostWrite {
-        /// 文件路径（fallback 读 TOOL_INPUT_FILE_PATH 环境变量）
+        /// File path (fallback: TOOL_INPUT_FILE_PATH env var)
         file: Option<String>,
     },
 
-    /// Bash 执行后检测分支切换
+    /// Detect branch switch after Bash execution
     PostBash {
-        /// Bash 命令内容（fallback 读 TOOL_INPUT 环境变量）
+        /// Bash command content (fallback to TOOL_INPUT env var)
         command: Option<String>,
     },
 
-    /// 会话结束保存 CHANGELOG
+    /// Save CHANGELOG at session end
     SaveChangelog,
 }

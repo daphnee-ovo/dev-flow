@@ -1,17 +1,17 @@
 // dow/src/core/
-// ├── doc_root.rs  -- doc_root 解析逻辑（对应 devflow_resolve_doc_root）
+// ├── doc_root.rs  -- doc_root resolution logic (corresponds to devflow_resolve_doc_root)
 //
 // Related Docs:
-// - [CLAUDE.md - 目录结构约定](../../../CLAUDE.md#目录结构约定)
+// - [CLAUDE.md - Directory Structure Convention](../../../CLAUDE.md#directory-structure-convention)
 
 use crate::core::version;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// 解析实际的 doc_root 路径
-/// 强制使用 .dev-doc/<branch>/ 格式（包括 main/master）
-/// 新分支自动创建目录和 STATUS.yaml
+/// Resolve actual doc_root path
+/// Enforce .dev-doc/<branch>/ format (including main/master)
+/// Automatically create directory and STATUS.yaml for new branches
 pub fn resolve(base: &str) -> PathBuf {
     let base_path = Path::new(base);
 
@@ -20,7 +20,7 @@ pub fn resolve(base: &str) -> PathBuf {
         if branch_path.join("STATUS.yaml").exists() {
             return branch_path;
         }
-        // 自动创建分支目录
+        // Automatically create branch directory
         if base_path.is_dir() {
             if let Ok(()) = fs::create_dir_all(&branch_path) {
                 let status_content = format!(
@@ -30,14 +30,14 @@ pub fn resolve(base: &str) -> PathBuf {
                     now_str(),
                 );
                 let _ = fs::write(branch_path.join("STATUS.yaml"), &status_content);
-                // 在 VERSION 中为新分支初始化版本（继承 main）
+                // Initialize version in VERSION for new branch (inherit from main)
                 let _ = version::init_branch(&branch);
                 return branch_path;
             }
         }
     }
 
-    // 回退：搜索子目录（无分支信息时）
+    // Fallback: search subdirectories (when no branch info available)
     if base_path.is_dir() {
         if let Ok(entries) = fs::read_dir(base_path) {
             let mut found: Vec<PathBuf> = entries
@@ -56,7 +56,7 @@ pub fn resolve(base: &str) -> PathBuf {
     base_path.to_path_buf()
 }
 
-/// 获取项目根目录（git 仓库根）
+/// Get project root directory (git repository root)
 pub fn project_root() -> PathBuf {
     let output = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
@@ -68,7 +68,7 @@ pub fn project_root() -> PathBuf {
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
 }
 
-/// 获取当前 git 分支名
+/// Get current git branch name
 pub fn current_branch() -> Option<String> {
     let output = Command::new("git")
         .args(["branch", "--show-current"])
@@ -86,7 +86,7 @@ pub fn current_branch() -> Option<String> {
     }
 }
 
-/// 从已有分支目录的 STATUS.yaml 中读取项目名
+/// Read project name from STATUS.yaml of existing branch directory
 fn read_project_name(base_path: &Path) -> Option<String> {
     if let Ok(entries) = fs::read_dir(base_path) {
         for entry in entries.flatten() {

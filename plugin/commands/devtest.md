@@ -1,59 +1,59 @@
 ---
-description: 开发中例行测试 — 任务级最小闭环
+description: Routine dev testing — task-level minimal loop
 allowed-tools: Agent, Bash, Read, Write, Edit
 ---
 
-# DEV-TEST — 例行测试
+# DEV-TEST — Routine Testing
 
-devtest 只做轻量闭环，不做大型 controller。
+devtest only does lightweight loop, not large controller.
 
-## 执行方式
+## Execution Method
 
 ```bash
 dow devtest
 ```
 
-模式通过 STATUS.yaml 的 exec_mode 字段控制（`dow status --exec-mode continuous` 或 `step`），
-devtest 读取后自动按对应模式执行。
+Mode controlled by exec_mode field in STATUS.yaml (`dow status --exec-mode continuous` or `step`),
+devtest reads and executes in corresponding mode automatically.
 
-## 前置检查
+## Pre-checks
 
-1. 当前阶段必须是 `DEV`。
-2. `task/` 中必须存在已勾选 `[x]` 的任务。
-3. 每次任务完成后必须执行 devtest。
+1. Current phase must be `DEV`.
+2. There must be tasks marked `[x]` in `task/`.
+3. Must execute devtest after each task completion.
 
-## 三种结果
+## Three Outcomes
 
-| 结果 | 行为 |
-|------|------|
-| `PASS` | 保持 task 勾选；如果所有任务完成，提示 `/test` |
-| `FAIL` | 取消当前 task 勾选，通过 `dow doc issue --source devtest -n <issue数>` 创建 issue 文件，停止推进 |
-| `NEEDS_CONTEXT` | 保持 task 勾选，不继续推进，要求补充信息 |
+| Outcome | Behavior |
+|---------|----------|
+| `PASS` | Keep task checked; if all tasks done, suggest `/test` |
+| `FAIL` | Uncheck current task, create issue file via `dow doc issue --source devtest -n <issue_count>`, stop progression |
+| `NEEDS_CONTEXT` | Keep task checked, don't continue progression, require additional information |
 
-## Agent 验证要求
+## Agent Verification Requirements
 
-如果需要独立 agent 验证，只传入最小上下文：
+If independent agent verification needed, only pass minimal context:
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| 当前 task 标题、refs、files、done_when | 其他无关 task |
-| SPEC 中相关验收条目 | PRD.md |
-| 项目上下文 `dow inbox context` | 开发阶段对话历史 |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| Current task title, refs, files, done_when | Other unrelated tasks |
+| Related acceptance items in SPEC | PRD.md |
+| Project context `dow inbox context` | Dev phase conversation history |
 
-验证重点：
+Verification focus:
 
-- 对照 `done_when` 和相关 SPEC 验收判断是否通过。
-- 需要测试时，优先运行 task `files.test` 中列出的测试。
-- 不引入默认 TDD，不扩展需求范围。
-- 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，已有目录优先，新项目默认 `tmp`。
+- Judge pass/fail against `done_when` and related SPEC acceptance.
+- When testing needed, prioritize running tests listed in task `files.test`.
+- Don't introduce default TDD, don't expand requirement scope.
+- Prohibited to write to system temp directories; project-internal `tmp` and `temp` both allowed, prioritize existing directories, new projects default to `tmp`.
 
-## 输出协议
+## Output Protocol
 
-subagent 或主 agent 输出末尾必须给出：
+Subagent or main agent must output at end:
 
 ```text
 STATUS: PASS | FAIL | NEEDS_CONTEXT
-DETAIL: <说明>
+DETAIL: <explanation>
 ```
 
-如果没有明确状态，按 `NEEDS_CONTEXT` 处理，不自动推进。
+If no explicit status, treat as `NEEDS_CONTEXT`, don't auto-progress.

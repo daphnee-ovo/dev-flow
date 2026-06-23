@@ -1,20 +1,20 @@
 // dow/src/core/
-// ├── yaml.rs  -- STATUS.yaml 轻量读写（不依赖 YAML 库）
+// ├── yaml.rs  -- STATUS.yaml lightweight read/write (no YAML library dependency)
 //
 // Related Docs:
-// - [STATUS 规范](../../../references/.dev-doc/STATUS.md)
+// - [STATUS Specification](../../../references/.dev-doc/STATUS.md)
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-/// 读取 STATUS.yaml 为有序键值对
+/// Read STATUS.yaml as ordered key-value pairs
 pub fn read(path: &Path) -> std::io::Result<BTreeMap<String, String>> {
     let content = fs::read_to_string(path)?;
     Ok(parse(&content))
 }
 
-/// 解析 YAML 格式的简单键值对
+/// Parse simple key-value pairs in YAML format
 pub fn parse(content: &str) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     for line in content.lines() {
@@ -36,14 +36,14 @@ fn parse_line(line: &str) -> Option<(String, String)> {
     Some((key, value))
 }
 
-/// 获取指定 key 的值
+/// Get value for specified key
 pub fn get(path: &Path, key: &str) -> std::io::Result<Option<String>> {
     let map = read(path)?;
     Ok(map.get(key).cloned())
 }
 
-/// 设置指定 key 的值（保持文件其他行不变）
-/// 可选字段值为空时删除该行；必填字段不允许置空
+/// Set value for specified key (keep other lines in file unchanged)
+/// Delete line when optional field value is empty; required fields cannot be set empty
 pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
     let content = fs::read_to_string(path)?;
     let optional_fields = ["goals_minor", "goals_major", "exec_mode"];
@@ -66,7 +66,7 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
         .collect();
 
     if !found && !is_delete {
-        // goals/exec_mode 等字段插入到 updated/started 之前（保持时间戳在末尾）
+        // Insert fields like goals/exec_mode before updated/started (keep timestamps at end)
         let insert_pos = lines.iter().position(|l| {
             l.starts_with("updated:") || l.starts_with("started:")
         });
@@ -77,7 +77,7 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
         }
     }
 
-    // 确保 updated/started 始终在最后
+    // Ensure updated/started are always at the end
     let mut time_lines = Vec::new();
     lines.retain(|l| {
         if l.starts_with("updated:") || l.starts_with("started:") {
@@ -89,7 +89,7 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
     });
     lines.extend(time_lines);
 
-    // 确保文件末尾有换行
+    // Ensure file ends with newline
     let mut output = lines.join("\n");
     if !output.ends_with('\n') {
         output.push('\n');
@@ -97,13 +97,13 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
     fs::write(path, output)
 }
 
-/// 读取数组字段（如 docs: 下方的 `  - item` 列表）
+/// Read array field (e.g., `  - item` list under docs:)
 pub fn get_list(path: &Path, key: &str) -> std::io::Result<Vec<String>> {
     let content = fs::read_to_string(path)?;
     Ok(parse_list(&content, key))
 }
 
-/// 解析数组字段
+/// Parse array field
 fn parse_list(content: &str, key: &str) -> Vec<String> {
     let mut items = Vec::new();
     let mut in_list = false;
@@ -130,7 +130,7 @@ fn parse_list(content: &str, key: &str) -> Vec<String> {
     items
 }
 
-/// 设置数组字段（空数组则删除该字段）
+/// Set array field (delete field if array is empty)
 pub fn set_list(path: &Path, key: &str, values: &[String]) -> std::io::Result<()> {
     let content = fs::read_to_string(path)?;
     let prefix = format!("{}:", key);
@@ -181,7 +181,7 @@ pub fn set_list(path: &Path, key: &str, values: &[String]) -> std::io::Result<()
     fs::write(path, output)
 }
 
-/// 更新 updated 时间戳
+/// Update updated timestamp
 pub fn touch_updated(path: &Path) -> std::io::Result<()> {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
     set(path, "updated", &now)
@@ -248,7 +248,7 @@ mod tests {
         let result = get_list(&path, "docs").unwrap();
         assert_eq!(result, values);
 
-        // 验证 updated/started 仍在末尾
+        // verify updated/started are still at the end
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.ends_with("updated: 2026-01-01\nstarted: 2026-01-01\n"));
     }

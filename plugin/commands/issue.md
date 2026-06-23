@@ -1,62 +1,62 @@
 ---
-description: 手动创建 issue
+description: Manually create issue
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# ISSUE — 手动创建问题记录
+# ISSUE — Manual Issue Creation
 
-## 模式检测
+## Mode Detection
 
-`DOC_ROOT` 通过 `dow status --field doc_root` 获取。
+`DOC_ROOT` obtained via `dow status --field doc_root`.
 
-## 执行步骤
+## Execution Steps
 
-### 1. 收集信息
+### 1. Collect Information
 
-询问用户（可从参数获取）：
-- 问题标题
-- 严重程度（P0/P1/P2）
-- 发现位置（文件路径:行号）
-- 描述
+Ask user (can get from parameters):
+- Issue title
+- Severity (P0/P1/P2)
+- Location found (file_path:line_number)
+- Description
 
-### 2. 确定文件
+### 2. Determine File
 
-检查是否已有当天 `other` 来源的 issue 文件：
+Check if today's `other` source issue file already exists:
 
 ```bash
 dow issue --list | grep 'other'
 ```
 
-- 如果有且文件内 issue 数量合理（<10 个）→ 追加到现有文件
-- 否则 → 创建新文件
+- If exists and file has reasonable issue count (<10) → append to existing file
+- Otherwise → create new file
 
-### 3. 新建文件
+### 3. Create New File
 
 ```bash
-dow doc issue --source other -n <issue数>
+dow doc issue --source other -n <issue_count>
 ```
 
-### 4. 写入格式
+### 4. Write Format
 
-执行 `dow doc issue --json` 获取结构化格式定义。
+Execute `dow doc issue --json` to get structured format definition.
 
-### 5. 提示下一步
+### 5. Prompt Next Step
 
 ```
-[dev-flow] Issue 已创建：.dev-doc/issue/<filename>
-是否需要立即修复？执行 /fix 自动修复未关闭 issue。
+[dev-flow] Issue created: .dev-doc/issue/<filename>
+Need to fix immediately? Execute /fix to auto-fix unclosed issues.
 ```
 
-## 追加到现有文件
+## Append to Existing File
 
-如果追加到已有文件：
-1. 读取现有文件的 `nums` 值
-2. 新 issue 编号为 `I<nums+1>`
-3. 追加 checkbox 条目到文件末尾
-4. 更新 frontmatter 中的 `nums`
+If appending to existing file:
+1. Read existing file's `nums` value
+2. New issue number is `I<nums+1>`
+3. Append checkbox item to file end
+4. Update `nums` in frontmatter
 
-## 注意
+## Notes
 
-- 主 agent 直接执行，不启动子 agent
-- source 固定为 `other`（区别于 test/devtest 自动创建）
-- 创建后不自动修复，由用户决定是否 /fix
+- Main agent executes directly, doesn't launch subagent
+- source fixed as `other` (distinguish from test/devtest auto-creation)
+- After creation doesn't auto-fix, user decides whether to /fix

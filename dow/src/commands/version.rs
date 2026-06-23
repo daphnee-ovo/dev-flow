@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── version.rs  -- dow version（读写 VERSION 文件，委托 core::version）
+// ├── version.rs  -- dow version (read/write VERSION file, delegates to core::version)
 
 use crate::cli::VersionArgs;
 use crate::core::version;
@@ -21,7 +21,7 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
     let branch = crate::core::doc_root::current_branch()
         .unwrap_or_else(|| "main".to_string());
 
-    // --set 不依赖当前版本可解析（允许修复损坏的 VERSION）
+    // --set does not depend on current version being parsable (allows fixing damaged VERSION)
     if let Some(ref new_ver) = args.set {
         let previous = version::read_current().ok();
         version::write_current(new_ver)?;
@@ -58,7 +58,7 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    // 只读
+    // Read-only
     let result = VersionOutput {
         version: current,
         branch,

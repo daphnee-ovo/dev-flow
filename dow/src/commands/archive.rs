@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── archive.rs  -- dow archive 子命令（list/show/tasks/issues/doc/migrate/stats）
+// ├── archive.rs  -- dow archive subcommand (list/show/tasks/issues/doc/migrate/stats)
 
 use crate::cli::ArchiveCommands;
 use crate::core::archive_db;
@@ -39,7 +39,7 @@ fn run_list(branch: Option<&str>, human: bool) -> Result<i32, DowError> {
     let items = archive_db::list_iterations(&conn, branch)?;
 
     if human {
-        println!("[archive] 共 {} 个版本", items.len());
+        println!("[archive] {} versions total", items.len());
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         for it in &items {
             println!(
@@ -105,7 +105,7 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
     let has_test = archive_db::get_doc(&conn, version, "TEST")?.is_some();
     let has_brainstorm = archive_db::get_doc(&conn, version, "BRAINSTORM")?.is_some();
 
-    // 获取 topic
+    // Get topic
     let iterations = archive_db::list_iterations(&conn, None)?;
     let topic = iterations
         .iter()
@@ -116,9 +116,9 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[archive] v{} — {}", version, topic);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("文档：PRD={} SPEC={} TEST={} BRAINSTORM={}", yn(has_prd), yn(has_spec), yn(has_test), yn(has_brainstorm));
+        println!("Documents: PRD={} SPEC={} TEST={} BRAINSTORM={}", yn(has_prd), yn(has_spec), yn(has_test), yn(has_brainstorm));
         if !tasks.is_empty() {
-            println!("\n任务（{}个）：", tasks.len());
+            println!("\nTasks ({}):", tasks.len());
             for t in &tasks {
                 let mark = if t.completed { "x" } else { " " };
                 let p = t.priority.as_deref().unwrap_or("-");
@@ -126,7 +126,7 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
             }
         }
         if !issues.is_empty() {
-            println!("\nIssue（{}个）：", issues.len());
+            println!("\nIssues ({}):", issues.len());
             for iss in &issues {
                 let mark = if iss.resolved { "x" } else { " " };
                 let s = iss.severity.as_deref().unwrap_or("-");
@@ -167,7 +167,7 @@ fn run_tasks(version: Option<&str>, priority: Option<&str>, human: bool) -> Resu
     let tasks = archive_db::query_tasks(&conn, version, priority)?;
 
     if human {
-        println!("[archive] 任务查询：{} 条", tasks.len());
+        println!("[archive] Task query: {} results", tasks.len());
         for t in &tasks {
             let mark = if t.completed { "x" } else { " " };
             let p = t.priority.as_deref().unwrap_or("-");
@@ -193,7 +193,7 @@ fn run_issues(version: Option<&str>, severity: Option<&str>, human: bool) -> Res
     let issues = archive_db::query_issues(&conn, version, severity)?;
 
     if human {
-        println!("[archive] Issue 查询：{} 条", issues.len());
+        println!("[archive] Issue query: {} results", issues.len());
         for iss in &issues {
             let mark = if iss.resolved { "x" } else { " " };
             let s = iss.severity.as_deref().unwrap_or("-");
@@ -223,7 +223,7 @@ fn run_doc(version: &str, doc_type: &str, _human: bool) -> Result<i32, DowError>
             Ok(0)
         }
         None => Err(DowError::new(
-            format!("v{} 没有 {} 文档", version, dtype),
+            format!("v{} does not have {} document", version, dtype),
             1,
         )),
     }
@@ -245,13 +245,13 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     let mut versions = Vec::new();
     let mut total_records = 0u32;
 
-    // 扫描 .dev-doc/archive/v*-*/
+    // Scan .dev-doc/archive/v*-*/
     let top_archive = doc_root_path.join("archive");
     if top_archive.is_dir() {
         migrate_dir_entries(&conn, &top_archive, "main", &mut versions, &mut total_records)?;
     }
 
-    // 扫描 .dev-doc/*/archive/v*-*/（branch-specific）
+    // Scan .dev-doc/*/archive/v*-*/ (branch-specific)
     if let Ok(entries) = fs::read_dir(&doc_root_path) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -265,13 +265,13 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     }
 
     if delete_originals && !versions.is_empty() {
-        // 删除顶层 archive 目录
+        // Delete top-level archive directory
         if top_archive.is_dir() {
             if let Err(e) = fs::remove_dir_all(&top_archive) {
-                eprintln!("[dow] 警告: 删除归档目录失败 ({}): {}", top_archive.display(), e);
+                eprintln!("[dow] Warning: Failed to delete archive directory ({}): {}", top_archive.display(), e);
             }
         }
-        // 删除 branch-specific archive 目录
+        // Delete branch-specific archive directories
         if let Ok(entries) = fs::read_dir(&doc_root_path) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
@@ -279,7 +279,7 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
                     let branch_archive = entry.path().join("archive");
                     if branch_archive.is_dir() {
                         if let Err(e) = fs::remove_dir_all(&branch_archive) {
-                            eprintln!("[dow] 警告: 删除分支归档目录失败 ({}): {}", branch_archive.display(), e);
+                            eprintln!("[dow] Warning: Failed to delete branch archive directory ({}): {}", branch_archive.display(), e);
                         }
                     }
                 }
@@ -294,15 +294,15 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     };
 
     if human {
-        println!("[archive] 迁移完成");
+        println!("[archive] Migration completed");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("  版本数：{}", versions.len());
-        println!("  记录数：{}", total_records);
+        println!("  Versions: {}", versions.len());
+        println!("  Records: {}", total_records);
         for v in &versions {
             println!("  - v{}", v);
         }
         if delete_originals {
-            println!("  [已删除原始目录]");
+            println!("  [Original directories deleted]");
         }
     } else {
         output::print_json(&result);
@@ -324,7 +324,7 @@ fn migrate_dir_entries(
         for entry in dirs {
             let dir_name = entry.file_name().to_string_lossy().to_string();
             if let Some((version, topic)) = archive_db::parse_archive_dir_name(&dir_name) {
-                // 跳过已存在的版本
+                // Skip already existing versions
                 let existing = archive_db::list_iterations(conn, None)?;
                 if existing.iter().any(|i| i.version == version) {
                     continue;
@@ -346,11 +346,11 @@ fn run_stats(human: bool) -> Result<i32, DowError> {
     let stats = archive_db::get_stats(&conn)?;
 
     if human {
-        println!("[archive] 统计");
+        println!("[archive] Statistics");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("  版本数：{}", stats["iterations"]);
-        println!("  任务数：{}", stats["tasks"]);
-        println!("  Issue 数：{}", stats["issues"]);
+        println!("  Versions: {}", stats["iterations"]);
+        println!("  Tasks: {}", stats["tasks"]);
+        println!("  Issues: {}", stats["issues"]);
     } else {
         output::print_json(&stats);
     }

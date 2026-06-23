@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── doc.rs  -- dow doc（文档模板生成 + 文档规范查询）
+// ├── doc.rs  -- dow doc (Document template generation + documentation specification query)
 
 use crate::cli::DocArgs;
 use crate::core::{doc_root, yaml};
@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
 
-// 嵌入 references/.dev-doc/ 的规范文件
+// Embedded specification files from references/.dev-doc/
 const REF_TASK: &str = include_str!("../../references/.dev-doc/TASK-FILE.md");
 const REF_ISSUE: &str = include_str!("../../references/.dev-doc/ISSUE.md");
 const REF_PRD: &str = include_str!("../../references/.dev-doc/PRD-FILE.md");
@@ -28,10 +28,10 @@ struct DocOutput {
     slots: u32,
 }
 
-/// 合法的文档类型
+/// Valid document types
 const VALID_TYPES: &[&str] = &["task", "issue", "prd", "spec", "test", "brainstorm", "changelog", "init", "check-sync", "list"];
 
-/// 合法的 issue 来源
+/// Valid issue sources
 const VALID_SOURCES: &[&str] = &["test", "devtest", "other", "audit"];
 
 pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
@@ -40,7 +40,7 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     if !VALID_TYPES.contains(&doc_type.as_str()) {
         return Err(DowError::new(
             format!(
-                "未知文档类型：{}（可选：{}）",
+                "Unknown document type: {} (available: {})",
                 doc_type,
                 VALID_TYPES.join("/")
             ),
@@ -48,33 +48,33 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    // doc init：生成持久化文档骨架
+    // doc init: Generate persistent document skeleton
     if doc_type == "init" {
         return run_doc_init(args.project_name.as_deref(), human);
     }
 
-    // doc check-sync：检查文档同步状态
+    // doc check-sync: Check document sync status
     if doc_type == "check-sync" {
         return run_doc_check_sync(args.since.as_deref(), human);
     }
 
-    // doc list：列出注册文档
+    // doc list: List registered documents
     if doc_type == "list" {
         return run_doc_list(human);
     }
 
-    // --md / --json：输出文档规范（spec/prd 按当前 mode 过滤）
+    // --md / --json: Output document specification (spec/prd filtered by current mode)
     if args.md || args.json {
         let mode = get_current_mode();
         return output_spec(&doc_type, args.md, &mode);
     }
 
-    // 校验 --source（仅 issue 类型使用）
+    // Validate --source (only used for issue type)
     if let Some(ref src) = args.source {
         if !VALID_SOURCES.contains(&src.as_str()) {
             return Err(DowError::new(
                 format!(
-                    "无效的 issue 来源：{}（可选：{}）",
+                    "Invalid issue source: {} (available: {})",
                     src,
                     VALID_SOURCES.join("/")
                 ),
@@ -83,7 +83,7 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 默认：创建模板文件
+    // Default: Create template file
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     let mode = get_current_mode();
@@ -105,18 +105,18 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     };
 
     if human {
-        println!("[dev-flow] 文档已创建：{}", result.created);
+        println!("[dev-flow] Document created: {}", result.created);
         match result.doc_type.as_str() {
             "task" | "issue" => {
                 println!(
-                    "  提示：-n <数量> 可指定模板中的条目数，如 dow doc {} -n 5",
+                    "  Hint: Use -n <count> to specify number of entries in template, e.g. dow doc {} -n 5",
                     result.doc_type
                 );
             }
             _ => {}
         }
         println!(
-            "  提示：使用 dow doc {} --md 或 dow doc {} --json 查看文档格式规范",
+            "  Hint: Use dow doc {} --md or dow doc {} --json to view document format specification",
             result.doc_type, result.doc_type
         );
     } else {
@@ -126,7 +126,7 @@ pub fn run(args: DocArgs, human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-/// 输出文档规范（--md 或 --json），spec/prd 按 mode 过滤展示
+/// Output document specification (--md or --json), spec/prd filtered by mode
 fn output_spec(doc_type: &str, as_md: bool, mode: &str) -> Result<i32, DowError> {
     let content = get_reference(doc_type);
 
@@ -142,7 +142,7 @@ fn output_spec(doc_type: &str, as_md: bool, mode: &str) -> Result<i32, DowError>
     Ok(0)
 }
 
-/// 获取对应类型的 reference 文档内容
+/// Get reference document content for the corresponding type
 fn get_reference(doc_type: &str) -> &'static str {
     match doc_type {
         "task" => REF_TASK,
@@ -156,41 +156,41 @@ fn get_reference(doc_type: &str) -> &'static str {
     }
 }
 
-/// 将 markdown 规范解析为结构化 JSON
+/// Parse markdown specification into structured JSON
 fn parse_spec_to_json(doc_type: &str, content: &str) -> Value {
     let mut result = json!({
         "type": doc_type,
     });
 
-    // 提取标题
+    // Extract title
     if let Some(title_line) = content.lines().find(|l| l.starts_with("# ")) {
         result["title"] = json!(title_line.trim_start_matches("# ").trim());
     }
 
-    // 提取路径（## 路径 段落下的内容）
-    if let Some(path) = extract_section_first_line(content, "路径") {
+    // Extract path (content under ## Path section)
+    if let Some(path) = extract_section_first_line(content, "Path") {
         result["path"] = json!(path);
     }
 
-    // 提取模板（```markdown ... ``` 代码块）
+    // Extract template (```markdown ... ``` code block)
     if let Some(template) = extract_code_block(content, "markdown") {
         result["template"] = json!(template);
     }
 
-    // 提取字段说明表格
-    if let Some(fields) = extract_table(content, "字段说明") {
+    // Extract field description table
+    if let Some(fields) = extract_table(content, "Field Description") {
         result["fields"] = fields;
     }
 
-    // 提取 sections 列表
+    // Extract sections list
     let sections = extract_h2_sections(content);
     if !sections.is_empty() {
         result["sections"] = json!(sections);
     }
 
-    // 提取规则/说明列表
+    // Extract rules/notes list
     let mut rules = Vec::new();
-    for section_name in &["完成规则", "命名规则", "说明", "追加规则", "注意事项"] {
+    for section_name in &["Completion Rules", "Naming Rules", "Notes", "Additional Rules", "Cautions"] {
         if let Some(items) = extract_bullet_list(content, section_name) {
             for item in items {
                 rules.push(json!({
@@ -204,32 +204,32 @@ fn parse_spec_to_json(doc_type: &str, content: &str) -> Value {
         result["rules"] = json!(rules);
     }
 
-    // 按 mode 的必需章节（SPEC/PRD 特有）
-    if let Some(mode_table) = extract_table(content, "按 mode 的必需章节") {
+    // Required sections by mode (SPEC/PRD specific)
+    if let Some(mode_table) = extract_table(content, "Required Sections by Mode") {
         result["mode_requirements"] = mode_table;
     }
 
-    // 优先级/severity 定义
-    if let Some(prio_table) = extract_table(content, "Priority 定义") {
+    // Priority/severity definitions
+    if let Some(prio_table) = extract_table(content, "Priority Definition") {
         result["priority_definitions"] = prio_table;
     }
-    if let Some(complexity_table) = extract_table(content, "Complexity 定义") {
+    if let Some(complexity_table) = extract_table(content, "Complexity Definition") {
         result["complexity_definitions"] = complexity_table;
     }
 
-    // create_command：提示使用 dow doc 创建（task/issue 支持 -n）
+    // create_command: Hint to create using dow doc (task/issue support -n)
     match doc_type {
         "task" => {
-            result["create_command"] = json!("dow doc task -n <数量>");
-            result["create_hint"] = json!("禁止手动创建 task 文件，必须通过此命令生成模板");
+            result["create_command"] = json!("dow doc task -n <count>");
+            result["create_hint"] = json!("Manual task file creation is prohibited, must use this command to generate template");
         }
         "issue" => {
-            result["create_command"] = json!("dow doc issue -n <数量> [--source test|devtest|audit|other]");
-            result["create_hint"] = json!("禁止手动创建 issue 文件，必须通过此命令生成模板");
+            result["create_command"] = json!("dow doc issue -n <count> [--source test|devtest|audit|other]");
+            result["create_hint"] = json!("Manual issue file creation is prohibited, must use this command to generate template");
         }
         "prd" | "spec" | "test" | "brainstorm" | "changelog" => {
             result["create_command"] = json!(format!("dow doc {}", doc_type));
-            result["create_hint"] = json!(format!("禁止手动创建 {}.md，必须通过此命令生成", doc_type.to_uppercase()));
+            result["create_hint"] = json!(format!("Manual {}.md creation is prohibited, must use this command to generate", doc_type.to_uppercase()));
         }
         _ => {}
     }
@@ -237,7 +237,7 @@ fn parse_spec_to_json(doc_type: &str, content: &str) -> Value {
     result
 }
 
-/// 提取某个 ## 段落的第一个非空行
+/// Extract the first non-empty line from a ## section
 fn extract_section_first_line(content: &str, heading: &str) -> Option<String> {
     let marker = format!("## {}", heading);
     let mut in_section = false;
@@ -259,7 +259,7 @@ fn extract_section_first_line(content: &str, heading: &str) -> Option<String> {
     None
 }
 
-/// 提取指定语言的代码块
+/// Extract code block for specified language
 fn extract_code_block(content: &str, lang: &str) -> Option<String> {
     let opener = format!("```{}", lang);
     let mut in_block = false;
@@ -285,12 +285,12 @@ fn extract_code_block(content: &str, lang: &str) -> Option<String> {
     }
 }
 
-/// 提取某段落下的表格为 JSON 数组
+/// Extract table under a section as JSON array
 fn extract_table(content: &str, heading: &str) -> Option<Value> {
     let lines: Vec<&str> = content.lines().collect();
     let mut start = None;
 
-    // 查找标题（支持 ## 和 ### 开头）
+    // Find heading (supports ## and ### prefixes)
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start_matches('#').trim();
         if trimmed == heading {
@@ -301,7 +301,7 @@ fn extract_table(content: &str, heading: &str) -> Option<Value> {
 
     let start = start?;
 
-    // 寻找表格（| 开头的行）
+    // Find table (lines starting with |)
     let mut table_lines = Vec::new();
     let mut found_table = false;
     for line in &lines[start..] {
@@ -320,14 +320,14 @@ fn extract_table(content: &str, heading: &str) -> Option<Value> {
         return None;
     }
 
-    // 解析表头
+    // Parse table headers
     let headers: Vec<String> = table_lines[0]
         .split('|')
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.trim().to_string())
         .collect();
 
-    // 跳过分隔行（第二行），解析数据行
+    // Skip separator row (second row), parse data rows
     let mut rows = Vec::new();
     for row_line in &table_lines[2..] {
         let cells: Vec<&str> = row_line
@@ -347,7 +347,7 @@ fn extract_table(content: &str, heading: &str) -> Option<Value> {
     Some(json!(rows))
 }
 
-/// 提取所有 ## 段落标题
+/// Extract all ## section headings
 fn extract_h2_sections(content: &str) -> Vec<String> {
     content
         .lines()
@@ -356,7 +356,7 @@ fn extract_h2_sections(content: &str) -> Vec<String> {
         .collect()
 }
 
-/// 提取某段落下的列表项
+/// Extract bullet list items under a section
 fn extract_bullet_list(content: &str, heading: &str) -> Option<Vec<String>> {
     let lines: Vec<&str> = content.lines().collect();
     let mut start = None;
@@ -389,7 +389,7 @@ fn extract_bullet_list(content: &str, heading: &str) -> Option<Vec<String>> {
     }
 }
 
-// === 模板创建功能（保持原有逻辑） ===
+// === Template creation functions (maintain original logic) ===
 
 fn create_task(doc_root: &Path, count: u32) -> Result<(String, u32), DowError> {
     let task_dir = doc_root.join("task");
@@ -452,7 +452,7 @@ fn create_single(
     let path = doc_root.join(filename);
     if path.exists() {
         return Err(DowError::new(
-            format!("{} 已存在，不覆盖", path.display()),
+            format!("{} already exists, will not overwrite", path.display()),
             1,
         ));
     }
@@ -472,7 +472,7 @@ fn max_task_id_in_dir(task_dir: &Path) -> u32 {
                 for line in content.lines() {
                     let trimmed = line.trim();
                     if trimmed.starts_with("- [") {
-                        // 匹配 TASK-T001 或 T001
+                        // Match TASK-T001 or T001
                         if let Some(id) = extract_task_num(trimmed) {
                             max = max.max(id);
                         }
@@ -508,7 +508,7 @@ fn max_issue_id_in_dir(issue_dir: &Path) -> u32 {
 }
 
 fn extract_task_num(line: &str) -> Option<u32> {
-    // "- [x] TASK-T001: ..." or "- [ ] TASK-T012: ..."
+    // Match "- [x] TASK-T001: ..." or "- [ ] TASK-T012: ..."
     let after = line.find("TASK-T").map(|p| &line[p + 6..])
         .or_else(|| line.find("] T").map(|p| &line[p + 3..]))?;
     let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -516,7 +516,7 @@ fn extract_task_num(line: &str) -> Option<u32> {
 }
 
 fn extract_issue_num(line: &str) -> Option<u32> {
-    // "- [x] ISSUE-I001：..." or "- [ ] ISSUE-I012: ..."
+    // Match "- [x] ISSUE-I001：..." or "- [ ] ISSUE-I012: ..."
     let after = line.find("ISSUE-I").map(|p| &line[p + 7..])
         .or_else(|| line.find("] I").map(|p| &line[p + 3..]))?;
     let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -545,26 +545,26 @@ fn next_seq(dir: &Path, prefix: &str) -> u32 {
 fn prd_template_inner(mode: &str, with_hints: bool) -> String {
     let sections = prd_sections_for_mode(mode);
     if sections.is_empty() {
-        return format!("# 产品需求文档（PRD）\n\n> {} 模式跳过 PRD 阶段。\n", mode);
+        return format!("# Product Requirements Document (PRD)\n\n> {} mode skips PRD phase.\n", mode);
     }
 
-    let mut out = String::from("# 产品需求文档（PRD）\n\n");
+    let mut out = String::from("# Product Requirements Document (PRD)\n\n");
     for (i, sec) in sections.iter().enumerate() {
         out.push_str(&format!("## {}. {}\n", i + 1, sec));
-        if *sec == "功能需求" {
+        if *sec == "Feature Requirements" {
             out.push_str("### Must Have\n### Should Have\n### Could Have\n### Won't Have\n");
         }
-        if *sec == "目标与非目标" {
-            out.push_str("### 目标\n### 非目标（明确不做什么）\n");
+        if *sec == "Goals & Non-Goals" {
+            out.push_str("### Goals\n### Non-Goals (Explicitly out of scope)\n");
         }
         if with_hints {
             match *sec {
-                "背景与动机" => { out.push_str("<为什么要做这件事>\n"); }
-                "用户画像" => { out.push_str("<目标用户是谁>\n"); }
-                "用户流程" => { out.push_str("<用户如何使用>\n"); }
-                "成功指标" => { out.push_str("<如何衡量成功>\n"); }
-                "约束与假设" => { out.push_str("<前提条件和限制>\n"); }
-                "开放问题" => { out.push_str("<待确认事项>\n"); }
+                "Background & Motivation" => { out.push_str("<Why are we doing this>\n"); }
+                "User Persona" => { out.push_str("<Who are the target users>\n"); }
+                "User Flow" => { out.push_str("<How users will use it>\n"); }
+                "Success Metrics" => { out.push_str("<How to measure success>\n"); }
+                "Constraints & Assumptions" => { out.push_str("<Prerequisites and limitations>\n"); }
+                "Open Questions" => { out.push_str("<Items to confirm>\n"); }
                 _ => {}
             }
         }
@@ -581,64 +581,64 @@ fn prd_template_with_hints(mode: &str) -> String {
     prd_template_inner(mode, true)
 }
 
-/// 生成 SPEC 模板。with_hints=true 时带占位提示（用于 --md 展示），false 时干净空白（用于创建文件）
+/// Generate SPEC template. with_hints=true includes placeholder hints (for --md display), false is clean (for file creation)
 fn spec_template_inner(mode: &str, with_hints: bool) -> String {
     let sections = spec_sections_for_mode(mode);
-    let title_hint = if with_hints { " <主题>" } else { "" };
+    let title_hint = if with_hints { " <topic>" } else { "" };
     let mut out = format!("# SPEC:{}\n\n", title_hint);
 
     for sec in &sections {
         out.push_str(&format!("## {}\n", sec));
         match *sec {
             "Goal" => {
-                if with_hints { out.push_str("<目标>\n"); }
+                if with_hints { out.push_str("<objective>\n"); }
             }
             "Scope" => {
                 out.push_str("### In\n### Out\n");
             }
             "Out of scope" => {
-                if with_hints { out.push_str("<明确不做的边界>\n"); }
+                if with_hints { out.push_str("<explicitly out-of-scope boundary>\n"); }
             }
             "Requirements Trace" => {
                 out.push_str("| Req | AC | Notes |\n| --- | --- | --- |\n");
                 if with_hints {
-                    out.push_str("| PRD-FR-001 或 user-request | SPEC-AC-001 | ADDED / MODIFIED / REMOVED |\n");
+                    out.push_str("| PRD-FR-001 or user-request | SPEC-AC-001 | ADDED / MODIFIED / REMOVED |\n");
                 }
             }
             "Design" => {
-                if with_hints { out.push_str("<必要方案。能短就短。>\n"); }
+                if with_hints { out.push_str("<necessary design. keep it short.>\n"); }
             }
             "Acceptance" => {
                 if with_hints {
-                    out.push_str("- SPEC-AC-001: <可测验收>\n- SPEC-AC-002: <可测验收>\n");
+                    out.push_str("- SPEC-AC-001: <testable acceptance criteria>\n- SPEC-AC-002: <testable acceptance criteria>\n");
                 } else {
                     out.push_str("- SPEC-AC-001:\n- SPEC-AC-002:\n");
                 }
             }
             "Risks" => {
-                if with_hints { out.push_str("- <风险和回退>\n"); }
+                if with_hints { out.push_str("- <risks and fallback>\n"); }
             }
             "Test Plan" => {
-                if with_hints { out.push_str("- <最小验证方式>\n"); } else { out.push_str("- \n"); }
+                if with_hints { out.push_str("- <minimal validation approach>\n"); } else { out.push_str("- \n"); }
             }
             "Smoke Test" => {
-                if with_hints { out.push_str("- <冒烟测试>\n"); } else { out.push_str("- \n"); }
+                if with_hints { out.push_str("- <smoke test>\n"); } else { out.push_str("- \n"); }
             }
             _ => {}
         }
         out.push('\n');
     }
 
-    // Self Check 始终包含
+    // Self Check always included
     out.push_str("## Self Check\n");
-    out.push_str("- [ ] 目标清楚\n");
+    out.push_str("- [ ] Goal is clear\n");
     if sections.contains(&"Scope") || sections.contains(&"Out of scope") {
-        out.push_str("- [ ] 边界清楚\n");
+        out.push_str("- [ ] Scope is clear\n");
     }
     if sections.contains(&"Acceptance") {
-        out.push_str("- [ ] 验收可测\n");
+        out.push_str("- [ ] Acceptance criteria are testable\n");
     }
-    out.push_str("- [ ] 与当前 mode 匹配\n");
+    out.push_str("- [ ] Matches current mode\n");
     out
 }
 
@@ -651,48 +651,48 @@ fn spec_template_with_hints(mode: &str) -> String {
 }
 
 fn test_template() -> String {
-    r#"# 测试报告
+    r#"# Test Report
 
-- 执行时间：
-- 测试范围：全量 / 指定模块
-- 总用例数：
-- 通过：
-- 失败：
+- Execution Time:
+- Test Scope: Full / Specific Modules
+- Total Cases:
+- Passed:
+- Failed:
 
-## 失败用例
+## Failed Cases
 
-| 模块 | 用例 | 错误信息 | 关联 issue |
-|------|------|----------|-----------|
+| Module | Case | Error Message | Related Issue |
+|--------|------|---------------|---------------|
 
-## 通过模块
+## Passed Modules
 "#
     .to_string()
 }
 
 fn brainstorm_template() -> String {
-    r#"# 头脑风暴记录 —
+    r#"# Brainstorm Notes —
 
-**日期**：
+**Date**:
 
-## 背景与目的
+## Background & Purpose
 
-## 关键决策
-| 决策点 | 选择 | 理由 |
-|--------|------|------|
+## Key Decisions
+| Decision Point | Choice | Rationale |
+|----------------|--------|-----------|
 
-## 设计方案
+## Design Approach
 
-### 架构
+### Architecture
 
-### 组件
+### Components
 
-### 数据流
+### Data Flow
 
-### 错误处理
+### Error Handling
 
-## 约束与边界
+## Constraints & Boundaries
 
-## 下一步
+## Next Steps
 "#
     .to_string()
 }
@@ -701,9 +701,9 @@ fn changelog_template() -> String {
     "# Changelog\n".to_string()
 }
 
-// === Mode 感知功能 ===
+// === Mode awareness features ===
 
-/// 读取当前项目 mode（从 STATUS.yaml），fallback 为 "full"
+/// Read current project mode (from STATUS.yaml), fallback to "full"
 fn get_current_mode() -> String {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
@@ -711,7 +711,7 @@ fn get_current_mode() -> String {
         return "full".to_string();
     }
     let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
-    // audit/xxx → 提取原始 mode
+    // audit/xxx → extract original mode
     if let Some(orig) = mode.strip_prefix("audit/") {
         orig.to_string()
     } else if mode.is_empty() {
@@ -721,7 +721,7 @@ fn get_current_mode() -> String {
     }
 }
 
-/// SPEC 各章节在不同 mode 下是否必需
+/// SPEC sections required for different modes
 fn spec_sections_for_mode(mode: &str) -> Vec<&'static str> {
     match mode {
         "fast" => vec!["Goal", "Acceptance", "Test Plan"],
@@ -731,16 +731,16 @@ fn spec_sections_for_mode(mode: &str) -> Vec<&'static str> {
     }
 }
 
-/// PRD 各章节在不同 mode 下是否必需
+/// PRD sections required for different modes
 fn prd_sections_for_mode(mode: &str) -> Vec<&'static str> {
     match mode {
-        "fast" | "mvp" => vec![],  // fast/mvp 跳过 PRD
-        "quick" => vec!["背景与动机", "目标与非目标", "功能需求", "成功指标", "开放问题"],
-        _ => vec!["背景与动机", "目标与非目标", "用户画像", "功能需求", "用户流程", "成功指标", "约束与假设", "开放问题"],
+        "fast" | "mvp" => vec![],  // fast/mvp skip PRD
+        "quick" => vec!["Background & Motivation", "Goals & Non-Goals", "Feature Requirements", "Success Metrics", "Open Questions"],
+        _ => vec!["Background & Motivation", "Goals & Non-Goals", "User Persona", "Feature Requirements", "User Flow", "Success Metrics", "Constraints & Assumptions", "Open Questions"],
     }
 }
 
-/// 按 mode 过滤 --md 输出（处理 spec/prd 的「按 mode 的必需章节」和模板段）
+/// Filter --md output by mode (handles "Required Sections by Mode" and template sections for spec/prd)
 fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
     if doc_type != "spec" && doc_type != "prd" {
         return content.to_string();
@@ -749,21 +749,21 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
     let mut result = Vec::new();
     let mut skip_mode_table = false;
     let mut skip_template_block = false;
-    let mut in_code_fence = false;  // 追踪代码块内外
+    let mut in_code_fence = false;  // Track inside/outside code blocks
 
     for line in content.lines() {
-        // 检测「按 mode 的必需章节」段落 → 替换为当前 mode 列表
-        if !in_code_fence && line.starts_with("## 按 mode 的必需章节") {
+        // Detect "Required Sections by Mode" section → replace with current mode list
+        if !in_code_fence && line.starts_with("## Required Sections by Mode") {
             let sections = if doc_type == "spec" {
                 spec_sections_for_mode(mode)
             } else {
                 prd_sections_for_mode(mode)
             };
             if sections.is_empty() {
-                // 当前 mode 跳过此阶段，展示 full 模式作参考
-                result.push(format!("## 按 mode 的必需章节（当前 {} 模式跳过此阶段）", mode));
+                // Current mode skips this phase, show full mode for reference
+                result.push(format!("## Required Sections by Mode (current {} mode skips this phase)", mode));
                 result.push(String::new());
-                result.push("以下展示 full 模式的要求：".to_string());
+                result.push("The following shows requirements for full mode:".to_string());
                 result.push(String::new());
                 let full_sections = if doc_type == "spec" {
                     spec_sections_for_mode("full")
@@ -774,7 +774,7 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
                     result.push(format!("- {}", s));
                 }
             } else {
-                result.push(format!("## 当前 mode（{}）的必需章节", mode));
+                result.push(format!("## Required Sections for Current Mode ({})", mode));
                 result.push(String::new());
                 for s in &sections {
                     result.push(format!("- {}", s));
@@ -785,12 +785,12 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
             continue;
         }
 
-        // 跳过原始 mode 表格和降级规则直到下一个真正的 ## 段
+        // Skip original mode table and degradation rules until next real ## section
         if skip_mode_table {
             if !in_code_fence && line.starts_with("## ") {
                 skip_mode_table = false;
             } else {
-                // 跟踪代码块
+                // Track code blocks
                 if line.trim().starts_with("```") {
                     in_code_fence = !in_code_fence;
                 }
@@ -798,18 +798,18 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
             }
         }
 
-        // 检测模板段 → 替换为当前 mode 的动态模板
-        if !in_code_fence && line.starts_with("## 模板") {
+        // Detect template section → replace with current mode's dynamic template
+        if !in_code_fence && line.starts_with("## Template") {
             let sections = if doc_type == "spec" {
                 spec_sections_for_mode(mode)
             } else {
                 prd_sections_for_mode(mode)
             };
             if sections.is_empty() {
-                // 跳过的阶段：标注并展示 full 模式模板作参考
-                result.push(format!("## 模板（当前 {} 模式跳过此阶段，以下为 full 模式参考）", mode));
+                // Skipped phase: annotate and show full mode template for reference
+                result.push(format!("## Template (current {} mode skips this phase, showing full mode reference)", mode));
             } else {
-                result.push("## 模板".to_string());
+                result.push("## Template".to_string());
             }
             result.push(String::new());
             result.push("```markdown".to_string());
@@ -826,11 +826,11 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
             continue;
         }
 
-        // 跳过原始模板代码块（需追踪 ``` 结束）
+        // Skip original template code block (need to track ``` ending)
         if skip_template_block {
             if line.trim().starts_with("```") {
                 in_code_fence = !in_code_fence;
-                // 代码块结束后等待下一个 ## 段
+                // After code block ends, wait for next ## section
                 if !in_code_fence {
                     continue;
                 }
@@ -838,7 +838,7 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
             if in_code_fence {
                 continue;
             }
-            // 代码块已结束，遇到下一个 ## 段则恢复正常
+            // Code block already ended, resume normal when encountering next ## section
             if line.starts_with("## ") {
                 skip_template_block = false;
                 result.push(line.to_string());
@@ -846,7 +846,7 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
             continue;
         }
 
-        // 正常行：追踪代码块状态
+        // Normal line: track code block state
         if line.trim().starts_with("```") {
             in_code_fence = !in_code_fence;
         }
@@ -857,7 +857,7 @@ fn filter_md_by_mode(doc_type: &str, content: &str, mode: &str) -> String {
     result.join("\n")
 }
 
-// === 持久化文档初始化 ===
+// === Persistent documentation initialization ===
 
 const DEFAULT_DOCS: &[&str] = &["docs/structure.md", "docs/decisions.md", "docs/usage.md"];
 
@@ -877,7 +877,7 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
     let readme_path = project_root.join("README.md");
     if !readme_path.exists() {
         let content = format!(
-            "# {}\n\n<一句话描述>\n\n## 快速开始\n\n<安装和基本使用>\n\n## 文档\n\n- [项目结构](docs/structure.md)\n- [设计决策](docs/decisions.md)\n- [使用指南](docs/usage.md)\n",
+            "# {}\n\n<One-line description>\n\n## Quick Start\n\n<Installation and basic usage>\n\n## Documentation\n\n- [Project Structure](docs/structure.md)\n- [Design Decisions](docs/decisions.md)\n- [Usage Guide](docs/usage.md)\n",
             name
         );
         fs::write(&readme_path, content).map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -891,7 +891,7 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
     if !structure_path.exists() {
         fs::write(
             &structure_path,
-            "# 项目结构\n\n## 目录树\n\n<待填充>\n\n## 模块职责\n\n<待填充>\n",
+            "# Project Structure\n\n## Directory Tree\n\n<To be filled>\n\n## Module Responsibilities\n\n<To be filled>\n",
         )
         .map_err(|e| DowError::new(e.to_string(), 1))?;
         created.push("docs/structure.md".to_string());
@@ -904,7 +904,7 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
     if !decisions_path.exists() {
         fs::write(
             &decisions_path,
-            "# 设计决策记录\n\n## <决策标题>\n\n- **日期**：YYYY-MM-DD\n- **决策**：<what>\n- **理由**：<why>\n- **后果**：<consequence>\n",
+            "# Design Decision Records\n\n## <Decision Title>\n\n- **Date**: YYYY-MM-DD\n- **Decision**: <what>\n- **Rationale**: <why>\n- **Consequences**: <consequence>\n",
         )
         .map_err(|e| DowError::new(e.to_string(), 1))?;
         created.push("docs/decisions.md".to_string());
@@ -917,7 +917,7 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
     if !usage_path.exists() {
         fs::write(
             &usage_path,
-            "# 使用指南\n\n## 开发环境\n\n<待填充>\n\n## 常见任务\n\n<待填充>\n",
+            "# Usage Guide\n\n## Development Environment\n\n<To be filled>\n\n## Common Tasks\n\n<To be filled>\n",
         )
         .map_err(|e| DowError::new(e.to_string(), 1))?;
         created.push("docs/usage.md".to_string());
@@ -925,7 +925,7 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
         skipped.push("docs/usage.md".to_string());
     }
 
-    // 更新 STATUS.yaml 的 docs 字段
+    // Update STATUS.yaml docs field
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
     if status_file.exists() {
@@ -939,14 +939,14 @@ fn run_doc_init(project_name: Option<&str>, human: bool) -> Result<i32, DowError
     }
 
     if human {
-        println!("[dev-flow] 持久化文档初始化完成");
+        println!("[dev-flow] Persistent documentation initialization completed");
         if !created.is_empty() {
-            println!("  创建：{}", created.join(", "));
+            println!("  Created: {}", created.join(", "));
         }
         if !skipped.is_empty() {
-            println!("  跳过（已存在）：{}", skipped.join(", "));
+            println!("  Skipped (already exists): {}", skipped.join(", "));
         }
-        println!("  STATUS.yaml docs 字段已更新");
+        println!("  STATUS.yaml docs field updated");
     } else {
         output::print_json(&json!({
             "created": created,
@@ -972,7 +972,7 @@ fn run_doc_check_sync(since: Option<&str>, human: bool) -> Result<i32, DowError>
     let status_file = doc_root_path.join("STATUS.yaml");
 
     let mut docs = yaml::get_list(&status_file, "docs").unwrap_or_default();
-    // README.md 隐含检查
+    // README.md implicitly checked
     docs.push("README.md".to_string());
 
     let project_root = doc_root::project_root();
@@ -996,30 +996,30 @@ fn run_doc_check_sync(since: Option<&str>, human: bool) -> Result<i32, DowError>
                     outdated.push(doc.clone());
                 }
             } else {
-                // ref 无效，降级到文件存在性
+                // ref invalid, fallback to file existence
                 synced.push(doc.clone());
             }
         } else {
-            // 无 --since，只检查文件存在性
+            // No --since, only check file existence
             synced.push(doc.clone());
         }
     }
 
     if human {
         if !outdated.is_empty() {
-            println!("[dev-flow] 以下文档自 {} 后未更新：", since.unwrap_or("?"));
+            println!("[dev-flow] The following documents have not been updated since {}:", since.unwrap_or("?"));
             for d in &outdated {
                 println!("  - {}", d);
             }
         }
         if !missing.is_empty() {
-            println!("[dev-flow] 以下注册文档不存在：");
+            println!("[dev-flow] The following registered documents do not exist:");
             for d in &missing {
                 println!("  - {}", d);
             }
         }
         if outdated.is_empty() && missing.is_empty() {
-            println!("[dev-flow] 所有持久化文档已同步");
+            println!("[dev-flow] All persistent documents are synced");
         }
     } else {
         output::print_json(&json!({
@@ -1081,14 +1081,14 @@ fn run_doc_list(human: bool) -> Result<i32, DowError> {
 
     if human {
         if entries.is_empty() {
-            println!("[dev-flow] 无注册文档");
+            println!("[dev-flow] No registered documents");
         } else {
-            println!("[dev-flow] 注册文档列表：");
+            println!("[dev-flow] Registered documents list:");
             for e in &entries {
                 let status = if e.exists {
-                    e.last_modified.as_deref().unwrap_or("未跟踪")
+                    e.last_modified.as_deref().unwrap_or("not tracked")
                 } else {
-                    "不存在"
+                    "does not exist"
                 };
                 println!("  {} ({})", e.path, status);
             }
@@ -1110,14 +1110,14 @@ fn git_last_modified(project_root: &Path, file: &str) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
-/// 按 mode 过滤 --json 输出中的 mode_requirements 和 template
+/// Filter mode_requirements and template in --json output by mode
 fn filter_json_by_mode(parsed: &mut Value, mode: &str) {
     let doc_type = parsed.get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    // mode_requirements：只保留当前 mode 有标记的行
+    // mode_requirements: only keep rows marked for current mode
     if let Some(arr) = parsed.get("mode_requirements").and_then(|v| v.as_array()) {
         let filtered: Vec<Value> = arr.iter().filter(|row| {
             if let Some(val) = row.get(mode).and_then(|v| v.as_str()) {
@@ -1129,7 +1129,7 @@ fn filter_json_by_mode(parsed: &mut Value, mode: &str) {
         parsed["mode_requirements"] = json!(filtered);
     }
 
-    // template：替换为当前 mode 的动态模板（带占位提示）
+    // template: replace with current mode's dynamic template (with placeholder hints)
     if doc_type == "spec" || doc_type == "prd" {
         let template = if doc_type == "spec" {
             spec_template_with_hints(mode)

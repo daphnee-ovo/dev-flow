@@ -1,231 +1,231 @@
 ---
-description: 初始化 dev-flow 项目 — 扫描现状、创建/对齐 .dev-doc、更新 agent 指令文件
+description: Initialize dev-flow project — scan current state, create/align .dev-doc, update agent instruction file
 allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 ---
 
-# INIT — 项目初始化
+# INIT — Project Initialization
 
-## 总则
+## General Principles
 
-`/init` 是 dev-flow 的入口命令。不管项目处于何种状态，执行后保证：
-1. `.dev-doc/` 目录结构符合规范
-2. 所有文档格式通过校验
-3. 持久化文档（`docs/`）已初始化并填充
-4. 项目级 agent 指令文件正确反映项目信息
-5. 项目状态与实际一致
+`/init` is the entry command for dev-flow. After execution, guarantee:
+1. `.dev-doc/` directory structure complies with spec
+2. All document formats pass validation
+3. Persistent docs (`docs/`) initialized and populated
+4. Project-level agent instruction file correctly reflects project info
+5. Project state consistent with reality
 
-## 执行流程
+## Execution Flow
 
-### 阶段 1：环境探测 + 项目扫描
+### Phase 1: Environment Detection + Project Scan
 
-运行扫描获取项目信息：
+Run scan to get project info:
 
 ```bash
 dow scan
 ```
 
-输出项目名、技术栈、命令、目录结构、git 状态、已有 .dev-doc 等。
+Outputs project name, tech stack, commands, directory structure, git status, existing .dev-doc etc.
 
-根据输出判断路径：
-- 输出中 `dev_doc: none` → 路径 A（全新项目）
-- 否则 → 路径 B（已有项目）
+Judge path based on output:
+- Output shows `dev_doc: none` → Path A (brand new project)
+- Otherwise → Path B (existing project)
 
 ---
 
-### 阶段 2A：全新项目初始化
+### Phase 2A: Brand New Project Initialization
 
-1. 询问项目名称和开发模式（如扫描输出已有明确信息可跳过询问）
-2. 执行初始化：
+1. Ask for project name and dev mode (skip asking if scan output has clear info)
+2. Execute initialization:
    ```bash
-   dow init --name <项目名> --mode <mode>
+   dow init --name <project_name> --mode <mode>
    ```
-   自动创建目录结构（.dev-doc/{issue,task,archive}、tests、tmp）、写入 STATUS.yaml 和项目根目录 VERSION（多分支格式）。同时生成持久化文档骨架（README.md + docs/{structure,decisions,usage}.md）并在 STATUS.yaml 注册。
-   如果项目已有 `temp` 目录则沿用，不创建 `tmp`。已存在的文档文件不会被覆盖。
-3. 跳到阶段 4
+   Auto-creates directory structure (.dev-doc/{issue,task,archive}, tests, tmp), writes STATUS.yaml and project root VERSION (multi-branch format). Also generates persistent doc skeleton (README.md + docs/{structure,decisions,usage}.md) and registers in STATUS.yaml.
+   If project already has `temp` directory, reuse it, don't create `tmp`. Existing doc files won't be overwritten.
+3. Jump to Phase 4
 
 ---
 
-### 阶段 2B：已有项目对齐
+### Phase 2B: Existing Project Alignment
 
-#### 2B-1. 状态推断
+#### 2B-1. State Inference
 
-根据脚本扫描结果判断实际阶段：
+Judge actual phase based on script scan results:
 
-| 条件 | 推断阶段 |
-|------|----------|
-| 有代码 + 有通过的测试 + 有 TEST.md | DONE 或 TEST |
-| 有代码 + 有 TASK.md 且部分完成 | DEV |
-| 有 SPEC.md 但无/很少代码 | TASK 或 SPEC |
-| 有 PRD.md 但无 SPEC.md | PRD → SPEC |
-| 只有 README 或零散代码 | 根据模式确定初始阶段 |
+| Condition | Inferred Phase |
+|-----------|----------------|
+| Has code + has passing tests + has TEST.md | DONE or TEST |
+| Has code + has TASK.md partially complete | DEV |
+| Has SPEC.md but no/little code | TASK or SPEC |
+| Has PRD.md but no SPEC.md | PRD → SPEC |
+| Only README or scattered code | Determine initial phase by mode |
 
-各模式初始阶段对照：
+Initial phase by mode:
 
-| 模式 | 初始阶段 | 说明 |
-|------|----------|------|
-| `full` | PRD | 从需求定义开始 |
-| `quick` | SPEC | 跳过需求探索 |
-| `fast` | TASK | 直接拆任务 |
-| `mvp` | SPEC | 快速验证路径（brainstorm → spec → dev） |
+| Mode | Initial Phase | Description |
+|------|---------------|-------------|
+| `full` | PRD | Start from requirements definition |
+| `quick` | SPEC | Skip requirement exploration |
+| `fast` | TASK | Directly decompose tasks |
+| `mvp` | SPEC | Quick validation path (brainstorm → spec → dev) |
 
-#### 2B-2. 向用户报告
+#### 2B-2. Report to User
 
-输出扫描摘要，询问确认：
-- 项目名称
-- 开发模式
-- 推断的阶段是否正确
+Output scan summary, ask for confirmation:
+- Project name
+- Development mode
+- Whether inferred phase is correct
 
 ---
 
-### 阶段 2C：旧格式迁移（路径 B 时执行）
+### Phase 2C: Old Format Migration (execute in Path B)
 
-运行迁移检测脚本：
+Run migration detection script:
 
 ```bash
 dow validate
 ```
 
-脚本自动检测并迁移：
-- `TASK.md` → `task/task_<today>_<seq>.md`（保留 `.bak`）
-- `session/` → 提取摘要生成 `CHANGELOG.md`
-- `STATUS.yaml` 中 `phase: MVP` → `phase: DEV`
+Script auto-detects and migrates:
+- `TASK.md` → `task/task_<today>_<seq>.md` (keeps `.bak`)
+- `session/` → extract summary to generate `CHANGELOG.md`
+- `phase: MVP` in `STATUS.yaml` → `phase: DEV`
 
-如果输出 `status: no_migration_needed` 则跳过。
+Skip if output shows `status: no_migration_needed`.
 
 ---
 
-### 阶段 3：规范校验
+### Phase 3: Spec Validation
 
-运行校验脚本：
+Run validation script:
 
 ```bash
 dow validate
 ```
 
-脚本自动完成：
-- 创建缺失目录
-- 检查 STATUS.yaml 字段完整性
-- 检查 task/ 文件格式和 Done when
-- 检查 issue 文件命名和 frontmatter
-- 补全 .gitignore
+Script auto-completes:
+- Create missing directories
+- Check STATUS.yaml field completeness
+- Check task/ file format and Done when
+- Check issue file naming and frontmatter
+- Complete .gitignore
 
-脚本输出报告，分三类：
-- `auto_fixed`：已自动修复（目录创建、gitignore 等）
-- `needs_confirm`：需要 agent 确认后处理（文件重命名）
-- `warnings`：需要 agent 修复（缺失字段、格式错误）
+Script outputs report in three categories:
+- `auto_fixed`: auto-fixed (directory creation, gitignore etc.)
+- `needs_confirm`: needs agent confirmation before handling (file renaming)
+- `warnings`: needs agent to fix (missing fields, format errors)
 
-**agent 只处理 `needs_confirm` 和 `warnings`**：
-- `needs_confirm` → 询问用户确认后执行（如重命名 issue/task 文件）
-- `warnings` → 直接修复（如补全 STATUS.yaml 缺失字段、补全 issue yaml 头）
-  - `issue_nums_mismatch` → 直接修正 frontmatter 中的 nums 值为实际条目数
-  - `issue_bad_item_format` → 修正条目格式为 `- [ ] I<N>：<标题>`
-  - `issue_missing_required_fields` → 询问用户补充缺失字段或标记占位符
-  - `issue_invalid_severity` → 修正为合法值 P0/P1/P2
-- `auto_fixed` → 仅在最终报告中告知用户
+**Agent only handles `needs_confirm` and `warnings`**:
+- `needs_confirm` → ask user confirmation then execute (e.g., rename issue/task files)
+- `warnings` → fix directly (e.g., complete missing STATUS.yaml fields, complete issue yaml header)
+  - `issue_nums_mismatch` → directly correct nums value in frontmatter to actual item count
+  - `issue_bad_item_format` → correct item format to `- [ ] I<N>: <title>`
+  - `issue_missing_required_fields` → ask user to supplement missing fields or mark placeholders
+  - `issue_invalid_severity` → correct to legal values P0/P1/P2
+- `auto_fixed` → only inform user in final report
 
-**规范对照**：处理 `warnings` 时，agent 必须通过 `dow doc <type> --json` 获取对应文档的格式规范（如修复 issue 格式问题则用 `dow doc issue --json`，修复 task 格式问题则用 `dow doc task --json`），确保修复内容符合规范定义。不要仅凭 warning 类型名推测正确格式。
+**Spec Reference**: When handling `warnings`, agent must obtain corresponding doc format spec via `dow doc <type> --json` (e.g., use `dow doc issue --json` for issue format issues, `dow doc task --json` for task format issues), ensure fix content complies with spec definition. Don't infer correct format just from warning type name.
 
 ---
 
-### 阶段 3.5：持久化文档
+### Phase 3.5: Persistent Documentation
 
-初始化并填充项目持久化文档（`docs/` 目录）。
+Initialize and populate project persistent docs (`docs/` directory).
 
-#### 3.5-1. 生成骨架
+#### 3.5-1. Generate Skeleton
 
 ```bash
 dow doc init
 ```
 
-自动创建 `docs/{structure.md, decisions.md, usage.md}`（已存在的文件不会被覆盖）。
-如果 `README.md` 不存在也会创建。
+Auto-creates `docs/{structure.md, decisions.md, usage.md}` (existing files won't be overwritten).
+Also creates `README.md` if it doesn't exist.
 
-#### 3.5-2. 填充内容
+#### 3.5-2. Fill Content
 
-基于阶段 1 的扫描结果，填充占位符（`<待填充>`）为实际项目信息：
+Based on Phase 1 scan results, fill placeholders (`<to be filled>`) with actual project info:
 
-- **`docs/structure.md`**：目录树（主要目录，不超过 15 行）+ 模块职责表
-- **`docs/usage.md`**：开发环境（构建/测试/启动命令）+ 常见任务
-- **`docs/decisions.md`**：已知的关键设计决策（从 git 历史、README、SPEC 中提取；如无明确信息则保留占位符）
+- **`docs/structure.md`**: directory tree (main directories, no more than 15 lines) + module responsibility table
+- **`docs/usage.md`**: dev environment (build/test/start commands) + common tasks
+- **`docs/decisions.md`**: known key design decisions (extract from git history, README, SPEC; keep placeholders if no clear info)
 
-#### 3.5-3. 规则
+#### 3.5-3. Rules
 
-- 幂等：已有内容非占位符的文件 → 跳过不覆盖
-- 仅填充能从扫描/代码中确认的信息，不推测
-- 路径 A（全新项目）：生成骨架 + 最小填充（可能大部分保持占位符）
-- 路径 B（已有项目）：生成骨架 + 基于现有代码和文档尽量填充
+- Idempotent: existing files with non-placeholder content → skip, don't overwrite
+- Only fill info confirmable from scan/code, don't speculate
+- Path A (new project): generate skeleton + minimal fill (likely most remain placeholders)
+- Path B (existing project): generate skeleton + fill as much as possible based on existing code and docs
 
 ---
 
-### 阶段 4：更新 agent 指令文件
+### Phase 4: Update Agent Instruction File
 
-目标：让 agent 在后续会话中立即理解"怎么在这个项目干活"。
+Goal: let agent immediately understand "how to work in this project" in subsequent sessions.
 
-按当前运行环境优先选择：
-- Codex：优先更新 `AGENTS.md`
-- Claude Code：优先更新 `CLAUDE.md`
-- 如果两个文件都存在，两个文件都更新
-- 如果两个文件都不存在，创建当前运行环境对应的文件
+Choose by current runtime priority:
+- Codex: prioritize updating `AGENTS.md`
+- Claude Code: prioritize updating `CLAUDE.md`
+- If both files exist, update both
+- If neither exists, create file corresponding to current runtime
 
-#### 4-1. 写入内容
+#### 4-1. Write Content
 
-基于阶段 1 的扫描结果，写入：
+Based on Phase 1 scan results, write:
 
 ```markdown
-# <项目名>
+# <Project Name>
 
-<一句话描述>
+<One-line description>
 
-## 开发
+## Development
 
-- 构建：`<build command>`
-- 测试：`<test command>`
-- 启动：`<dev server command>`
+- Build: `<build command>`
+- Test: `<test command>`
+- Start: `<dev server command>`
 
-## 技术栈
+## Tech Stack
 
-<语言/框架/关键依赖>
+<Language/framework/key dependencies>
 
-## 项目结构
+## Project Structure
 
-<主要目录及用途，不超过 10 行>
+<Main directories and purposes, no more than 10 lines>
 
-## 代码风格
+## Code Style
 
-<发现的风格约定，如无明确配置则省略此节>
+<Discovered style conventions, omit this section if no explicit config>
 ```
 
-#### 4-2. 更新规则
+#### 4-2. Update Rules
 
-- 已有内容中非 dev-flow 产出的部分 → 保留不动
-- 已有某节但信息过时 → 更新
-- 目标文件不存在 → 整体生成
-- **不写入 mode/phase** — 由 STATUS.yaml + hooks 管理
-- 已有 `.cursorrules` / `.windsurfrules` → 读取并整合
+- Existing content non-dev-flow produced parts → keep unchanged
+- Has section but info outdated → update
+- Target file doesn't exist → generate entirely
+- **Don't write mode/phase** — managed by STATUS.yaml + hooks
+- Has `.cursorrules` / `.windsurfrules` → read and integrate
 
 ---
 
-### 阶段 5：输出确认
+### Phase 5: Output Confirmation
 
 ```
-[dev-flow] 初始化完成
+[dev-flow] Initialization Complete
 ━━━━━━━━━━━━━━━━━━━━━━
-项目名称：<name>
-开发模式：<mode>
-当前阶段：<phase>
-迭代版本：v<N>
-自动修复：<N> 项
-需确认项：<N> 项（已处理）
-agent 指令：已更新
+Project Name: <name>
+Dev Mode: <mode>
+Current Phase: <phase>
+Iteration Version: v<N>
+Auto-fixed: <N> items
+Needs Confirm: <N> items (handled)
+Agent Instructions: Updated
 
-下一步：<对应命令>
+Next Step: <corresponding command>
 ```
 
-## 幂等性
+## Idempotency
 
-- `/init` 可以重复执行
-- 已有目录不会删除或覆盖内容
-- STATUS.yaml 会按实际情况更新
-- 持久化文档（`docs/`）：已有内容非占位符的文件不会被覆盖
-- agent 指令文件只更新项目信息段落，不影响其他内容
-- 每次执行都会重新扫描和校验
+- `/init` can be executed repeatedly
+- Existing directories won't be deleted or have content overwritten
+- STATUS.yaml will update according to actual situation
+- Persistent docs (`docs/`): existing files with non-placeholder content won't be overwritten
+- Agent instruction file only updates project info paragraphs, doesn't affect other content
+- Re-scans and validates each execution

@@ -1,5 +1,5 @@
 // dow/src/commands/self_check.rs
-// dow self-check 子命令 — 安装状态诊断
+// dow self-check subcommand — installation status diagnostics
 
 use crate::core::{agent_registry, config::DowConfig, github, platform};
 use crate::error::DowError;
@@ -9,24 +9,24 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     let current_version = env!("DOW_VERSION");
 
     eprintln!("=== dow self-check ===\n");
-    eprintln!("版本: v{}", current_version);
-    eprintln!("平台: {}", platform::platform_triple());
-    eprintln!("配置: {}", DowConfig::path().display());
+    eprintln!("Version: v{}", current_version);
+    eprintln!("Platform: {}", platform::platform_triple());
+    eprintln!("Config: {}", DowConfig::path().display());
     eprintln!("Bundle: {}", platform::bundle_dir().display());
     eprintln!();
 
-    // 路径检查
+    // Path check
     let config_exists = DowConfig::path().exists();
     let bundle_exists = platform::bundle_dir().exists();
-    eprintln!("路径状态:");
-    eprintln!("  配置文件: {}", if config_exists { "✓" } else { "✗ 不存在" });
-    eprintln!("  Bundle: {}", if bundle_exists { "✓" } else { "✗ 不存在" });
+    eprintln!("Path status:");
+    eprintln!("  Config file: {}", if config_exists { "✓" } else { "✗ does not exist" });
+    eprintln!("  Bundle: {}", if bundle_exists { "✓" } else { "✗ does not exist" });
     eprintln!();
 
-    // 已注册 agent
-    eprintln!("已注册 agent ({}):", config.registered_agents.len());
+    // Registered agents
+    eprintln!("Registered agents ({}):", config.registered_agents.len());
     if config.registered_agents.is_empty() {
-        eprintln!("  （无，运行 `dow setup` 注册）");
+        eprintln!("  (none, run `dow setup` to register)");
     } else {
         for agent in &config.registered_agents {
             let display = agent_registry::SUPPORTED_AGENTS
@@ -39,9 +39,9 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
                 .unwrap_or_default();
 
             if issues.is_empty() {
-                eprintln!("  ✓ {} — 完整", display);
+                eprintln!("  ✓ {} — complete", display);
             } else {
-                eprintln!("  ⚠ {} — {} 项问题:", display, issues.len());
+                eprintln!("  ⚠ {} — {} issues:", display, issues.len());
                 for issue in &issues {
                     eprintln!("      - {}", issue);
                 }
@@ -50,28 +50,28 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     }
     eprintln!();
 
-    // 实时获取远程最新版本
-    eprint!("远程最新版本: ");
+    // Fetch latest remote version in real-time
+    eprint!("Latest remote version: ");
     match github::check_latest_version() {
         Ok(release) => {
             eprintln!("v{} ({})", release.version, release.published_at);
             if github::is_update_available(current_version, &release.version, &release.published_at)
             {
-                eprintln!("  → 有新版本可用，运行 `dow update` 升级");
+                eprintln!("  → New version available, run `dow update` to upgrade");
             } else {
                 match github::compare_versions(current_version, &release.version) {
                     std::cmp::Ordering::Equal => {
-                        eprintln!("  → 已是最新");
+                        eprintln!("  → Already up to date");
                     }
                     std::cmp::Ordering::Greater => {
-                        eprintln!("  → 本地版本超前（开发中）");
+                        eprintln!("  → Local version is ahead (in development)");
                     }
                     std::cmp::Ordering::Less => {
-                        eprintln!("  → 远程版本日期无效，跳过更新提示");
+                        eprintln!("  → Remote version date invalid, skipping update prompt");
                     }
                 }
             }
-            // 更新缓存
+            // Update cache
             let mut config = config;
             config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
             config.latest_remote_version = Some(release.version);
@@ -80,12 +80,12 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
             let _ = config.save();
         }
         Err(e) => {
-            eprintln!("查询失败 ({})", e);
+            eprintln!("Query failed ({})", e);
             if let (Some(cached), Some(published_at)) = (
                 config.latest_remote_version.as_deref(),
                 config.latest_remote_published_at.as_deref(),
             ) {
-                eprintln!("  缓存版本: v{} ({})", cached, published_at);
+                eprintln!("  Cached version: v{} ({})", cached, published_at);
             }
         }
     }

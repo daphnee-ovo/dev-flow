@@ -1,123 +1,123 @@
 ---
-description: 自动读取未关闭 issue 并修复
+description: Auto-read unclosed issues and fix them
 allowed-tools: Agent, Bash, Read, Write, Edit
 ---
 
-# FIX — 自动修复未关闭 Issue
+# FIX — Auto-fix Unclosed Issues
 
-## 前置检查
+## Pre-checks
 
-1. 确认 `.dev-doc/` 存在
-2. 确认 STATUS 为 DEV
-3. 扫描 `.dev-doc/issue/` 目录，确认存在未关闭的 issue（即 `issue_*.md` 且不含 `closed_` 前缀）
-4. 如果没有未关闭 issue，告知用户"当前没有待修复的 issue"并退出
+1. Confirm `.dev-doc/` exists
+2. Confirm STATUS is DEV
+3. Scan `.dev-doc/issue/` directory, confirm unclosed issues exist (i.e., `issue_*.md` without `closed_` prefix)
+4. If no unclosed issues, tell user "no issues to fix currently" and exit
 
-## 模式检测
-doc_root 通过 `dow status --field doc_root` 获取（无需手动检测分支模式）。
+## Mode Detection
+doc_root obtained via `dow status --field doc_root` (no need to manually detect branch mode).
 
-## 执行步骤
+## Execution Steps
 
-1. 列出所有未关闭 issue：`dow issue --list`
+1. List all unclosed issues: `dow issue --list`
 
-2. 逐一读取每个 issue 文件内容
+2. Read each issue file content one by one
 
-3. 声明工作关联：`dow claim <ISSUE-ID>...`（将所有待修复 issue ID 传入，guard 据此放行写入）
+3. Declare work association: `dow claim <ISSUE-ID>...` (pass all issue IDs to fix, guard allows writes based on this)
 
-4. 生成项目上下文：`dow inbox context`
+4. Generate project context: `dow inbox context`
 
-5. 对每个 issue 启动独立 Agent 修复（如果 issue 间无依赖关系，可并行）
+5. Launch independent Agent to fix each issue (if issues have no dependencies, can parallelize)
 
-6. 修复完成后验证并关闭 issue
+6. After fix complete, verify and close issue
 
-7. 释放 claim：`dow claim --revoke`
+7. Release claim: `dow claim --revoke`
 
-## Agent 调度（隔离模板）
+## Agent Dispatch (Isolation Template)
 
-**对每个未关闭 issue，启动独立修复子代理。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
+**Launch independent fix subagent for each unclosed issue. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
 
 ```
-description: "FIX - 修复 issue: <issue 标题>"
-prompt: `你是一名高级开发工程师。你的任务是修复以下 issue。
+description: "FIX - Fix issue: <issue title>"
+prompt: `You are a senior developer. Your task is to fix the following issue.
 
-## Issue 内容
+## Issue Content
 
-<粘贴 issue 文件的完整内容>
+<paste complete issue file content>
 
-## 相关规范
+## Related Specs
 
-<从 SPEC.md 中摘取与该 issue 相关的部分>
+<extract parts from SPEC.md related to this issue>
 
-## 项目上下文
+## Project Context
 
-<执行 dow inbox context 的输出，原样粘贴>
+<execute dow inbox context output, paste as-is>
 
-## 修复要求
+## Fix Requirements
 
-1. 定位问题根因，不要只修表面症状
-2. 修复代码必须符合 SPEC.md 的技术规范
-3. 修复后必须实际运行验证（启动服务/执行命令/运行测试）
-4. 确保修复不会引入新的问题（回归）
-5. 修复范围最小化，不要顺带重构无关代码
+1. Locate root cause, don't just fix surface symptoms
+2. Fixed code must comply with technical specs in SPEC.md
+3. Must actually run verification after fix (start service/execute command/run tests)
+4. Ensure fix doesn't introduce new problems (regression)
+5. Minimize fix scope, don't refactor unrelated code along the way
 
-## 输出格式
+## Output Format
 
-结论：已修复 / 无法修复
-修改文件：<列出修改的文件路径>
-验证方式：<如何验证修复成功>
-原因：<如果无法修复，说明原因和建议>
+Conclusion: Fixed / Cannot fix
+Modified files: <list modified file paths>
+Verification method: <how to verify fix success>
+Reason: <if cannot fix, explain reason and suggestions>
 
-## 禁止
+## Prohibited
 
-- 不要阅读无关的历史文件
-- 不要修改与 issue 无关的代码
-- 不要添加 SPEC 未要求的新功能
-- 不要修改其他 issue 的相关代码（避免冲突）
-- 禁止写入系统临时目录；项目内 tmp 和 temp 都允许，已有目录优先，新项目默认 tmp`
+- Don't read unrelated historical files
+- Don't modify code unrelated to issue
+- Don't add new features not required by SPEC
+- Don't modify code related to other issues (avoid conflicts)
+- Prohibited to write to system temp directories; project-internal tmp and temp both allowed, prioritize existing directories, new projects default to tmp`
 ```
 
-## 输入隔离规则
+## Input Isolation Rules
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| 该 issue 的完整内容 | 其他 issue 的内容 |
-| SPEC.md 中相关部分 | 开发过程对话历史 |
-| task/ 中相关任务描述 | 无关历史记录 |
-| 项目上下文（context.sh 输出） | PRD.md |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| That issue's complete content | Other issues' content |
+| Related parts from SPEC.md | Dev process conversation history |
+| Related task descriptions from task/ | Unrelated historical records |
+| Project context (context.sh output) | PRD.md |
 
-## 结果处理
+## Result Handling
 
-- **已修复** → 将 issue 文件中对应条目勾选为 `[x]`，在 fix 字段填写修复说明。当文件中所有条目均为 `[x]` 时，重命名加 `closed_` 前缀（如 `issue_test_2026-05-15_1.md` → `closed_issue_test_2026-05-15_1.md`）
+- **Fixed** → Check corresponding item in issue file as `[x]`, fill in fix description in fix field. When all items in file are `[x]`, rename with `closed_` prefix (e.g., `issue_test_2026-05-15_1.md` → `closed_issue_test_2026-05-15_1.md`)
 
-- **无法修复** → 保持 issue 打开状态，向用户报告原因和建议
+- **Cannot fix** → Keep issue open, report reason and suggestions to user
 
-## audit 模式
+## audit Mode
 
-当处于 `audit/<原模式>` 时（如 `audit/quick`），/fix 行为不变，但完成后提示不同：
+When in `audit/<original_mode>` (e.g., `audit/quick`), /fix behavior unchanged, but completion prompt different:
 
-- 所有 issue 修复后，提示用户执行 `/iterate`
-- iterate 完成后将自动恢复原模式（无需手动 `/mode`）
-- 典型流程：审计发现 issue → `/fix` 修复 → `/iterate` → 自动恢复
+- After all issues fixed, prompt user to execute `/iterate`
+- After iterate completes will auto-restore original mode (no need for manual `/mode`)
+- Typical flow: audit finds issues → `/fix` fixes → `/iterate` → auto-restore
 
-## 完成后
+## After Completion
 
-汇总所有 issue 的处理结果：
+Summarize handling results for all issues:
 ```
-[dev-flow] Issue 修复报告
+[dev-flow] Issue Fix Report
 ━━━━━━━━━━━━━━━━━━━━━━
-已修复：N 个
-无法修复：M 个
+Fixed: N items
+Cannot fix: M items
 
-详情：
-  ✓ <issue-1>: <一句话描述修复内容>
-  ✓ <issue-2>: <一句话描述修复内容>
-  ✗ <issue-3>: <无法修复原因>
+Details:
+  ✓ <issue-1>: <one-sentence fix description>
+  ✓ <issue-2>: <one-sentence fix description>
+  ✗ <issue-3>: <cannot fix reason>
 
-建议下一步：<如果有无法修复的 issue，给出建议>
+Next step suggestion: <if unfixable issues exist, give suggestions>
 ```
 
-## 为什么每个 issue 独立 Agent
+## Why Independent Agent per Issue
 
-- 避免修复之间相互干扰（一个 fix 引入另一个 bug）
-- 隔离上下文，让每个 Agent 专注于单一问题
-- 支持并行修复，提升效率
-- 修复失败不影响其他 issue 的处理
+- Avoid fixes interfering with each other (one fix introduces another bug)
+- Isolate context, let each Agent focus on single problem
+- Support parallel fixes, improve efficiency
+- Fix failure doesn't affect other issues' handling

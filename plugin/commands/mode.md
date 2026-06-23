@@ -1,81 +1,81 @@
 ---
-description: 选择开发模式 — 控制流程阶段
+description: Select development mode — control flow phases
 allowed-tools: Bash, Read, AskUserQuestion
 ---
 
-# MODE — 开发模式选择
+# MODE — Development Mode Selection
 
-## 模式定义
+## Mode Definitions
 
-| 模式 | 流程 | 适用场景 |
+| Mode | Flow | Use Case |
 |------|------|----------|
-| `full` | prd → spec → task → dev → test → iterate | 全新项目、需求模糊 |
-| `quick` | spec → task → dev → test → iterate | 需求明确的功能开发 |
-| `fast` | task → dev → test → iterate | 小改动、技术方案已知 |
-| `mvp` | spec → task → dev → iterate | 快速验证，跳过 TEST |
-| `audit` | （自动触发，不可手动设置） | 非 DEV 阶段创建 issue 时自动进入 |
+| `full` | prd → spec → task → dev → test → iterate | Brand new project, requirements unclear |
+| `quick` | spec → task → dev → test → iterate | Requirements clear feature development |
+| `fast` | task → dev → test → iterate | Small changes, technical solution known |
+| `mvp` | spec → task → dev → iterate | Quick validation, skip TEST |
+| `audit` | (Auto-triggered, cannot manually set) | Non-DEV phase issue creation auto-enters |
 
-## 执行方式
+## Execution Method
 
-如果用户指定了模式（如 `/mode quick`），直接运行脚本：
+If user specified mode (e.g., `/mode quick`), run script directly:
 
 ```bash
 dow status --mode <mode>
 ```
 
-如果未指定模式，先询问用户选择，再运行脚本。
+If mode not specified, ask user to choose first, then run script.
 
-## 各模式规则
+## Mode-Specific Rules
 
 ### full
 
-**prd → spec → task → dev(devtest 循环) → test → iterate**
+**prd → spec → task → dev(devtest loop) → test → iterate**
 
-全流程，不跳过任何阶段。适合全新项目或需求模糊的大功能。brainstorm 可选前置。
+Full process, doesn't skip any phase. Suitable for brand new projects or features with unclear requirements. brainstorm is optional precursor.
 
-约束：
-- 所有任务（不分优先级）必须全部完成才能 iterate
-- 每个阶段文档必须满足 phase-completion 检查标准
+Constraints:
+- All tasks (regardless of priority) must all complete before iterate
+- Each phase doc must meet phase-completion check standards
 
-下一步：`/prd`（或先 `/brainstorm`）
+Next step: `/prd` (or `/brainstorm` first)
 
 ### quick
 
-**spec → task → dev(devtest 循环) → test → iterate**
+**spec → task → dev(devtest loop) → test → iterate**
 
-跳过探索和需求定义，直接从技术方案开始。适合需求已经明确的功能。
+Skip exploration and requirements definition, start directly from technical solution. Suitable for features with clear requirements.
 
-下一步：`/spec`
+Next step: `/spec`
 
 ### fast
 
-**task → dev(devtest 循环) → test → iterate**
+**task → dev(devtest loop) → test → iterate**
 
-连技术方案都省了，直接拆任务开干。适合小改动、方案已知的场景。
+Even skip technical solution, directly decompose tasks and start. Suitable for small changes, known solution scenarios.
 
-约束：
-- 所有任务（不分优先级）必须全部完成才能 iterate
-- P0/P1 任务必须实现，P2 可标记为"推迟到下一迭代"但不可删除
+Constraints:
+- All tasks (regardless of priority) must all complete before iterate
+- P0/P1 tasks must be implemented, P2 can be marked "postpone to next iteration" but cannot delete
 
-下一步：`/task`
+Next step: `/task`
 
 ### mvp
 
 **spec → task → dev → iterate**
 
-最小验证路径。跳过 PRD 和 TEST，直接从规范到交付。目标是最快出可运行的东西验证想法。
+Minimal validation path. Skip PRD and TEST, directly from spec to delivery. Goal is fastest runnable thing to validate idea.
 
-约束：
-- 产出不直接进入生产
-- 验证后如需正式开发，切换模式重新走流程
-- 开发完成后使用 `/iterate` 进入下一轮
+Constraints:
+- Output doesn't directly go to production
+- If formal development needed after validation, switch mode and restart process
+- After dev complete use `/iterate` to enter next round
 
-下一步：`/spec`（或先 `/brainstorm`）
+Next step: `/spec` (or `/brainstorm` first)
 
-## 命令可用性
+## Command Availability
 
-| 命令 | full | quick | fast | mvp |
-|------|:----:|:-----:|:----:|:---:|
+| Command | full | quick | fast | mvp |
+|---------|:----:|:-----:|:----:|:---:|
 | `/brainstorm` | ✓ | ✓ | ✓ | ✓ |
 | `/prd` | ✓ | - | - | - |
 | `/spec` | ✓ | ✓ | - | ✓ |
@@ -87,21 +87,21 @@ dow status --mode <mode>
 | `/iterate` | ✓ | ✓ | ✓ | ✓ |
 | `/status` | ✓ | ✓ | ✓ | ✓ |
 
-`-` 表示当前模式流程中不包含此步骤，执行时提示"当前模式无需此步骤"。
+`-` means this step not included in current mode flow, prompts "current mode doesn't need this step" when executed.
 
-> 注：`/brainstorm` 是自由探索工具，不属于任何模式的必经阶段，但在所有模式下都可随时使用。
+> Note: `/brainstorm` is free exploration tool, not required phase in any mode, but can be used anytime in all modes.
 
-## audit 模式
+## audit Mode
 
-audit 模式是自动触发的临时覆盖模式：
-- 当非 DEV 阶段创建 issue 时自动进入
-- 格式为 `audit/<原模式>`（如 `audit/quick`）
-- iterate 后自动恢复为原模式
-- 不可通过 `/mode audit` 手动设置
+audit mode is auto-triggered temporary override mode:
+- Auto-enters when issue created in non-DEV phase
+- Format is `audit/<original_mode>` (e.g., `audit/quick`)
+- Auto-restores to original mode after iterate
+- Cannot manually set via `/mode audit`
 
-## 模式切换
+## Mode Switching
 
-- 随时可通过 `/mode <新模式>` 切换
-- 已有文档保留不删除
-- 从低→高（如 fast → full）：提示用户补充缺失文档
-- 从高→低（如 full → fast）：跳过后续不需要的阶段
+- Can switch anytime via `/mode <new_mode>`
+- Existing docs kept, not deleted
+- From low→high (e.g., fast → full): prompt user to supplement missing docs
+- From high→low (e.g., full → fast): skip subsequent unneeded phases

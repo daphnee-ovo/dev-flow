@@ -1,77 +1,77 @@
 ---
-description: 启动完整 TEST 阶段 — 项目级全量验证
+description: Start complete TEST phase — project-level comprehensive verification
 allowed-tools: Agent, Bash, Read, Write, Edit
 ---
 
-# TEST — 项目测试（全量验证）
+# TEST — Project Testing (comprehensive verification)
 
-## 前置检查（阻断）
+## Pre-checks (blocking)
 
-1. 读取 `task/` 目录下所有活跃 task 文件，统计未完成任务数量
-2. 如果有未完成任务 → **停止，告知用户先完成所有任务**，不继续
-3. 检查 `.dev-doc/issue/` 中是否有未关闭的 issue → 提醒先修复
+1. Read all active task files under `task/` directory, count incomplete tasks
+2. If has incomplete tasks → **stop, tell user to complete all tasks first**, don't continue
+3. Check if `<DOC_ROOT>/issue/` has unclosed issues → remind to fix first
 
-## 阶段切换
+## Phase Switch
 
-**在启动 agent 之前**，立即更新 STATUS.yaml 为 TEST。
+**Before launching agent**, immediately update STATUS.yaml to TEST.
 
-## 输入组装
+## Input Assembly
 
-1. 生成项目上下文：`dow inbox context`
-2. 收集所有 task 文件内容（含 done_task_*）作为验证范围
-3. 读取 SPEC.md 作为验证标准
+1. Generate project context: `dow inbox context`
+2. Collect all task file content (including done_task_*) as verification scope
+3. Read SPEC.md as verification standard
 
-## Agent 调度（隔离模板）
+## Agent Dispatch (Isolation Template)
 
-**启动全新独立 TEST agent（完整版），绝对不复用开发上下文。按当前运行时调度：Claude Code 使用 `Agent`，Codex 使用 `spawn_agent`。子代理 prompt 必须使用以下内容：**
+**Launch brand new independent TEST agent (full version), absolutely don't reuse dev context. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
 
 ```
-description: "项目 TEST - 全量验证"
-prompt: `<读取 agents/test-agent.md 的完整内容>
+description: "Project TEST - Comprehensive verification"
+prompt: `<read complete content of agents/test-agent.md>
 
-## 输入文档
+## Input Documents
 
-### SPEC.md（验证标准）
-<SPEC.md 完整内容，原样粘贴>
+### SPEC.md (verification standard)
+<SPEC.md complete content, paste as-is>
 
-### Task 文件（验证范围）
-<task/ 目录下所有 task 文件的内容（含 done_task_*），原样粘贴>
+### Task Files (verification scope)
+<all task file content under task/ directory (including done_task_*), paste as-is>
 
-### 项目上下文
-<执行 dow inbox context 的输出，原样粘贴>
+### Project Context
+<execute dow inbox context output, paste as-is>
 
-## 输出路径
+## Output Paths
 
-- 测试代码：tests/（test_<功能>.<ext>）
-- 测试报告：通过 `dow doc test` 创建 `<DOC_ROOT>/TEST.md`
-- Issue 文件：通过 `dow doc issue --source test` 创建，格式通过 `dow doc issue --json` 获取
+- Test code: tests/ (test_<feature>.<ext>)
+- Test report: create `<DOC_ROOT>/TEST.md` via `dow doc test`
+- Issue files: create via `dow doc issue --source test`, get format via `dow doc issue --json`
 
-## 禁止
+## Prohibited
 
-- 不要查看 git log 或 commit 历史
-- 不要参考开发过程中的任何对话
-- 不要因为 SPEC 没要求的功能缺失而报 issue
-- 不要因为 TASK 标记为"非目标"的内容报 issue
-- 不要信任"开发者说测过了"——自己验证`
+- Don't view git log or commit history
+- Don't reference any conversation from dev process
+- Don't report issue because features not required by SPEC are missing
+- Don't report issue for content marked "non-goal" in TASK
+- Don't trust "developer said tested" — verify yourself`
 ```
 
-## 输入隔离规则
+## Input Isolation Rules
 
-| 允许传入 | 禁止传入 |
-|----------|----------|
-| agents/test-agent.md 内容 | PRD.md |
-| SPEC.md 完整内容（原文） | 开发阶段的任何对话历史 |
-| task/ 目录下所有 task 文件内容（含 done_task_*） | git log / commit messages |
-| 项目上下文（context.sh 输出） | 例行 TEST 的结果历史 |
-| 当前日期（用于 issue 文件名） | |
+| Allowed Input | Prohibited Input |
+|---------------|------------------|
+| agents/test-agent.md content | PRD.md |
+| SPEC.md complete content (original) | Any conversation history from dev phase |
+| All task file content under task/ directory (including done_task_*) | git log / commit messages |
+| Project context (context.sh output) | Routine TEST result history |
+| Current date (for issue filename) | |
 
-## 为什么严格隔离
+## Why Strict Isolation
 
-TEST agent 必须**完全独立于开发 agent**。开发者会无意识地避开自己代码的薄弱点。只有全新视角、只看文档不看过程的独立测试，才能发现真正的盲区。
+TEST agent must be **completely independent from dev agent**. Developers unconsciously avoid weak points in their own code. Only brand new perspective, only reading docs not process, independent testing can find true blind spots.
 
-项目上下文帮助 TEST agent 快速了解如何运行项目和已有测试结构，不需要花费大量 token 探索。
+Project context helps TEST agent quickly understand how to run project and existing test structure, doesn't need to spend lots of tokens exploring.
 
-## 结果处理
+## Result Handling
 
-- **全部通过** → 执行 /iterate 进行交付
-- **发现问题** → issue 文件已写入，STATUS 切回 DEV，修复后重新 /test
+- **All pass** → execute /iterate for delivery
+- **Found problems** → issue files written, STATUS switches back to DEV, fix then /test again

@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── init.rs  -- dow init（初始化 dev-flow 工作流管理）
+// ├── init.rs  -- dow init (initialize dev-flow workflow management)
 
 use crate::cli::InitArgs;
 use crate::core::{doc_root, version, yaml};
@@ -21,7 +21,7 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     let valid_modes = ["full", "quick", "fast", "mvp"];
     if !valid_modes.contains(&args.mode.as_str()) {
         return Err(DowError::new(
-            format!("无效模式：{}（可选：full/quick/fast/mvp）", args.mode),
+            format!("Invalid mode: {} (options: full/quick/fast/mvp)", args.mode),
             1,
         ));
     }
@@ -30,14 +30,14 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     fs::create_dir_all(base_dir)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 解析多分支模式路径：.dev-doc/<branch>/
+    // Parse multi-branch mode path: .dev-doc/<branch>/
     let branch = crate::core::doc_root::current_branch()
         .unwrap_or_else(|| "main".to_string());
     let doc_root_path = base_dir.join(&branch);
     fs::create_dir_all(&doc_root_path)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 创建目录结构（archive 已迁移到 SQLite，不再创建目录）
+    // Create directory structure (archive migrated to SQLite, no longer creating directory)
     for dir in &["issue", "task"] {
         fs::create_dir_all(doc_root_path.join(dir))
             .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -45,13 +45,13 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     fs::create_dir_all("tests")
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // tmp 目录：如果已有 temp 就不创建 tmp
+    // tmp directory: if temp already exists, don't create tmp
     if !std::path::Path::new("temp").is_dir() {
         fs::create_dir_all("tmp")
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 确定起始阶段
+    // Determine starting phase
     let phase = match args.mode.as_str() {
         "full" => "PRD",
         "quick" | "mvp" => "SPEC",
@@ -59,7 +59,7 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         _ => "DEV",
     };
 
-    // 写入 STATUS.yaml
+    // Write STATUS.yaml
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
     let status_content = format!(
         "name: {}\nphase: {}\nmode: {}\nexec_mode: step\nupdated: \"{}\"\nstarted: \"{}\"\n",
@@ -68,14 +68,14 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     let status_path = doc_root_path.join("STATUS.yaml");
     if status_path.exists() {
         return Err(DowError::new(
-            "STATUS.yaml 已存在，如需重新初始化请先删除",
+            "STATUS.yaml already exists, please delete it first if you need to reinitialize",
             1,
         ));
     }
     fs::write(&status_path, &status_content)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    // 写入 VERSION（以当前分支初始化）
+    // Write VERSION (initialize with current branch)
     let version_path = std::path::Path::new("VERSION");
     if !version_path.exists() {
         let branch = crate::core::doc_root::current_branch()
@@ -83,17 +83,17 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         version::write_branch(&branch, "0.1.0")?;
     }
 
-    // 生成持久化文档骨架（docs/ + README.md）
+    // Generate persistent documentation skeleton (docs/ + README.md)
     init_persistent_docs(&args.name, &status_path)?;
 
-    // 写入 CHANGELOG
+    // Write CHANGELOG
     let changelog_path = doc_root_path.join("CHANGELOG.md");
     if !changelog_path.exists() {
         fs::write(&changelog_path, "# Changelog\n")
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
-    // 检测 kiro 环境并注入 steering
+    // Detect kiro environment and inject steering
     inject_kiro_steering_if_needed(&args.name);
 
     let result = InitOutput {
@@ -105,12 +105,12 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
     };
 
     if human {
-        println!("[dev-flow] 初始化完成");
+        println!("[dev-flow] Initialization complete");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("项目名称：{}", result.name);
-        println!("开发模式：{}", result.mode);
-        println!("当前阶段：{}", result.phase);
-        println!("版本：v{}", result.version);
+        println!("Project name: {}", result.name);
+        println!("Development mode: {}", result.mode);
+        println!("Current phase: {}", result.phase);
+        println!("Version: v{}", result.version);
     } else {
         output::print_json(&result);
     }
@@ -126,16 +126,16 @@ fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Re
     let readme_path = project_root.join("README.md");
     if !readme_path.exists() {
         let content = format!(
-            "# {}\n\n<一句话描述>\n\n## 快速开始\n\n<安装和基本使用>\n\n## 文档\n\n- [项目结构](docs/structure.md)\n- [设计决策](docs/decisions.md)\n- [使用指南](docs/usage.md)\n",
+            "# {}\n\n<One-sentence description>\n\n## Quick Start\n\n<Installation and basic usage>\n\n## Documentation\n\n- [Project Structure](docs/structure.md)\n- [Design Decisions](docs/decisions.md)\n- [Usage Guide](docs/usage.md)\n",
             project_name
         );
         fs::write(&readme_path, content).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     let files: &[(&str, &str)] = &[
-        ("structure.md", "# 项目结构\n\n## 目录树\n\n<待填充>\n\n## 模块职责\n\n<待填充>\n"),
-        ("decisions.md", "# 设计决策记录\n\n## <决策标题>\n\n- **日期**：YYYY-MM-DD\n- **决策**：<what>\n- **理由**：<why>\n- **后果**：<consequence>\n"),
-        ("usage.md", "# 使用指南\n\n## 开发环境\n\n<待填充>\n\n## 常见任务\n\n<待填充>\n"),
+        ("structure.md", "# Project Structure\n\n## Directory Tree\n\n<To be filled>\n\n## Module Responsibilities\n\n<To be filled>\n"),
+        ("decisions.md", "# Design Decision Records\n\n## <Decision Title>\n\n- **Date**: YYYY-MM-DD\n- **Decision**: <what>\n- **Rationale**: <why>\n- **Consequences**: <consequence>\n"),
+        ("usage.md", "# Usage Guide\n\n## Development Environment\n\n<To be filled>\n\n## Common Tasks\n\n<To be filled>\n"),
     ];
 
     for (filename, template) in files {
@@ -145,7 +145,7 @@ fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Re
         }
     }
 
-    // 注册到 STATUS.yaml
+    // Register to STATUS.yaml
     let docs_list = vec![
         "docs/structure.md".to_string(),
         "docs/decisions.md".to_string(),
