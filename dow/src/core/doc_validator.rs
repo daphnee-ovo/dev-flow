@@ -935,9 +935,14 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     ];
     let valid_subdirs = ["task", "issue"];
 
+    let ignored = build_ignore_set(doc_root);
+
     if let Ok(entries) = fs::read_dir(doc_root) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
+            if should_ignore(&name, &ignored) {
+                continue;
+            }
             let path = entry.path();
 
             if path.is_file() {
@@ -968,6 +973,9 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
         if let Ok(entries) = fs::read_dir(&task_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
+                if should_ignore(&name, &ignored) {
+                    continue;
+                }
                 if entry.path().is_file() {
                     if !((name.starts_with("task_") || name.starts_with("done_task_")) && name.ends_with(".md")) {
                         errors.push(ValidationError {
@@ -988,6 +996,9 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
         if let Ok(entries) = fs::read_dir(&issue_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
+                if should_ignore(&name, &ignored) {
+                    continue;
+                }
                 if entry.path().is_file() {
                     if !((name.starts_with("issue_") || name.starts_with("closed_issue_")) && name.ends_with(".md")) {
                         errors.push(ValidationError {
@@ -1133,4 +1144,64 @@ fn extract_spec_acs_from_file(spec_path: &Path) -> Vec<String> {
         }
     }
     acs
+}
+
+// ==================== 忽略规则 ====================
+
+const OS_GENERATED_FILES: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini", "ehthumbs.db"];
+
+struct IgnoreSet {
+    patterns: Vec<String>,
+}
+
+/// 从项目 .gitignore 解析忽略模式，合并 OS 常见文件
+fn build_ignore_set(doc_root: &Path) -> IgnoreSet {
+    let mut patterns = Vec::new();
+
+    // 向上查找 .gitignore（doc_root 的祖先目录）
+    let mut search = doc_root.to_path_buf();
+    loop {
+        let gitignore = search.join(".gitignore");
+        if gitignore.is_file() {
+            if let Ok(content) = fs::read_to_string(&gitignore) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() || trimmed.starts_with('#') {
+                        continue;
+                    }
+                    patterns.push(trimmed.to_string());
+                }
+            }
+            break;
+        }
+        if !search.pop() {
+            break;
+        }
+    }
+
+    IgnoreSet { patterns }
+}
+
+/// 判断文件名是否应被忽略
+fn should_ignore(name: &str, ignore_set: &IgnoreSet) -> bool {
+    // OS 生成文件直接跳过
+    if OS_GENERATED_FILES.contains(&name) {
+        return true;
+    }
+
+    // 匹配 .gitignore 模式（简化版：精确匹配或尾部通配）
+    for pattern in &ignore_set.patterns {
+        let pat = pattern.trim_end_matches('/');
+        if pat == name {
+            return true;
+        }
+        // *.ext 通配
+        if let Some(ext) = pat.strip_prefix("*.") {
+            if name.ends_with(&format!(".{}", ext)) {
+                return true;
+            }
+        }
+    }
+
+    false
 }

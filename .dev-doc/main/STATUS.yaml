@@ -1,10 +1,10 @@
 name: dev-flow
-phase: TASK
-mode: fast
+phase: DEV
+mode: audit/fast
 goals_minor: dow 完善与优化
 docs:
   - docs/structure.md
   - docs/decisions.md
   - docs/usage.md
-updated: 2026-06-21 23:10
+updated: 2026-06-23 12:19
 started: 2026-05-26 16:58
