@@ -96,6 +96,7 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 - `UserPromptSubmit`: Codex 使用 `dow hooks context --codex-hook`，Claude 使用 `dow hooks context -H`
 - `PreToolUse(Write|Edit|Bash)`: `dow hooks guard`
 - `PostToolUse(Write|Edit)`: `dow hooks post-write`
+- `PostToolUse(Bash)`: `dow hooks post-bash`（检测分支切换）
 - `Stop`: Codex 使用 `dow hooks save-changelog --codex-hook`，Claude 使用 `dow hooks save-changelog`
 
 ## 多 Agent 支持

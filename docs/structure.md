@@ -24,6 +24,8 @@ dev-flow/
 │   ├── codex/
 │   └── kiro/
 ├── devtools/             # 开发辅助脚本（不随插件分发）
+├── scripts/              # 工具脚本（bin/ 等）
+├── npm/                  # npm 包装（平台二进制分发）
 ├── docs/                 # 持久化项目文档
 ├── install/              # 安装脚本
 ├── examples/             # 示例项目
