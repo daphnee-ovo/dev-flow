@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dev-Flow"
-  short_description: "Manage PRD, spec, task, dev, test, and delivery workflows"
-  default_prompt: "Use $dev-flow to initialize or run the dev-flow workflow, inspect project status, and navigate PRD, SPEC, TASK, DEV, TEST, and ITERATE phases."

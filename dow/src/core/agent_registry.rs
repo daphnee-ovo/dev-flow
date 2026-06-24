@@ -18,8 +18,9 @@ use std::path::Path;
 
 use super::platform;
 
-const DEV_FLOW_MARKER: &str = "<!-- dev-flow -->";
-const CODEX_HOOK_DISCIPLINE_MARKER: &str = "<!-- dev-flow-codex-hooks -->";
+const DEV_FLOW_TAG_OPEN: &str = "<dev-flow>";
+const DEV_FLOW_TAG_CLOSE: &str = "</dev-flow>";
+const CODEX_DISCIPLINE_PLACEHOLDER: &str = "{CODEX DEV FLOW Discipline}";
 
 pub struct AgentInfo {
     pub name: &'static str,
@@ -90,56 +91,41 @@ pub fn inject_global_instructions(agent: &str) -> Result<bool, String> {
 }
 
 fn build_global_instruction_content(agent: &str, content: &str) -> (String, bool) {
-    let mut new_content = content.to_string();
-    let mut changed = false;
-
-    if !new_content.contains(DEV_FLOW_MARKER) {
-        new_content.push_str(&dev_flow_instruction_block());
-        changed = true;
-    }
-
-    if agent == "codex" && !new_content.contains(CODEX_HOOK_DISCIPLINE_MARKER) {
-        new_content.push_str(codex_hook_discipline_block());
-        changed = true;
-    }
-
+    let block = build_dev_flow_block(agent);
+    let new_content = replace_or_append_block(content, &block);
+    let changed = new_content != content;
     (new_content, changed)
 }
 
-fn dev_flow_instruction_block() -> String {
-    format!(
-        "\n\n{}\n## Dev Flow\n\n\
-         **MUST use dev-flow to manage development workflow.** Available commands:\n\n\
-         | Command | Purpose |\n\
-         |---|---|\n\
-         | `/init` | Initialize project |\n\
-         | `/brainstorm` | Collaborative requirement exploration |\n\
-         | `/prd` | Start PRD phase |\n\
-         | `/spec` | Start SPEC phase |\n\
-         | `/task` | Start TASK phase |\n\
-         | `/issue` | Create an issue |\n\
-         | `/devtest` | Routine dev testing |\n\
-         | `/fix` | Auto-fix open issues |\n\
-         | `/test` | Full test phase |\n\
-         | `/status` | Report status |\n\
-         | `/check` | Check doc sync |\n\
-         | `/iterate` | Iterate delivery |\n\
-         | `/mode` | Select dev mode |\n",
-        DEV_FLOW_MARKER
-    )
+fn build_dev_flow_block(agent: &str) -> String {
+    let template = include_str!("../../references/inject_prompt/dev_flow.md");
+    let discipline = if agent == "codex" {
+        include_str!("../../references/inject_prompt/codex_hook_discipline.md").to_string()
+    } else {
+        String::new()
+    };
+    template.replace(CODEX_DISCIPLINE_PLACEHOLDER, &discipline)
 }
 
-fn codex_hook_discipline_block() -> &'static str {
-    "\n\n<!-- dev-flow-codex-hooks -->\n\
-     ## Dev Flow Codex Hook Discipline\n\n\
-     When working in Codex, keep source and documentation file changes on hook-visible paths:\n\n\
-     - Prefer Codex file edit/write tools for source and documentation edits.\n\
-     - Do not use Bash redirection, `tee`, `sed -i`, `perl -i`, `cp`, `mv`, or ad-hoc scripts to create or modify source/docs unless the command is an explicit build or generation step.\n\
-     - If Bash must generate files, limit it to `tmp/`, build artifacts, or clearly generated outputs, and state why Bash is required.\n\
-     - Treat `dow hooks guard` blocks as authoritative. When blocked, stop the file-changing action and use `/task`, `/issue`, `/iterate`, or the indicated dev-flow command.\n\
-     - Do not use external/direct execution channels to bypass Codex hooks.\n\
-     - Treat Codex hooks as workflow guards, not as permission to use an unhooked path.\n"
+fn replace_or_append_block(content: &str, block: &str) -> String {
+    if let (Some(start), Some(end_tag_start)) = (
+        content.find(DEV_FLOW_TAG_OPEN),
+        content.find(DEV_FLOW_TAG_CLOSE),
+    ) {
+        let end = end_tag_start + DEV_FLOW_TAG_CLOSE.len();
+        let mut result = String::with_capacity(content.len());
+        result.push_str(&content[..start]);
+        result.push_str(block);
+        result.push_str(&content[end..]);
+        result
+    } else {
+        let mut result = content.to_string();
+        result.push_str("\n\n");
+        result.push_str(block);
+        result
+    }
 }
+
 
 pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     let target =

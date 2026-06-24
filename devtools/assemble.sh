@@ -126,7 +126,6 @@ assemble_agent() {
   mkdir -p "$target_dir"
 
   # 复制共享插件内容
-  cp -r "$PROJECT_ROOT/plugin/skills" "$target_dir/skills"
   # kiro 的 agents 需要转为 JSON，不复制 md
   if [ "$agent" != "kiro" ]; then
     cp -r "$PROJECT_ROOT/plugin/agents" "$target_dir/agents"
