@@ -27,6 +27,12 @@ Role isolation:
   PRD/SPEC/TASK/TEST phases run in independent agents with minimal input.
   DEV phase runs in main agent directly.
 
+preIterate CI (.dev-doc/preIterate.ci):
+  Runs before git commit during iterate. Any step failure blocks the entire iterate.
+  Supported steps:
+    sync-version: <path>   Sync manifest version (Cargo.toml, package.json, pyproject.toml)
+    run: <command>          Execute command; non-zero exit blocks iterate
+
 Directory structure:
   .dev-doc/
   ├── STATUS.yaml
