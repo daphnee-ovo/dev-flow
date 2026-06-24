@@ -10,3 +10,7 @@
 - 12:46 fix: dow fix 支持 closed_/done_ 重命名和全局序号重编号
 - 12:49 fix: install.sh 下载增加进度显示、重试和超时
 - 12:55 fix: ISSUE-I009：全项目默认语言改为英文
+- 14:55 feat: translate entire project to English
+
+## 2026-06-24
+- 11:07 docs: fix doc-code drift in hooks and structure docs
