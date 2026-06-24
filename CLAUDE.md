@@ -4,6 +4,7 @@
 
 ## 注意事项
 - 禁止直接在开发环境测试导致开发环境的流程管理被污染。如需测试，需要在./tmp/test_target_project 中进行测试
+- 禁止在 `dow/` 目录下运行 dow 命令或创建 `.dev-doc/`：dow 会在当前工作目录就地初始化流程文档，在 `dow/` 内运行会生成 `dow/.dev-doc/` 污染源码树。本项目的流程文档只应位于仓库根的 `.dev-doc/`。运行 dow 测试请用 `cd dow && cargo test`（测试在 tmpdir 隔离），不要手动 `dow init`。
 
 ## 命令
 
