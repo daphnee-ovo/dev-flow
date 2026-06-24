@@ -78,8 +78,8 @@ pub enum Commands {
         command: HooksCommands,
     },
 
-    /// Version revoke (only revoke workflow state, does not undo git commit)
-    Revoke(RevokeArgs),
+    /// Version rollback (only rollback workflow state, does not undo git commit)
+    Rollback(RollbackArgs),
 
     /// Declare current work associated task/issue
     Claim(ClaimArgs),
@@ -265,12 +265,12 @@ pub struct VersionArgs {
 }
 
 #[derive(clap::Args)]
-pub struct RevokeArgs {
-    /// Target version number to revoke to
+pub struct RollbackArgs {
+    /// Target version number to rollback to
     #[arg(long)]
     pub version: Option<String>,
 
-    /// List revokable versions
+    /// List rollback-able versions
     #[arg(long)]
     pub list: bool,
 }

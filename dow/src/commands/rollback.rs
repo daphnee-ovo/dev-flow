@@ -1,10 +1,10 @@
 // dow/src/commands/
-// ├── revoke.rs  -- dow revoke (iterate inverse operation: restore archive → rollback version → mark revoked)
+// ├── rollback.rs  -- dow rollback (iterate inverse operation: restore archive → rollback version → mark revoked)
 //
 // Related Docs:
 // - [GitHub issue #10](https://github.com/daphnee-ovo/dev-flow/issues/10)
 
-use crate::cli::RevokeArgs;
+use crate::cli::RollbackArgs;
 use crate::core::{archive_db, doc_root, version, yaml};
 use crate::error::DowError;
 use crate::output;
@@ -12,8 +12,8 @@ use serde::Serialize;
 use std::fs;
 
 #[derive(Serialize)]
-struct RevokeOutput {
-    revoked_version: String,
+struct RollbackOutput {
+    rolled_back_version: String,
     restored_tasks: u32,
     restored_issues: u32,
     restored_docs: Vec<String>,
@@ -21,18 +21,18 @@ struct RevokeOutput {
 }
 
 #[derive(Serialize)]
-struct RevokeListOutput {
-    versions: Vec<RevokeListEntry>,
+struct RollbackListOutput {
+    versions: Vec<RollbackListEntry>,
 }
 
 #[derive(Serialize)]
-struct RevokeListEntry {
+struct RollbackListEntry {
     version: String,
     topic: String,
     released_at: String,
 }
 
-pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
+pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
     if args.list {
         return run_list(human);
     }
@@ -45,7 +45,7 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
 
     let iteration_id = archive_db::find_active_iteration(&conn, &target_version)?
         .ok_or_else(|| DowError::new(
-            format!("Version {} has no revokable archive record (does not exist or all records are already revoked)", target_version),
+            format!("Version {} has no rollback-able archive record (does not exist or all records are already rolled back)", target_version),
             1,
         ))?;
 
@@ -96,8 +96,8 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
     // 7. Mark iteration as revoked
     archive_db::mark_iteration_revoked(&conn, iteration_id)?;
 
-    let result = RevokeOutput {
-        revoked_version: target_version.clone(),
+    let result = RollbackOutput {
+        rolled_back_version: target_version.clone(),
         restored_tasks,
         restored_issues,
         restored_docs: restored_docs.clone(),
@@ -107,14 +107,14 @@ pub fn run(args: RevokeArgs, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[dev-flow] Version rollback completed");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("Revoked version: v{}", target_version);
+        println!("Rolled back version: v{}", target_version);
         println!("Restored tasks: {} items", restored_tasks);
         println!("Restored issues: {} items", restored_issues);
         if !restored_docs.is_empty() {
             println!("Restored documents: {}", restored_docs.join(", "));
         }
         println!("Phase reset: {}", phase);
-        println!("Archive marked: revoked");
+        println!("Archive marked: rolled back");
         println!();
         println!("Note: Git history unchanged, only workflow state and documents have been restored.");
         println!("Tip: Use `dow iterate` to re-deliver, version number {} can be reused.",
@@ -138,16 +138,16 @@ fn run_list(human: bool) -> Result<i32, DowError> {
 
     if active.is_empty() {
         if human {
-            println!("[dev-flow] No revokable versions (archive is empty or all records are already revoked)");
+            println!("[dev-flow] No rollback-able versions (archive is empty or all records are already rolled back)");
         } else {
-            output::print_json(&RevokeListOutput { versions: vec![] });
+            output::print_json(&RollbackListOutput { versions: vec![] });
         }
         return Ok(0);
     }
 
-    let entries: Vec<RevokeListEntry> = active
+    let entries: Vec<RollbackListEntry> = active
         .iter()
-        .map(|i| RevokeListEntry {
+        .map(|i| RollbackListEntry {
             version: i.version.clone(),
             topic: i.topic.clone(),
             released_at: i.released_at.clone(),
@@ -155,13 +155,13 @@ fn run_list(human: bool) -> Result<i32, DowError> {
         .collect();
 
     if human {
-        println!("[dev-flow] Revokable versions:");
+        println!("[dev-flow] Rollback-able versions:");
         println!("━━━━━━━━━━━━━━━━━━━━━━");
         for e in &entries {
             println!("  v{} — {} ({})", e.version, e.topic, e.released_at);
         }
     } else {
-        output::print_json(&RevokeListOutput { versions: entries });
+        output::print_json(&RollbackListOutput { versions: entries });
     }
 
     Ok(0)
@@ -308,7 +308,7 @@ fn replace_file_seq(name: &str, old_seq: u32, new_seq: u32) -> String {
 fn rebuild_task_file(filename: &str, tasks: &[&archive_db::TaskRecord]) -> String {
     let title = tasks.first()
         .and_then(|t| t.file_title.as_deref())
-        .unwrap_or("TASK - (revoked)");
+        .unwrap_or("TASK - (rolled back)");
 
     let mut out = String::new();
     out.push_str("---\n");
@@ -346,7 +346,7 @@ fn rebuild_task_file(filename: &str, tasks: &[&archive_db::TaskRecord]) -> Strin
 fn rebuild_issue_file(_filename: &str, issues: &[&archive_db::IssueRecord]) -> String {
     let source_type = issues.first()
         .and_then(|i| i.source_type.as_deref())
-        .unwrap_or("revoke");
+        .unwrap_or("rollback");
 
     let mut out = String::new();
     out.push_str("---\n");

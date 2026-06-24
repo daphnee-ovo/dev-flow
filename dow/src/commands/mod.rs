@@ -6,6 +6,7 @@
 // ├── fix.rs       -- Auto-fix .dev-doc format issues
 // ├── scan.rs      -- Project scanning
 // ├── doc.rs       -- Document template generation
+// ├── rollback.rs  -- Version rollback (iterate inverse)
 
 pub mod archive;
 pub mod check;
@@ -17,7 +18,7 @@ pub mod info;
 pub mod init;
 pub mod issue;
 pub mod iterate;
-pub mod revoke;
+pub mod rollback;
 pub mod scan;
 pub mod self_check;
 pub mod setup;

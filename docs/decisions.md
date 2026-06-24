@@ -28,16 +28,16 @@
 - **理由**：目录归档文件数量增长后查询困难；SQLite 支持结构化查询且单文件易管理
 - **后果**：提供 `dow archive migrate` 迁移路径；查询通过 `dow archive` 子命令
 
-## revoke 作为 iterate 的逆操作
+## rollback 作为 iterate 的逆操作
 
 - **日期**：2026-06
-- **决策**：`dow revoke --version <v>` 从 archive.db 还原已归档的 task/issue/doc 文件，标记该迭代为 revoked
-- **理由**：iterate 后发现问题需要回退时，手动还原文件繁琐且易出错；revoke 提供原子化逆操作
-- **后果**：revoke 不撤销 git commit，仅还原流程状态；还原的 task 保持 done_ 前缀，issue 保持 closed_ 前缀；文件 seq 冲突时现有文件顺延
+- **决策**：`dow rollback --version <v>` 从 archive.db 还原已归档的 task/issue/doc 文件，标记该迭代为 rolled back
+- **理由**：iterate 后发现问题需要回退时，手动还原文件繁琐且易出错；rollback 提供原子化逆操作
+- **后果**：rollback 不撤销 git commit，仅还原流程状态；还原的 task 保持 done_ 前缀，issue 保持 closed_ 前缀；文件 seq 冲突时现有文件顺延
 
 ## task/issue ID 跨文件全局唯一
 
 - **日期**：2026-06
 - **决策**：task ID（T001, T002...）和 issue ID（I001, I002...）在所有文件中全局递增，不按文件重新计数
-- **理由**：revoke 还原文件后 ID 冲突；claim 操作需要唯一 ID 来定位目标
+- **理由**：rollback 还原文件后 ID 冲突；claim 操作需要唯一 ID 来定位目标
 - **后果**：`dow doc task` 创建新 task 时扫描所有 task 文件（含 done_task_）取最大 ID 继续递增；validator 检查全局 1..N 连续性；claim 检测到重复 ID 时报错

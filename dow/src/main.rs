@@ -35,7 +35,7 @@ fn main() {
         Commands::Check => commands::check::run(human),
         Commands::Claim(args) => commands::claim::run(args, human),
         Commands::Iterate(args) => commands::iterate::run(args, human),
-        Commands::Revoke(args) => commands::revoke::run(args, human),
+        Commands::Rollback(args) => commands::rollback::run(args, human),
         Commands::Scan => commands::scan::run(human),
         Commands::Validate => commands::validate::run(human),
         Commands::Fix => commands::fix::run(human),

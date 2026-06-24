@@ -6,7 +6,7 @@
 dev-flow/
 ├── dow/                  # Rust CLI 统一调度器（核心二进制）
 │   ├── src/              # Rust 源码
-│   │   ├── commands/     # 子命令（iterate, revoke, claim, doc, check 等）
+│   │   ├── commands/     # 子命令（iterate, rollback, claim, doc, check 等）
 │   │   └── core/         # 核心模块（archive_db, doc_validator 等）
 │   ├── tests/            # dow 集成测试
 │   ├── references/       # 参考资料和模板（编译时嵌入）

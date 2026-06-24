@@ -246,7 +246,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 run: npm run build
 ```
 
-`dow revoke --version <v>` is the inverse of iterate — it restores archived tasks, issues, and documents from the database, handles file sequence conflicts, and marks the iteration as revoked. Use `dow revoke --list` to see revokable versions.
+`dow rollback --version <v>` is the inverse of iterate — it restores archived tasks, issues, and documents from the database, handles file sequence conflicts, and marks the iteration as rolled back. Use `dow rollback --list` to see rollback-able versions.
 
 ---
 
@@ -274,7 +274,7 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow self-check` | Show install status and health |
 | `dow status` | Read/write STATUS.yaml |
 | `dow iterate` | Delivery: archive + commit + tag + bump |
-| `dow revoke --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
+| `dow rollback --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
 | `dow doc <type>` | Generate/query document templates |
 | `dow hooks ...` | Hook dispatch (context, guard, post-write) |
 

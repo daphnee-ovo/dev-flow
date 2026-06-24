@@ -40,11 +40,13 @@
 | 子命令 | 作用 |
 |--------|------|
 | `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--goals-minor`/`--goals-major`/`--field`） |
+| `dow init --name <n> --mode <m>` | 初始化 dev-flow 工作流管理 |
 | `dow check` | 文档规范检查 |
 | `dow issue --list` | 列出未关闭的 issue |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--tag] [--confirm]` | 迭代交付（默认 patch，minor/major 自动打 tag） |
-| `dow revoke --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
-| `dow revoke --list` | 列出可回退的版本 |
+| `dow rollback --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
+| `dow rollback --list` | 列出可回退的版本 |
+| `dow claim [IDs...] [--revoke]` | 声明/释放当前工作关联的 task/issue |
 | `dow scan` | 项目扫描 |
 | `dow validate` | 校验 .dev-doc 结构 |
 | `dow fix` | 自动修复 .dev-doc 文件格式问题 |
@@ -61,6 +63,7 @@
 | `dow hooks context [--codex-hook]` | hook：注入上下文；Codex hook 使用协议 JSON envelope |
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |
+| `dow hooks post-bash [command]` | hook：Bash 执行后检测分支切换 |
 | `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG；Codex hook 使用 Stop 协议 JSON |
 | `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION（禁止直接编辑文件） |
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
