@@ -26,3 +26,4 @@
 - 13:07 feat: dow issue close 支持多参数批量关闭
 - 14:07 fix: 修复测试适配新命令 + iterate confirm 去除 env var 依赖
 - 14:19 fix: task batch file 序号冲突覆盖 bug
+- 14:31 fix: lint --fix 后重新 validate 确保 errors 反映修复后状态

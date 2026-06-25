@@ -97,9 +97,14 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         }
     }
 
-    // 3. Calculate version: current version is released_version, bump once to get next_version
-    let released_version = version::read_current()?;
-    let next_version = version::bump_version_str(&released_version, &args.bump)?;
+    // 3. Calculate version: -v controls the released version level, next is always +patch
+    let current_version = version::read_current()?;
+    let released_version = if args.bump == "patch" {
+        current_version.clone()
+    } else {
+        version::bump_version_str(&current_version, &args.bump)?
+    };
+    let next_version = version::bump_version_str(&released_version, "patch")?;
 
     // 4. Calculate archive content
     let archive_base = archive_db::archive_base();
