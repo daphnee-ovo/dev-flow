@@ -97,7 +97,7 @@ pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
         IssueCommands::Create(args) => create(args, human),
         IssueCommands::List(args) => list(args, human),
         IssueCommands::Show { id } => show(&id, human),
-        IssueCommands::Close { id } => close(&id),
+        IssueCommands::Close { ids } => close_multi(&ids),
         IssueCommands::Reopen(args) => reopen(args, human),
         IssueCommands::Schema => schema(human),
     }
@@ -274,6 +274,16 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         output::print_json(&result);
     }
 
+    Ok(0)
+}
+
+fn close_multi(ids: &[String]) -> Result<i32, DowError> {
+    if ids.is_empty() {
+        return Err(DowError::new("dow issue close requires at least one ID", 2));
+    }
+    for id in ids {
+        close(id)?;
+    }
     Ok(0)
 }
 

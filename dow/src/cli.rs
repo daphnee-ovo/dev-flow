@@ -207,8 +207,8 @@ pub enum IssueCommands {
     List(IssueListArgs),
     /// Show issue details
     Show { id: String },
-    /// Close an issue
-    Close { id: String },
+    /// Close issue(s)
+    Close { ids: Vec<String> },
     /// Reopen a closed issue
     Reopen(IssueReopenArgs),
     /// Output issue field schema
