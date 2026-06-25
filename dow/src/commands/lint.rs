@@ -88,28 +88,31 @@ pub fn run(args: LintArgs, human: bool) -> Result<i32, DowError> {
         let (fix_fixed, fix_unfixable) = run_auto_fix(&doc_root_path);
         fixed.extend(fix_fixed);
 
-        // Remove fixable errors that were just fixed; keep unfixable
-        errors.retain(|e| !e.starts_with("[fixable] "));
+        // After fix: reset errors and re-validate from scratch
+        errors.clear();
+        warnings.clear();
+        ok.clear();
 
-        // Re-add unfixable items as errors
+        // Re-run all checks on the now-fixed state
+        check_changelog(&doc_root_path, &mut warnings, &mut ok);
+        check_tasks(&doc_root_path, &phase, &mut errors, &mut warnings, &mut ok);
+        check_issues(&doc_root_path, &phase, &mut errors, &mut warnings, &mut ok);
+        check_time_sync(&map, &mut warnings, &mut ok);
+        check_phase_files(&doc_root_path, &phase, &mut warnings);
+        check_spec_ac(&doc_root_path, &mode, &mut errors, &mut warnings);
+        check_task_nums(&doc_root_path, &mut errors);
+
+        let post_fix_errors = doc_validator::validate_all(&doc_root_path);
+        for ve in &post_fix_errors {
+            errors.push(format!("{}: {}", ve.file, ve.message));
+        }
+
+        // Add unfixable items
         for u in fix_unfixable {
             if !errors.contains(&u) {
                 errors.push(u);
             }
         }
-
-        // Re-run validation to check remaining issues after fix
-        let post_fix_errors = doc_validator::validate_all(&doc_root_path);
-        for ve in &post_fix_errors {
-            let msg = format!("{}: {}", ve.file, ve.message);
-            if !errors.contains(&msg) {
-                errors.push(msg);
-            }
-        }
-
-        // Deduplicate errors after re-validation
-        errors.sort();
-        errors.dedup();
     }
 
     let pass = errors.is_empty();
