@@ -92,6 +92,9 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
             .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
+    // Ensure .gitignore has claim.lock entry
+    ensure_gitignore_claim_lock();
+
     // Detect kiro environment and inject steering
     inject_kiro_steering_if_needed(&args.name);
 
@@ -145,6 +148,25 @@ fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Re
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     Ok(())
+}
+
+fn ensure_gitignore_claim_lock() {
+    let entry = ".dev-doc/**/claim.lock";
+    let gitignore = std::path::Path::new(".gitignore");
+    if gitignore.exists() {
+        let content = fs::read_to_string(gitignore).unwrap_or_default();
+        if !content.lines().any(|l| l.trim() == entry) {
+            let mut new_content = content;
+            if !new_content.ends_with('\n') {
+                new_content.push('\n');
+            }
+            new_content.push_str(entry);
+            new_content.push('\n');
+            let _ = fs::write(gitignore, new_content);
+        }
+    } else {
+        let _ = fs::write(gitignore, format!("{}\n", entry));
+    }
 }
 
 fn inject_kiro_steering_if_needed(project_name: &str) {

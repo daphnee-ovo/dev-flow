@@ -409,24 +409,34 @@ fn check_gitignore(fixed: &mut Vec<String>) {
     } else {
         "tmp/"
     };
+    let claim_lock_entry = ".dev-doc/**/claim.lock";
+
+    let required_entries: &[&str] = &[project_temp, claim_lock_entry];
 
     if Path::new(".gitignore").exists() {
         let content = fs::read_to_string(".gitignore").unwrap_or_default();
-        if !content.lines().any(|l| l.trim() == project_temp) {
-            let mut new_content = content;
-            if !new_content.ends_with('\n') {
+        let mut new_content = content.clone();
+
+        for &entry in required_entries {
+            if !new_content.lines().any(|l| l.trim() == entry) {
+                if !new_content.ends_with('\n') {
+                    new_content.push('\n');
+                }
+                new_content.push_str(entry);
                 new_content.push('\n');
             }
-            new_content.push_str(project_temp);
-            new_content.push('\n');
-            if let Err(e) = fs::write(".gitignore", new_content) {
+        }
+
+        if new_content != content {
+            if let Err(e) = fs::write(".gitignore", &new_content) {
                 eprintln!("[dow] warning: failed to update .gitignore: {}", e);
             } else {
-                fixed.push("gitignore_added_project_temp".to_string());
+                fixed.push("gitignore_updated".to_string());
             }
         }
     } else {
-        if let Err(e) = fs::write(".gitignore", format!("{}\n", project_temp)) {
+        let content = required_entries.join("\n") + "\n";
+        if let Err(e) = fs::write(".gitignore", &content) {
             eprintln!("[dow] warning: failed to create .gitignore: {}", e);
         } else {
             fixed.push("gitignore_created".to_string());
