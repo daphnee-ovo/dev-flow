@@ -109,30 +109,19 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // --confirm mode: Execute after token verification
     if let Some(ref token) = args.confirm {
         let tokens = generate_tokens_with_window(&args);
-        // Strip "ITR-" prefix from user-provided token for comparison
         let bare_token = token.strip_prefix("ITR-").unwrap_or(token);
-        let found = tokens.iter().any(|t| {
+
+        let token_matches = tokens.iter().any(|t| {
             let bare_t = t.strip_prefix("ITR-").unwrap_or(t);
-            let env_key = format!("DOW_ITERATE_{}", bare_t);
-            std::env::var(&env_key).is_ok()
+            bare_t == bare_token
         });
-        if !found {
-            // Accept the token directly matching generated tokens (with or without prefix)
-            let token_matches = tokens.iter().any(|t| {
-                let bare_t = t.strip_prefix("ITR-").unwrap_or(t);
-                bare_t == bare_token
-            });
-            if !token_matches {
-                let hint = &tokens[0];
-                return Err(DowError::new(
-                    format!(
-                        "Confirmation failed: token mismatch. Expected {} (or set env DOW_ITERATE_{}=1)",
-                        hint,
-                        hint.strip_prefix("ITR-").unwrap_or(hint)
-                    ),
-                    1,
-                ));
-            }
+
+        if !token_matches {
+            let hint = &tokens[0];
+            return Err(DowError::new(
+                format!("Confirmation failed: token mismatch. Expected {}", hint),
+                1,
+            ));
         }
     } else {
         // Trigger save_changelog before preview to ensure current session activity is recorded

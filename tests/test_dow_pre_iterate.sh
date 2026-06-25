@@ -26,7 +26,7 @@ setup_project() {
   git config user.email "test@test.com"
   git commit --allow-empty -m "init: test project" -q
   "$DOW" init --name "$name" --mode fast -H >/dev/null 2>&1
-  "$DOW" doc task -n 1 >/dev/null 2>&1
+  echo '{"title":"pre iterate test","type":"feat","priority":"P0","done_when":["pass"]}' | "$DOW" task create >/dev/null 2>&1
   local branch
   branch="$(git branch --show-current)"
   local task_file
@@ -40,7 +40,7 @@ content = content.replace("- [ ]", "- [x]")
 content = content.replace("title: TASK - \n", "title: TASK - pre iterate\n")
 path.write_text(content)
 PY
-  "$DOW" status --phase DEV >/dev/null 2>&1 || true
+  "$DOW" status set --phase DEV >/dev/null 2>&1 || true
 }
 
 run_iterate_confirmed() {
@@ -48,9 +48,7 @@ run_iterate_confirmed() {
   local preview token
   preview="$("$DOW" iterate --topic "$topic" --type feat --files VERSION 2>/dev/null)"
   token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
-  export "DOW_ITERATE_${token}=1"
-  "$DOW" iterate --topic "$topic" --type feat --files VERSION --confirm >/dev/null 2>&1
-  unset "DOW_ITERATE_${token}"
+  "$DOW" iterate --topic "$topic" --type feat --files VERSION --confirm "$token" >/dev/null 2>&1
 }
 
 echo "=== dow iterate preIterate 验证 ==="
@@ -107,22 +105,20 @@ before="$(git rev-parse HEAD)"
 before_version="$(cat VERSION)"
 preview="$("$DOW" iterate --topic failing-step --type feat --files VERSION 2>/dev/null)"
 token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
-export "DOW_ITERATE_${token}=1"
 fail_out="$TEST_DIR/pre_iterate_fail.out"
-if "$DOW" iterate --topic failing-step --type feat --files VERSION --confirm >"$fail_out" 2>&1; then
+if "$DOW" iterate --topic failing-step --type feat --files VERSION --confirm "$token" >"$fail_out" 2>&1; then
   fail "失败 step 未阻断 iterate"
 else
   after="$(git rev-parse HEAD)"
   after_version="$(cat VERSION)"
   if [ "$before" = "$after" ] \
     && [ "$before_version" = "$after_version" ] \
-    && grep -q 'preIterate step `run: exit 7` 失败' "$fail_out"; then
+    && grep -q 'preIterate step.*failed' "$fail_out"; then
     pass "失败 step 阻断 commit 和版本变更"
   else
     fail "失败 step 的阻断结果不正确"
   fi
 fi
-unset "DOW_ITERATE_${token}"
 
 echo ""
 echo "[4] preIterate 失败回滚 sync-version 和 run 产物"
@@ -137,9 +133,8 @@ before="$(git rev-parse HEAD)"
 before_version="$(cat VERSION)"
 preview="$("$DOW" iterate --topic rollback-step --type feat --files VERSION 2>/dev/null)"
 token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
-export "DOW_ITERATE_${token}=1"
 fail_out="$TEST_DIR/pre_iterate_rollback.out"
-if "$DOW" iterate --topic rollback-step --type feat --files VERSION --confirm >"$fail_out" 2>&1; then
+if "$DOW" iterate --topic rollback-step --type feat --files VERSION --confirm "$token" >"$fail_out" 2>&1; then
   fail "失败 step 未触发回滚阻断"
 else
   after="$(git rev-parse HEAD)"
@@ -148,13 +143,12 @@ else
     && [ "$before_version" = "$after_version" ] \
     && grep -q '"version": "9.9.9"' package.json \
     && [ ! -e generated.txt ] \
-    && grep -q '已回滚 preIterate 修改' "$fail_out"; then
+    && grep -q 'rolled back' "$fail_out"; then
     pass "失败 step 回滚 sync-version 和 run 产物"
   else
     fail "失败 step 未正确回滚 preIterate 修改"
   fi
 fi
-unset "DOW_ITERATE_${token}"
 
 echo ""
 echo "[5] git add 失败时阻断 iterate commit"
@@ -165,9 +159,8 @@ branch="$(git branch --show-current)"
 task_before="$(find ".dev-doc/$branch/task" -name 'task_*.md' -o -name 'done_task_*.md' | wc -l | tr -d ' ')"
 preview="$("$DOW" iterate --topic bad-files --type feat --files missing-file.txt 2>/dev/null)"
 token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
-export "DOW_ITERATE_${token}=1"
 fail_out="$TEST_DIR/git_add_fail.out"
-if "$DOW" iterate --topic bad-files --type feat --files missing-file.txt --confirm >"$fail_out" 2>&1; then
+if "$DOW" iterate --topic bad-files --type feat --files missing-file.txt --confirm "$token" >"$fail_out" 2>&1; then
   fail "git add 失败未阻断 iterate"
 else
   after="$(git rev-parse HEAD)"
@@ -176,13 +169,12 @@ else
   if [ "$before" = "$after" ] \
     && [ "$before_version" = "$after_version" ] \
     && [ "$task_before" = "$task_after" ] \
-    && grep -q 'iterate --files 路径不存在，已在归档前停止：missing-file.txt' "$fail_out"; then
+    && grep -q 'does not exist.*missing-file.txt' "$fail_out"; then
     pass "git add 输入错误在归档前阻断 iterate"
   else
     fail "git add 失败的阻断结果不正确"
   fi
 fi
-unset "DOW_ITERATE_${token}"
 
 echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="

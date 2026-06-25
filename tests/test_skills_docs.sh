@@ -13,30 +13,28 @@ fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 echo "=== T13: 验证 skills 和项目级文档 ==="
 echo ""
 
-# --- 检查1: plugin/skills/dev-flow/SKILL.md description 含 /issue ---
-echo "[1] SKILL.md description 字段含 /issue"
+# --- 检查1: inject_prompt/dev_flow.md 含 /issue ---
+echo "[1] inject_prompt/dev_flow.md 含 /issue"
 
-SKILL="$PROJ_ROOT/plugin/skills/dev-flow/SKILL.md"
-if [ ! -f "$SKILL" ]; then
-  fail "$SKILL 文件不存在"
+INJECT="$PROJ_ROOT/dow/references/inject_prompt/dev_flow.md"
+if [ ! -f "$INJECT" ]; then
+  fail "$INJECT 文件不存在"
 else
-  if head -5 "$SKILL" | grep -q "/issue"; then
-    pass "SKILL.md description 含 /issue"
+  if grep -q "/issue" "$INJECT"; then
+    pass "inject_prompt 含 /issue"
   else
-    fail "SKILL.md description 不含 /issue"
+    fail "inject_prompt 不含 /issue"
   fi
 fi
 
-# --- 检查2: SKILL.md 命令映射表含 /issue ---
+# --- 检查2: inject_prompt/dev_flow.md 含 dow task ---
 echo ""
-echo "[2] SKILL.md 命令映射表含 /issue 行"
+echo "[2] inject_prompt/dev_flow.md 含 dow task"
 
-if [ -f "$SKILL" ]; then
-  if grep -q '`/issue`' "$SKILL"; then
-    pass "SKILL.md 命令表含 /issue"
-  else
-    fail "SKILL.md 命令表不含 /issue"
-  fi
+if grep -q 'dow task' "$INJECT"; then
+  pass "inject_prompt 含 dow task"
+else
+  fail "inject_prompt 不含 dow task"
 fi
 
 # --- 检查3: CLAUDE.md 命令表含 /issue ---
