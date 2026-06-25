@@ -75,6 +75,15 @@ pub fn get_active_claims(doc_root: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Check if there are expired (but not revoked) claims
+pub fn has_expired_claims(doc_root: &Path) -> bool {
+    let lock = match read_claim_lock(doc_root) {
+        Some(l) => l,
+        None => return false,
+    };
+    lock.claims.iter().any(|c| !is_valid_claim(c, lock.ttl))
+}
+
 /// Add claim (merge into existing list, update timestamp if already exists)
 pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);

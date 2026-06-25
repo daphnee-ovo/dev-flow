@@ -331,11 +331,21 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             let doc_root = ctx.doc_root_path();
             let has_undone = has_pending_work(&doc_root);
             if has_undone {
-                return Some(PhaseDecision::Deny(format!(
-                    "[dev-flow] BLOCKED: DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
-                    → `dow claim <TASK_ID>` to claim a task to work on",
-                    path.display()
-                )));
+                let expired = crate::core::claim::has_expired_claims(&doc_root);
+                let msg = if expired {
+                    format!(
+                        "[dev-flow] BLOCKED: claim expired, writing to {} not allowed. Please:\n\
+                        → `dow claim <TASK_ID>` to re-claim your task",
+                        path.display()
+                    )
+                } else {
+                    format!(
+                        "[dev-flow] BLOCKED: DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
+                        → `dow claim <TASK_ID>` to claim a task to work on",
+                        path.display()
+                    )
+                };
+                return Some(PhaseDecision::Deny(msg));
             } else {
                 return Some(PhaseDecision::Deny(format!(
                     "[dev-flow] BLOCKED: DEV phase has no pending tasks or open issues, writing to {} not allowed. Please choose:\n\
