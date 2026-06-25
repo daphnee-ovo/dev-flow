@@ -125,8 +125,8 @@ pub enum TaskCommands {
     List(TaskListArgs),
     /// Show task details
     Show { id: String },
-    /// Mark task as done
-    Done { id: String },
+    /// Mark task(s) as done
+    Done { ids: Vec<String> },
     /// Reopen a completed task
     Reopen(TaskReopenArgs),
     /// Output task field schema

@@ -100,7 +100,7 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
         TaskCommands::Create(args) => create(args, human),
         TaskCommands::List(args) => list(args, human),
         TaskCommands::Show { id } => show(&id, human),
-        TaskCommands::Done { id } => done(&id),
+        TaskCommands::Done { ids } => done_multi(&ids),
         TaskCommands::Reopen(args) => reopen(args, human),
         TaskCommands::Schema => schema(human),
     }
@@ -658,7 +658,17 @@ fn print_task_detail_human(detail: &TaskDetail) {
 
 // ─── Done ────────────────────────────────────────────────────────────────────
 
-fn done(id: &str) -> Result<i32, DowError> {
+fn done_multi(ids: &[String]) -> Result<i32, DowError> {
+    if ids.is_empty() {
+        return Err(DowError::new("dow task done requires at least one ID", 2));
+    }
+    for id in ids {
+        done_single(id)?;
+    }
+    Ok(0)
+}
+
+fn done_single(id: &str) -> Result<i32, DowError> {
     let task_dir = resolve_task_dir()?;
     let all_files = task_store::iter_task_files(&task_dir);
 
@@ -686,7 +696,6 @@ fn done(id: &str) -> Result<i32, DowError> {
         }
     }
 
-    // Also check done_ files (task might already be done)
     Err(DowError::new(format!("pending task {} not found", id), 1))
 }
 
