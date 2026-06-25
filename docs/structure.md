@@ -13,7 +13,7 @@ dev-flow/
 │   └── tmp/              # dow 测试临时目录
 ├── plugin/               # 共享插件内容（跨 agent 通用）
 │   ├── commands/         # slash command 定义（.md）
-│   ├── agents/           # subagent 定义
+│   ├── agents/           # subagent prompts (audit agents, test agent, task challenger)
 │   └── skills/           # skill 定义
 ├── targets/              # agent 差异化配置
 │   ├── claude/           # Claude Code 专用（plugin.json、hooks.json）

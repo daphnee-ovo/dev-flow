@@ -35,6 +35,14 @@
 - **理由**：iterate 后发现问题需要回退时，手动还原文件繁琐且易出错；rollback 提供原子化逆操作
 - **后果**：rollback 不撤销 git commit，仅还原流程状态；还原的 task 保持 done_ 前缀，issue 保持 closed_ 前缀；文件 seq 冲突时现有文件顺延
 
+## DEV 阶段临时需求判断靠 prompt 规则
+
+- **日期**：2026-06
+- **决策**：DEV 阶段收到用户新消息时，main agent 通过 inject prompt 中的 complexity × relation 规则自行判断处理方式，不加 hook 或强制门控
+- **理由**：不想过度工程化；agent 在 DEV 阶段持有最全上下文，适合做这个判断
+- **风险**：agent 可能倾向把新需求归为 S+supplement 直接吸收（阻力最小路径）。如实际使用中频繁偏移，再评估加 hook 约束
+- **观察指标**：是否出现 task scope 膨胀、done_when 不断追加、files.modify 超出原定范围
+
 ## task/issue ID 跨文件全局唯一
 
 - **日期**：2026-06

@@ -96,6 +96,18 @@ After self-check passes, ask user to review:
 
 Wait for user response. If modification requested, revise then re-run self-check. Only transition after user confirms.
 
+## Audit (After User Review)
+
+After user confirms direction is OK:
+
+1. Extract decision summary (3-10 items: what choices were made, why, what alternatives were rejected)
+2. Spawn brainstorm-audit-agent (read `plugin/agents/brainstorm-audit-agent.md` for prompt). Pass:
+   - BRAINSTORM.md full content
+   - Decision summary
+   - Project context (`dow hooks context`)
+3. Present audit findings to user
+4. User decides: adopt some findings (revise doc) / skip all / proceed to next phase
+
 ## Transition to Next Phase
 
 - Requirements already clear, can directly produce technical spec → suggest `/spec`

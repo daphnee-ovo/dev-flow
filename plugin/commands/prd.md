@@ -5,78 +5,71 @@ allowed-tools: Agent, Bash, Read, Write, Edit, AskUserQuestion
 
 # PRD — Product Requirements Definition
 
+## Role Guidance
+
+You are acting as a senior product manager with technical understanding. Your task is to formalize exploration results into an official product requirements document.
+
+- Think from user value perspective, with technical judgment capability
+- Structure scattered exploration conclusions
+- Identify gaps and contradictions, confirm with user one by one
+- Ensure non-goals and constraints are explicitly documented
+
 ## Execution Steps
 
-1. Detect project mode, determine `DOC_ROOT` (see script below)
-2. If `.dev-doc/` doesn't exist, create directory structure
+1. Detect project mode, determine `DOC_ROOT` via `dow status --field doc_root`
+2. If `.dev-doc/` doesn't exist, run `dow init`
 3. Check if `BRAINSTORM.md` exists (determines working mode)
-4. Read this plugin's `agents/prd-agent.md`
-5. **Launch independent Agent (strictly follow template)**
-6. After Agent completes, update `STATUS.yaml`
-
-## Mode Detection
-
-`DOC_ROOT` obtained via `dow status --field doc_root`.
-
-## New Project Initialization
-
-```bash
-dow init --name <project_name> --mode <mode>
-```
+4. Generate project context: `dow hooks context`
+5. Main agent directly works with user to produce PRD.md
+6. After completion, run audit and update STATUS.yaml
 
 ## Two Working Modes
 
 ### Mode A: Has BRAINSTORM.md (from /brainstorm)
-- PRD agent reads BRAINSTORM.md, extracts structured requirements
-- Identifies missing info, confirms with user one by one
-- Outputs formal PRD.md
+- Read BRAINSTORM.md, extract structured requirements
+- Identify missing info, confirm with user one by one
+- Output formal PRD.md
 
 ### Mode B: No BRAINSTORM.md (directly enter /prd)
-- PRD agent directly explores requirements through dialogue with user
-- Equivalent to original deep questioning mode
-- Outputs formal PRD.md
+- Directly explore requirements through dialogue with user
+- Cover: background, target users, core features, non-goals, constraints, success criteria
+- Output formal PRD.md
 
-## Agent Dispatch (Isolation Template)
+## Red Flags (dig deeper when encountered)
 
-**Must launch independent subagent, not allowed to pass additional context. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
+- "Like XX" but doesn't specify which aspects
+- Feature list without priorities
+- No explicit non-goals
+- Target users are "everyone"
+- Success criteria not quantifiable
+- Timeline vague
 
-```
-description: "PRD agent - Product requirements definition"
-prompt: `<read complete content of agents/prd-agent.md>
-
-## Project Information
-
-<only pass following content>
-- User's project idea description this time (original text)
-- Project name (if user mentioned)
-
-## Existing Exploration Results
-
-<if BRAINSTORM.md exists, paste complete content>
-<if doesn't exist, write "None, need to explore requirements from scratch">
-
-## Output Path
+## Output
 
 Create file via `dow prd create`, write to `<DOC_ROOT>/PRD.md`. Get format via `dow prd schema`.
 
-## Prohibited
+## Audit (After User Review)
 
-- Don't design technical solutions (that's SPEC's job)
-- Don't decompose tasks (that's TASK's job)
-- Don't read any existing code`
-```
+After user confirms direction is OK:
 
-## Input Isolation Rules
-
-| Allowed Input | Prohibited Input |
-|---------------|------------------|
-| User's project description original text | Non-requirement discussions from previous conversations |
-| agents/prd-agent.md content | Existing code content |
-| BRAINSTORM.md content (if exists) | Other phase docs (SPEC/TASK) |
-| DOC_ROOT path | Unrelated session history |
+1. Extract decision summary (3-10 items: what choices were made, why, what alternatives were rejected)
+2. Spawn prd-audit-agent (read `plugin/agents/prd-audit-agent.md` for prompt). Pass:
+   - PRD.md full content
+   - BRAINSTORM.md (if exists)
+   - Decision summary
+   - Project context (`dow hooks context`)
+3. Present audit findings to user
+4. User decides: adopt some findings (revise doc) / skip all / proceed to next phase
 
 ## After Completion
 
 1. Confirm PRD.md written
-2. Update STATUS.yaml: current phase → PRD
+2. Update STATUS.yaml phase
 3. Prompt user: after confirming PRD execute `/spec` to progress
+
+## Notes
+
+- Main agent executes directly, does not launch subagent for artifact generation
+- Features prioritized by MoSCoW (Must/Should/Could/Won't)
+- Non-goals are more important than goals — they prevent scope creep
+- If information incomplete, ask user, don't fabricate

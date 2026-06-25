@@ -32,13 +32,32 @@
 - After completing a task, run `dow task done <ID>` then `/devtest`.
 - After all tasks complete, auto-enter `/test`.
 
+### Handling ad-hoc requests during DEV
+When receiving a new user message during DEV, assess its relationship to the current task before acting:
+- complexity: S (≤2 files, no interface/architecture change) / M (multiple files or local flow) / L (interface/architecture/dependency/task boundary)
+- relation: supplement (extends current task) / disruptive (overturns current task premise/approach/acceptance) / independent (unrelated to current task)
+
+Rules:
+- S + supplement → update current task notes/done_when, continue DEV
+- M + supplement → explain impact scope, split new task if needed
+- L + supplement → stop DEV, return to SPEC or TASK
+- independent → create new task, do not mix into current task
+- disruptive → pause current task, determine whether to discard/rewrite/split/return to SPEC
+
+Examples:
+- "Add a log line to debug X" → S + supplement → update notes, continue
+- "Also need an export CSV button" → M + independent → create new task
+- "Can we use Redis instead of in-memory cache?" → L + disruptive → pause, reassess
+
 ### .dev-doc management
 - Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands. Never Read/Write directly.
 - Document files (PRD.md/SPEC.md/BRAINSTORM.md): Create via dow (`dow prd create` etc), edit directly after creation.
 - Schema: use `dow <resource> schema` (e.g. `dow task schema`, `dow spec schema`) to get format definitions.
 
 ### Role isolation
-- PRD/SPEC/TASK/TEST phases run in independent agents. Each agent only receives minimal input for that phase.
+- BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
+- TASK: main agent decomposes (low complexity) or spawns adversarial subagents (high complexity).
+- TEST: runs in independent agent with strict isolation. Each agent only receives minimal input for that phase.
 
 {CODEX DEV FLOW Discipline}
 
