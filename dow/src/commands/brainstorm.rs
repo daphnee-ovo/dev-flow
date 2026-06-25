@@ -24,7 +24,10 @@ fn create() -> Result<i32, DowError> {
 
     if path.exists() {
         return Err(DowError::new(
-            format!("{} already exists, will not overwrite", path.display()),
+            format!(
+                "{} already exists — run `dow iterate` to archive current iteration first",
+                path.display()
+            ),
             1,
         ));
     }
