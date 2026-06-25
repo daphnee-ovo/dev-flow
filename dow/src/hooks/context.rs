@@ -34,6 +34,10 @@ struct ContextOutput {
     last_changelog: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     guard_notice: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    blocked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -151,6 +155,9 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
     let goals_minor = map.get("goals_minor").cloned().filter(|s| !s.is_empty());
     let goals_major = map.get("goals_major").cloned().filter(|s| !s.is_empty());
 
+    let blocked = guard_notice.is_some();
+    let reason = guard_notice.clone();
+
     let output_data = ContextOutput {
         branch,
         version,
@@ -166,6 +173,8 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         current_items,
         last_changelog,
         guard_notice,
+        blocked,
+        reason,
     };
 
     if codex_hook {
@@ -472,12 +481,21 @@ fn read_version_info() -> (String, String) {
 }
 
 fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
+    let (decision, reason) = if data.guard_notice.is_some() {
+        (Some("block"), data.guard_notice.clone())
+    } else {
+        (None, None)
+    };
+
+    let context_json = serde_json::to_string(data)
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
+
     let output = CodexUserPromptSubmitOutput {
-        decision: None,
-        reason: None,
+        decision,
+        reason,
         hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
             hook_event_name: "UserPromptSubmit",
-            additional_context: format_human_context(data),
+            additional_context: context_json,
         },
     };
     output::print_json(&output);

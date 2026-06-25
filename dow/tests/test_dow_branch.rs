@@ -390,7 +390,7 @@ fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
         .unwrap();
     let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
     assert_eq!(context["blocked"], true);
-    assert!(context["reason"].as_str().unwrap().contains("/task"));
+    assert!(context["reason"].as_str().unwrap().contains("dow task create"));
 }
 
 #[test]
