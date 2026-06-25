@@ -234,10 +234,17 @@ fn restore_issues(doc_root: &std::path::Path, issues: &[archive_db::IssueRecord]
     shift_files_in_dir(&issue_dir, slots_needed)?;
 
     let mut count = 0u32;
+    let group_keys: Vec<&String> = groups.keys().collect();
     for (i, (_orig_name, content)) in revoke_files.iter().enumerate() {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let seq = i as u32 + 1;
-        let new_name = format!("closed_issue_{}_{}.md", today, seq);
+        // Extract source from the group's first issue record
+        let source = group_keys.get(i)
+            .and_then(|k| groups.get(*k))
+            .and_then(|g| g.first())
+            .and_then(|r| r.source_type.as_deref())
+            .unwrap_or("other");
+        let new_name = format!("closed_issue_{}_{}_{}.md", source, today, seq);
         let path = issue_dir.join(&new_name);
         fs::write(&path, content)
             .map_err(|e| DowError::new(format!("Failed to restore {}: {}", new_name, e), 1))?;

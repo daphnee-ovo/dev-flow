@@ -503,6 +503,9 @@ fn run_auto_fix(doc_root: &Path) -> (Vec<String>, Vec<String>) {
         }
     }
 
+    // Fix issue filenames missing source: extract from frontmatter and rename
+    fix_issue_filename_source(&issue_dir, &mut fixed);
+
     // Fix issue state consistency: add closed_ prefix to fully checked issue files
     fix_issue_rename(&issue_dir, &mut fixed);
 
@@ -630,6 +633,82 @@ fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
 }
 
 /// Rename issue files with all items checked to closed_ prefix
+fn fix_issue_filename_source(issue_dir: &Path, fixed: &mut Vec<String>) {
+    if !issue_dir.is_dir() {
+        return;
+    }
+    let entries: Vec<_> = match fs::read_dir(issue_dir) {
+        Ok(e) => e.flatten().collect(),
+        Err(_) => return,
+    };
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".md") {
+            continue;
+        }
+        let (prefix, rest) = if name.starts_with("closed_issue_") {
+            ("closed_issue_", &name["closed_issue_".len()..name.len() - 3])
+        } else if name.starts_with("issue_") {
+            ("issue_", &name["issue_".len()..name.len() - 3])
+        } else {
+            continue;
+        };
+
+        // Check if source is missing: rest starts with date (YYYY-MM-DD) not a source word
+        let parts: Vec<&str> = rest.split('_').collect();
+        if parts.is_empty() {
+            continue;
+        }
+        // If first part contains '-' it's likely a date, meaning source is missing
+        if !parts[0].contains('-') {
+            continue;
+        }
+
+        // Source is missing — extract from file frontmatter
+        let content = match fs::read_to_string(entry.path()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let source_owned = extract_source_from_frontmatter(&content);
+        let source = source_owned.as_deref().unwrap_or("other");
+        let new_name = format!("{}{}_{}_{}.md", prefix, source, parts[0], parts.get(1).unwrap_or(&"1"));
+        if new_name == name {
+            continue;
+        }
+        let new_path = issue_dir.join(&new_name);
+        if new_path.exists() {
+            continue;
+        }
+        if let Err(e) = fs::rename(entry.path(), &new_path) {
+            eprintln!("[dow lint] warning: failed to rename {} -> {}: {}", name, new_name, e);
+        } else {
+            fixed.push(format!("{}: renamed to {} (added source)", name, new_name));
+        }
+    }
+}
+
+fn extract_source_from_frontmatter(content: &str) -> Option<String> {
+    let mut in_frontmatter = false;
+    for line in content.lines() {
+        if line.trim() == "---" {
+            if in_frontmatter {
+                return None;
+            }
+            in_frontmatter = true;
+            continue;
+        }
+        if in_frontmatter {
+            if let Some(rest) = line.strip_prefix("source:") {
+                let val = rest.trim();
+                if !val.is_empty() {
+                    return Some(val.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 fn fix_issue_rename(issue_dir: &Path, fixed: &mut Vec<String>) {
     if !issue_dir.is_dir() {
         return;
@@ -883,14 +962,28 @@ fn parse_issue_file_date_seq(filename: &str) -> Option<(String, u32)> {
     } else {
         return None;
     };
-    // rest = "source_YYYY-MM-DD_seq"
-    let parts: Vec<&str> = rest.splitn(3, '_').collect();
-    if parts.len() < 3 {
-        return None;
+    // Try format: "source_YYYY-MM-DD_seq" (4 parts with date having dashes)
+    // or fallback: "YYYY-MM-DD_seq" (missing source)
+    let parts: Vec<&str> = rest.split('_').collect();
+
+    // Detect date pattern (YYYY-MM-DD = 3 parts joined by -)
+    // Full format: source_YYYY_MM_DD_seq → split gives [source, YYYY, MM, DD, seq] (won't work)
+    // Actually dates use - not _: source_2026-06-25_seq → split('_') gives [source, 2026-06-25, seq]
+    // Missing source: 2026-06-25_seq → split('_') gives [2026-06-25, seq]
+
+    if parts.len() >= 3 && parts[1].contains('-') {
+        // Normal: source_date_seq
+        let date = parts[1].to_string();
+        let seq = parts[2].parse::<u32>().unwrap_or(0);
+        Some((date, seq))
+    } else if parts.len() >= 2 && parts[0].contains('-') {
+        // Missing source: date_seq
+        let date = parts[0].to_string();
+        let seq = parts[1].parse::<u32>().unwrap_or(0);
+        Some((date, seq))
+    } else {
+        None
     }
-    let date = parts[1].to_string();
-    let seq = parts[2].parse::<u32>().unwrap_or(0);
-    Some((date, seq))
 }
 
 fn extract_issue_num(title: &str) -> Option<u32> {
