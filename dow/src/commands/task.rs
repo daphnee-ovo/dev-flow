@@ -271,16 +271,25 @@ fn parse_task_num(id: &str) -> Option<usize> {
 }
 
 fn find_or_create_batch_file(task_dir: &Path, today: &str) -> Result<PathBuf, DowError> {
-    // Find existing batch file for today
     let mut max_seq = 0u32;
-    let prefix = format!("task_{}_", today);
+    let prefix_active = format!("task_{}_", today);
+    let prefix_done = format!("done_task_{}_", today);
 
     if let Ok(entries) = fs::read_dir(task_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(&prefix) && name.ends_with(".md") {
-                let seq_part = &name[prefix.len()..name.len() - 3];
-                if let Ok(seq) = seq_part.parse::<u32>() {
+            if !name.ends_with(".md") {
+                continue;
+            }
+            let seq_str = if name.starts_with(&prefix_active) {
+                Some(&name[prefix_active.len()..name.len() - 3])
+            } else if name.starts_with(&prefix_done) {
+                Some(&name[prefix_done.len()..name.len() - 3])
+            } else {
+                None
+            };
+            if let Some(s) = seq_str {
+                if let Ok(seq) = s.parse::<u32>() {
                     if seq > max_seq {
                         max_seq = seq;
                     }
@@ -289,15 +298,15 @@ fn find_or_create_batch_file(task_dir: &Path, today: &str) -> Result<PathBuf, Do
         }
     }
 
+    // Try appending to existing active batch file with highest seq
     if max_seq > 0 {
-        // Append to existing file
         let path = task_dir.join(format!("task_{}_{}.md", today, max_seq));
         if path.exists() {
             return Ok(path);
         }
     }
 
-    // Create new batch file
+    // Create new batch file (seq must be above all existing active + done)
     let seq = max_seq + 1;
     let path = task_dir.join(format!("task_{}_{}.md", today, seq));
     let frontmatter = format!("---\ntitle: TASK - batch {}\nnums: 0\n---\n\n", today);
@@ -686,7 +695,19 @@ fn done_single(id: &str) -> Result<i32, DowError> {
                 if !task_store::has_undone_items(&new_content) {
                     let filename = path.file_name().unwrap().to_string_lossy().to_string();
                     let done_filename = format!("done_{}", filename);
-                    let done_path = task_dir.join(&done_filename);
+                    let mut done_path = task_dir.join(&done_filename);
+                    // Avoid overwriting existing done_ file
+                    if done_path.exists() {
+                        let mut suffix = 2u32;
+                        loop {
+                            let alt = format!("done_{}_{}.md", filename.trim_end_matches(".md"), suffix);
+                            done_path = task_dir.join(&alt);
+                            if !done_path.exists() {
+                                break;
+                            }
+                            suffix += 1;
+                        }
+                    }
                     fs::rename(path, &done_path)
                         .map_err(|e| DowError::new(format!("cannot rename task file: {}", e), 1))?;
                 }
