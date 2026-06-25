@@ -5,7 +5,7 @@
 // - [STATUS specification](../../../references/.dev-doc/STATUS.md)
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
-use crate::cli::StatusArgs;
+use crate::cli::{StatusArgs, StatusCommands, StatusSetArgs};
 use crate::error::DowError;
 use crate::core::{doc_root, doc_validator, yaml};
 use crate::output;
@@ -92,23 +92,14 @@ pub fn run(args: StatusArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    // Write operation
-    let is_write = args.phase.is_some()
-        || args.mode.is_some()
-        || args.exec_mode.is_some()
-        || args.name.is_some()
-        || args.goals_minor.is_some()
-        || args.goals_major.is_some();
-
-    if is_write {
-        return handle_write(&status_file, &args);
+    // Dispatch: `dow status set ...` vs `dow status [--field]`
+    match args.command {
+        Some(StatusCommands::Set(set_args)) => handle_write(&status_file, &set_args),
+        None => handle_read(&status_file, &doc_root_path, args.field, human),
     }
-
-    // Read operation
-    handle_read(&status_file, &doc_root_path, args.field, human)
 }
 
-fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowError> {
+fn handle_write(status_file: &PathBuf, args: &StatusSetArgs) -> Result<i32, DowError> {
     // Set phase (with validity check)
     if let Some(ref target_phase) = args.phase {
         let target = target_phase.to_uppercase();
@@ -136,7 +127,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusArgs) -> Result<i32, DowErro
             let has_issues = has_open_issues(doc_root_path);
             if !has_tasks && !has_issues {
                 return Err(DowError::new(
-                    "Cannot enter DEV: no open tasks or issues exist. Please create them first using `dow doc task` or `dow doc issue`.",
+                    "Cannot enter DEV: no open tasks or issues exist. Please create them first using `dow task create` or `dow issue create`.",
                     1,
                 ));
             }

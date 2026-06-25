@@ -1,10 +1,14 @@
 // tests/
 // ├── test_dow_branch.rs  -- 分支隔离集成测试
 
+mod common;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
+
+use common::default_branch;
 
 // 在项目内 tmp/ 下创建测试目录（避免 /tmp 被 guard 拦截）
 static TEST_SEQ: AtomicU32 = AtomicU32::new(0);
@@ -23,32 +27,8 @@ fn create_test_dir() -> PathBuf {
     dir
 }
 
-fn default_branch(dir: &Path) -> String {
-    let output = Command::new("git")
-        .args(["branch", "--show-current"])
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    String::from_utf8_lossy(&output.stdout).trim().to_string()
-}
-
 fn setup_git_repo(dir: &Path) {
-    Command::new("git")
-        .args(["init"])
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    fs::write(dir.join("dummy.txt"), "init").unwrap();
-    Command::new("git")
-        .args(["add", "."])
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["commit", "-m", "init"])
-        .current_dir(dir)
-        .output()
-        .unwrap();
+    common::git_init_with_commit(dir);
 }
 
 fn setup_branch_env(dir: &Path) {
@@ -357,8 +337,8 @@ fn test_context_blocks_when_all_tasks_done() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["decision"], "block");
     let reason = json["reason"].as_str().unwrap();
-    assert!(reason.contains("/task"), "should suggest /task");
-    assert!(reason.contains("/issue"), "should suggest /issue");
+    assert!(reason.contains("dow task create"), "should suggest dow task create");
+    assert!(reason.contains("dow issue create"), "should suggest dow issue create");
     assert!(reason.contains("/test"), "should suggest /test");
 }
 
@@ -479,7 +459,7 @@ fn test_guard_blocks_code_write_when_all_done() {
         "should output permission JSON"
     );
     assert!(stdout.contains("deny"), "should deny code write");
-    assert!(stdout.contains("/task"), "should suggest /task");
+    assert!(stdout.contains("dow task create"), "should suggest dow task create");
 }
 
 #[test]
@@ -505,12 +485,12 @@ fn test_guard_accepts_codex_hook_global_arg_after_subcommand() {
 }
 
 #[test]
-fn test_guard_allows_devdoc_edit_when_all_done() {
+fn test_guard_blocks_devdoc_task_edit() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
     let branch = default_branch(&dir);
 
-    // 编辑已存在的 task 文件应当允许（已存在文件不受 direct-create 拦截）
+    // 编辑已存在的 task 文件应当拦截（结构型文件全链路走 dow 命令）
     let file_path = format!(".dev-doc/{}/task/task_2026-05-30_1.md", branch);
     let tool_input = format!(
         r#"{{"tool_name":"Edit","tool_input":{{"file_path":"{}"}}}}"#,
@@ -526,8 +506,13 @@ fn test_guard_allows_devdoc_edit_when_all_done() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        !stdout.contains("deny"),
-        "should allow .dev-doc edit: {}",
+        stdout.contains("deny"),
+        "should deny task file edit: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("dow task done"),
+        "should suggest dow task done: {}",
         stdout
     );
 }

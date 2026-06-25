@@ -111,8 +111,8 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         if undone_items == 0 && open_issues == 0 {
             let reason =
                 "[dev-flow] DEV phase has no pending tasks or open issues, development not allowed. Please choose:\n\
-                → /task to create new task\n\
-                → /issue to create issue\n\
+                → `dow task create` to create new task\n\
+                → `dow issue create` to create issue\n\
                 → /test to enter test phase";
             if human {
                 println!("{}", reason);

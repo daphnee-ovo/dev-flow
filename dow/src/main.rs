@@ -7,7 +7,7 @@
 // │   ├── error.rs         -- Unified error type
 // │   ├── commands/        -- Subcommand implementations
 // │   ├── hooks/           -- Hook subcommand implementations
-// │   └── lib/             -- Common library (yaml/version/git, etc.)
+// │   └── core/            -- Common library (yaml/version/git, etc.)
 
 mod cli;
 mod commands;
@@ -24,28 +24,26 @@ fn main() {
     let cli = Cli::parse();
     let human = cli.human;
 
-    // Daily version check (when not setup/update/self-check commands)
     if should_check_version(&cli.command) {
         check_version_background();
     }
 
     let result = match cli.command {
+        Commands::Task { command } => commands::task::run(command, human),
+        Commands::Issue { command } => commands::issue::run(command, human),
+        Commands::Changelog { command } => commands::changelog_cmd::run(command, human),
+        Commands::Brainstorm { command } => commands::brainstorm::run(command, human),
+        Commands::Prd { command } => commands::prd::run(command, human),
+        Commands::Spec { command } => commands::spec_cmd::run(command, human),
         Commands::Status(args) => commands::status::run(args, human),
         Commands::Init(args) => commands::init::run(args, human),
-        Commands::Check => commands::check::run(human),
-        Commands::Claim(args) => commands::claim::run(args, human),
+        Commands::Lint(args) => commands::lint::run(args, human),
         Commands::Iterate(args) => commands::iterate::run(args, human),
-        Commands::Rollback(args) => commands::rollback::run(args, human),
         Commands::Scan => commands::scan::run(human),
-        Commands::Validate => commands::validate::run(human),
-        Commands::Fix => commands::fix::run(human),
-        Commands::Doc(args) => commands::doc::run(args, human),
-        Commands::Devtest(args) => commands::devtest::run(args, human),
         Commands::Test(args) => commands::test_runner::run(args, human),
         Commands::Inbox { command } => match command {
             cli::InboxCommands::Context => commands::info::context(),
         },
-        Commands::Issue(args) => commands::issue::run(args, human),
         Commands::Version(args) => commands::version::run(args, human),
         Commands::Archive { command } => commands::archive::run(command, human),
         Commands::Hooks {
@@ -63,6 +61,8 @@ fn main() {
             }
             HooksCommands::SaveChangelog => hooks::save_changelog::run(codex_hook, kiro_hook),
         },
+        Commands::Rollback(args) => commands::rollback::run(args, human),
+        Commands::Claim(args) => commands::claim::run(args, human),
         Commands::Setup(args) => commands::setup::run(args.agent, human),
         Commands::Update => commands::update::run(human),
         Commands::SelfCheck => commands::self_check::run(human),

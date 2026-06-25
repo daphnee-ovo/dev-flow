@@ -218,7 +218,7 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
         // 3. STATUS.yaml protection
         if path.file_name() == Some("STATUS.yaml") && path.is_under(&ctx.devdoc_dir) {
             return deny(
-                "[dev-flow] BLOCKED: direct creation or modification of STATUS.yaml is prohibited. Use `dow status --phase/--mode/--name` or `dow init`.",
+                "[dev-flow] BLOCKED: direct creation or modification of STATUS.yaml is prohibited. Use `dow status set --phase/--mode/--name` or `dow init`.",
                 kiro_hook,
             );
         }
@@ -339,8 +339,8 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             } else {
                 return Some(PhaseDecision::Deny(format!(
                     "[dev-flow] BLOCKED: DEV phase has no pending tasks or open issues, writing to {} not allowed. Please choose:\n\
-                    → /task to create new task\n\
-                    → /issue to create issue\n\
+                    → `dow task create` to create new task\n\
+                    → `dow issue create` to create issue\n\
                     → /test to enter test phase",
                     path.display()
                 )));
@@ -401,7 +401,7 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
 
     // Everything else → deny
     Some(PhaseDecision::Deny(format!(
-        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase: create task (/task) or issue (/issue) to enter DEV. (Exploratory code/demos can go under tmp/)",
+        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase: create task (`dow task create`) or issue (`dow issue create`) to enter DEV. (Exploratory code/demos can go under tmp/)",
         phase, path.display()
     )))
 }
@@ -411,47 +411,64 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         return None;
     }
 
-    // Need relative path under branch directory
     let branch_dir = ctx.current_branch_dir()?;
     let rel = path.relative_to(&branch_dir)?;
     let rel_str = rel.to_string_lossy().to_string();
 
-    let protected_singles = [
+    // Document-type files: block creation, allow editing existing
+    let doc_type_singles = [
         ("PRD.md", "prd"),
         ("SPEC.md", "spec"),
-        ("TEST.md", "test"),
         ("BRAINSTORM.md", "brainstorm"),
-        ("CHANGELOG.md", "changelog"),
     ];
 
-    for (filename, doc_type) in &protected_singles {
+    for (filename, cmd) in &doc_type_singles {
         if rel_str == *filename {
             if !path.exists() {
                 return Some(format!(
-                    "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow doc {}`",
+                    "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow {} create`",
                     path.display(),
-                    doc_type
+                    cmd
                 ));
             }
+            // Document-type + exists → allow editing
             return None;
         }
     }
 
-    // New files under task/ and issue/
-    if (rel_str.starts_with("task/task_") || rel_str.starts_with("issue/issue_"))
-        && rel_str.ends_with(".md")
-        && is_standard_doc_filename(&rel_str)
-    {
-        if !path.exists() {
-            let doc_type = if rel_str.starts_with("task/") {
-                "task"
-            } else {
-                "issue"
-            };
+    // Structural-type files: always block (create AND edit)
+    if rel_str == "CHANGELOG.md" {
+        return Some(format!(
+            "[dev-flow] BLOCKED: direct modification of CHANGELOG.md is prohibited. Use `dow changelog add --text \"...\"`"
+        ));
+    }
+
+    // Task files: always block
+    if rel_str.starts_with("task/") && rel_str.ends_with(".md") {
+        let name = rel_str.split('/').last().unwrap_or("");
+        if name.starts_with("task_") || name.starts_with("done_task_") {
+            if !path.exists() {
+                return Some(format!(
+                    "[dev-flow] BLOCKED: manual creation of task files is prohibited, please use `dow task create`"
+                ));
+            }
             return Some(format!(
-                "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow doc {} [-n N]`",
-                path.display(),
-                doc_type
+                "[dev-flow] BLOCKED: direct modification of task files is prohibited. Use `dow task done <ID>` or `dow task reopen <ID>`"
+            ));
+        }
+    }
+
+    // Issue files: always block
+    if rel_str.starts_with("issue/") && rel_str.ends_with(".md") {
+        let name = rel_str.split('/').last().unwrap_or("");
+        if name.starts_with("issue_") || name.starts_with("closed_issue_") {
+            if !path.exists() {
+                return Some(format!(
+                    "[dev-flow] BLOCKED: manual creation of issue files is prohibited, please use `dow issue create`"
+                ));
+            }
+            return Some(format!(
+                "[dev-flow] BLOCKED: direct modification of issue files is prohibited. Use `dow issue close <ID>` or `dow issue reopen <ID>`"
             ));
         }
     }
@@ -577,15 +594,6 @@ fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
     false
 }
 
-fn is_standard_doc_filename(rel: &str) -> bool {
-    let parts: Vec<&str> = rel.split('/').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    let filename = parts[1];
-    filename.chars().filter(|c| *c == '-').count() >= 2
-        && filename.contains(|c: char| c.is_ascii_digit())
-}
 
 // ─── Input parsing (unchanged) ────────────────────────────────────────────────────────
 

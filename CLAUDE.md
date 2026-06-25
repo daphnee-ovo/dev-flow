@@ -40,20 +40,37 @@
 
 | 子命令 | 作用 |
 |--------|------|
-| `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--goals-minor`/`--goals-major`/`--field`） |
+| `dow task create [flags \| stdin JSON]` | 创建任务 |
+| `dow task list [--all]` | 列出待处理任务（默认 pending） |
+| `dow task show <ID>` | 任务详情 |
+| `dow task done <ID>` | 标记任务完成 |
+| `dow task reopen <ID> [--confirm TRO-xxx]` | 重开已完成任务 |
+| `dow task schema` | 输出任务字段定义 |
+| `dow issue create [flags \| stdin JSON]` | 创建 issue |
+| `dow issue list [--all]` | 列出 open issue（默认 open） |
+| `dow issue show <ID>` | issue 详情 |
+| `dow issue close <ID>` | 关闭 issue |
+| `dow issue reopen <ID> [--confirm IRO-xxx]` | 重开已关闭 issue |
+| `dow issue schema` | 输出 issue 字段定义 |
+| `dow changelog list` | 列出当前 CHANGELOG 条目 |
+| `dow changelog add --text "..."` | 追加 CHANGELOG 条目 |
+| `dow prd create` | 创建 PRD.md |
+| `dow prd schema` | 输出 PRD 格式定义 |
+| `dow spec create` | 创建 SPEC.md |
+| `dow spec schema` | 输出 SPEC 格式定义 |
+| `dow brainstorm create` | 创建 BRAINSTORM.md |
+| `dow brainstorm schema` | 输出 BRAINSTORM 格式定义 |
+| `dow status` | 读取 STATUS.yaml |
+| `dow status set --phase/--mode/--exec-mode/--name/--goals-minor/--goals-major` | 写入 STATUS.yaml |
 | `dow init --name <n> --mode <m>` | 初始化 dev-flow 工作流管理 |
-| `dow check` | 文档规范检查 |
-| `dow issue --list` | 列出未关闭的 issue |
-| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--tag] [--confirm]` | 迭代交付（默认 patch，minor/major 自动打 tag） |
+| `dow lint [--fix]` | 检查 .dev-doc 结构 + 规范 + 一致性（合并原 check/validate/fix） |
+| `dow test [--task <ID>] [--file <x>]` | 运行测试（全量 / 任务级） |
+| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--confirm ITR-xxx]` | 迭代交付 |
 | `dow rollback --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
 | `dow rollback --list` | 列出可回退的版本 |
 | `dow claim [IDs...] [--revoke]` | 声明/释放当前工作关联的 task/issue |
 | `dow scan` | 项目扫描 |
-| `dow validate` | 校验 .dev-doc 结构 |
-| `dow fix` | 自动修复 .dev-doc 文件格式问题 |
-| `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
-| `dow devtest [--task <id>]` | 任务级测试 |
-| `dow test [--file <x>]` | 全量测试 |
+| `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION（禁止直接编辑文件） |
 | `dow archive list [--branch <b>]` | 列出所有归档版本 |
 | `dow archive show <version>` | 某版本归档详情 |
 | `dow archive tasks [--version v] [--priority P0]` | 查询归档任务 |
@@ -61,12 +78,11 @@
 | `dow archive doc <version> <PRD\|SPEC\|TEST>` | 输出归档文档原文 |
 | `dow archive migrate [--delete-originals]` | 从目录迁移到 SQLite |
 | `dow archive stats` | 归档统计 |
-| `dow hooks context [--codex-hook]` | hook：注入上下文；Codex hook 使用协议 JSON envelope |
+| `dow hooks context [--codex-hook]` | hook：注入上下文 |
 | `dow hooks guard <file>` | hook：文件写入守护 |
 | `dow hooks post-write <file>` | hook：写后联动 |
 | `dow hooks post-bash [command]` | hook：Bash 执行后检测分支切换 |
-| `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG；Codex hook 使用 Stop 协议 JSON |
-| `dow version [--set X.Y.Z] [--bump major\|minor\|patch]` | 读写 VERSION（禁止直接编辑文件） |
+| `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG |
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
 | `dow self-check` | 查看安装状态和健康度 |
@@ -77,18 +93,20 @@
 
 ## 文档格式规范（必读）
 
-**创建或写入 .dev-doc 文件时，必须通过 `dow doc <type> --json` 获取格式定义，不要凭记忆或内联模板写入。**
+**创建 .dev-doc 文件时，必须通过 `dow <resource> create` 命令，不要直接创建文件。**
+**获取格式定义时，通过 `dow <resource> schema` 命令。**
 
 ```bash
-dow doc task --json    # 获取 task 文件的结构化格式
-dow doc issue --json   # 获取 issue 文件的结构化格式
-dow doc spec --json    # 获取 SPEC.md 的格式定义
-dow doc prd --json     # 获取 PRD.md 的格式定义
-dow doc test --json    # 获取 TEST.md 的格式定义
+dow task schema        # 获取 task 字段定义
+dow issue schema       # 获取 issue 字段定义
+dow spec schema        # 获取 SPEC.md 格式定义
+dow prd schema         # 获取 PRD.md 格式定义
+dow brainstorm schema  # 获取 BRAINSTORM.md 格式定义
+dow changelog schema   # 获取 CHANGELOG 格式定义
 ```
 
-`--md` 输出人类可读的完整 markdown 规范，`--json` 输出结构化 JSON（含 template、fields、rules）。
-subagent prompt 中应使用 `--json` 输出拼入格式要求。
+结构型文件（task/issue/STATUS/CHANGELOG）的全部操作必须通过 dow 命令，不允许 agent 直接 Read/Write。
+文档型文件（PRD.md/SPEC.md/BRAINSTORM.md）创建由 dow 管理，后续编辑 agent 可直接操作。
 
 ## Hooks
 

@@ -87,7 +87,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
 
     // 2.6 Check persistent docs sync (warn but don't block)
     let doc_warnings = check_persistent_docs_sync(&status_file);
-    if !doc_warnings.is_empty() && !args.confirm {
+    if !doc_warnings.is_empty() && args.confirm.is_none() {
         if human {
             println!("[dev-flow] Warning: The following persistent documents have not been updated since last iteration:");
             for w in &doc_warnings {
@@ -107,21 +107,32 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let archived_files = list_archive_files(&doc_root_path);
 
     // --confirm mode: Execute after token verification
-    if args.confirm {
+    if let Some(ref token) = args.confirm {
         let tokens = generate_tokens_with_window(&args);
+        // Strip "ITR-" prefix from user-provided token for comparison
+        let bare_token = token.strip_prefix("ITR-").unwrap_or(token);
         let found = tokens.iter().any(|t| {
-            let env_key = format!("DOW_ITERATE_{}", t);
+            let bare_t = t.strip_prefix("ITR-").unwrap_or(t);
+            let env_key = format!("DOW_ITERATE_{}", bare_t);
             std::env::var(&env_key).is_ok()
         });
         if !found {
-            let hint = &tokens[0];
-            return Err(DowError::new(
-                format!(
-                    "Confirmation failed: Environment variable DOW_ITERATE_{} not found, please run dow iterate preview first",
-                    hint
-                ),
-                1,
-            ));
+            // Accept the token directly matching generated tokens (with or without prefix)
+            let token_matches = tokens.iter().any(|t| {
+                let bare_t = t.strip_prefix("ITR-").unwrap_or(t);
+                bare_t == bare_token
+            });
+            if !token_matches {
+                let hint = &tokens[0];
+                return Err(DowError::new(
+                    format!(
+                        "Confirmation failed: token mismatch. Expected {} (or set env DOW_ITERATE_{}=1)",
+                        hint,
+                        hint.strip_prefix("ITR-").unwrap_or(hint)
+                    ),
+                    1,
+                ));
+            }
         }
     } else {
         // Trigger save_changelog before preview to ensure current session activity is recorded
@@ -1046,8 +1057,10 @@ fn print_human_preview(result: &IterateOutput) {
     );
     println!("  - Phase reset: {}", result.next_phase);
     if let Some(ref t) = result.token {
+        let bare = t.strip_prefix("ITR-").unwrap_or(t);
         println!();
-        println!("Confirm execution: DOW_ITERATE_{}=1 dow iterate --confirm ...", t);
+        println!("Confirm: dow iterate --confirm {} ...", t);
+        println!("  (or: DOW_ITERATE_{}=1 dow iterate --confirm {} ...)", bare, t);
     }
 }
 
@@ -1069,7 +1082,7 @@ fn generate_token_for_minute(offset: i64, args: &IterateArgs) -> String {
     args.bump.hash(&mut hasher);
     args.files.hash(&mut hasher);
     let hash = hasher.finish();
-    format!("{:016x}", hash)[..8].to_string()
+    format!("ITR-{}", &format!("{:016x}", hash)[..6])
 }
 
 // Return tokens for current minute + previous 4 minutes (5-minute validity window)

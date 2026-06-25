@@ -17,3 +17,6 @@
 - 11:15 workflow: update dev-flow state
 - 14:41 docs: 禁止在 dow/ 目录下创建 .dev-doc
 - 17:55 refactor: 将 agent_registry.rs 内嵌 prompt 提取到 dow/references/inject_prompt/ 外部文件
+
+## 2026-06-25
+- 12:21 refactor: cli.rs 重写 Commands enum
