@@ -15,13 +15,15 @@ Modes:
 DEV phase rules:
   - When hook output contains [BLOCKED], stop all dev operations.
   - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min).
-  - Read task file for context (done_when, files, refs) before coding.
-  - Only do tasks listed in task/ — no more, no less.
-  - After task completion, run devtest. After all tasks, run test.
+  - Use `dow task show <ID>` for context (done_when, files, refs) before coding.
+  - Only do tasks listed in `dow task list` — no more, no less.
+  - After task completion, run `dow task done <ID>` then devtest. After all tasks, run test.
   - After completing, run `dow claim --revoke` to release.
 
-Doc format:
-  When writing .dev-doc files, use `dow doc <type> --json` to get format definition.
+.dev-doc management:
+  Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands.
+  Document files (PRD.md/SPEC.md/BRAINSTORM.md): Create via dow, edit directly after creation.
+  Schema: `dow <resource> schema` for format definitions.
 
 Role isolation:
   PRD/SPEC/TASK/TEST phases run in independent agents with minimal input.
@@ -37,7 +39,7 @@ Directory structure:
   .dev-doc/
   ├── STATUS.yaml
   ├── CHANGELOG.md
-  ├── BRAINSTORM.md, PRD.md, SPEC.md, TEST.md
+  ├── BRAINSTORM.md, PRD.md, SPEC.md
   ├── task/       (task_*.md, done_task_*.md)
   ├── issue/      (issue_*.md, closed_issue_*.md)
   └── archive.db  (SQLite, queried via `dow archive`)
