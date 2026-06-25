@@ -35,14 +35,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
             DowError::new(format!("Failed to revoke claim: {}", e), 1)
         })?;
 
-        if human {
-            match target {
-                Some(id) => println!("[dev-flow] Revoked claim: {}", id),
-                None => println!("[dev-flow] Revoked all claims"),
-            }
-        } else {
-            output::print_json(&serde_json::json!({"revoked": target.unwrap_or("all")}));
-        }
+        // Silent on success — operator knows what they revoked
         return Ok(0);
     }
 
@@ -68,11 +61,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
             DowError::new(format!("Failed to add claim: {}", e), 1)
         })?;
 
-        if human {
-            println!("[dev-flow] Claimed: {}", normalized.join(", "));
-        } else {
-            output::print_json(&serde_json::json!({"claimed": &normalized}));
-        }
+        // Silent on success — operator knows what they claimed
         return Ok(0);
     }
 

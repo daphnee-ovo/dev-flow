@@ -4,7 +4,6 @@
 use crate::cli::InitArgs;
 use crate::core::{doc_root, version, yaml};
 use crate::error::DowError;
-use crate::output;
 use serde::Serialize;
 use std::fs;
 
@@ -17,7 +16,7 @@ struct InitOutput {
     version: String,
 }
 
-pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
+pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     let valid_modes = ["full", "quick", "fast", "mvp"];
     if !valid_modes.contains(&args.mode.as_str()) {
         return Err(DowError::new(
@@ -104,17 +103,8 @@ pub fn run(args: InitArgs, human: bool) -> Result<i32, DowError> {
         version: "0.1.0".to_string(),
     };
 
-    if human {
-        println!("[dev-flow] Initialization complete");
-        println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("Project name: {}", result.name);
-        println!("Development mode: {}", result.mode);
-        println!("Current phase: {}", result.phase);
-        println!("Version: v{}", result.version);
-    } else {
-        output::print_json(&result);
-    }
-
+    // Silent on success — .dev-doc/ internal operations are not extra info
+    let _ = result;
     Ok(0)
 }
 
