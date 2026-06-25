@@ -17,7 +17,7 @@ doc_root obtained via `dow status --field doc_root` (no need to manually detect 
 
 ## Execution Steps
 
-1. List all unclosed issues: `dow issue --list`
+1. List all unclosed issues: `dow issue list`
 
 2. Read each issue file content one by one
 

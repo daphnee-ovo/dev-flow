@@ -22,7 +22,7 @@ Every project needs this process. A utility function, a config change, a single-
 3. **Ask clarifying questions one by one** — one question per message, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and recommendation
 5. **Present design in segments** — segment by complexity, confirm each segment before continuing
-6. **Write design doc** — create via `dow doc brainstorm`, write to `<DOC_ROOT>/BRAINSTORM.md`
+6. **Write design doc** — create via `dow brainstorm create`, write to `<DOC_ROOT>/BRAINSTORM.md`
 7. **Design self-check** — check for placeholders, contradictions, ambiguities, scope
 8. **User review** — ask user to review doc, only continue after confirmation
 9. **Transition to next phase** — suggest entering `/prd` or `/spec`
@@ -75,7 +75,7 @@ Every project needs this process. A utility function, a config change, a single-
 
 ## Write Design Doc
 
-After confirmation, create file via `dow doc brainstorm` (auto-writes to `<DOC_ROOT>/BRAINSTORM.md`), get format via `dow doc brainstorm --json`.
+After confirmation, create file via `dow brainstorm create` (auto-writes to `<DOC_ROOT>/BRAINSTORM.md`), get format via `dow brainstorm schema`.
 
 ## Design Self-Check
 

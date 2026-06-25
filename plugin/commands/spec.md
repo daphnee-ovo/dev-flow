@@ -39,7 +39,7 @@ prompt: `<read complete content of agents/spec-agent.md>
 
 ## Output Path
 
-Create file via `dow doc spec`, write to `<DOC_ROOT>/SPEC.md`. Get format via `dow doc spec --json`.
+Create file via `dow spec create`, write to `<DOC_ROOT>/SPEC.md`. Get format via `dow spec schema`.
 
 ## Prohibited
 

@@ -82,7 +82,7 @@ Output scan summary, ask for confirmation:
 Run migration detection script:
 
 ```bash
-dow validate
+dow lint
 ```
 
 Script auto-detects and migrates:
@@ -99,7 +99,7 @@ Skip if output shows `status: no_migration_needed`.
 Run validation script:
 
 ```bash
-dow validate
+dow lint
 ```
 
 Script auto-completes:
@@ -123,7 +123,7 @@ Script outputs report in three categories:
   - `issue_invalid_severity` → correct to legal values P0/P1/P2
 - `auto_fixed` → only inform user in final report
 
-**Spec Reference**: When handling `warnings`, agent must obtain corresponding doc format spec via `dow doc <type> --json` (e.g., use `dow doc issue --json` for issue format issues, `dow doc task --json` for task format issues), ensure fix content complies with spec definition. Don't infer correct format just from warning type name.
+**Spec Reference**: When handling `warnings`, agent must obtain corresponding doc format spec via `dow <type> schema` (e.g., use `dow issue schema` for issue format issues, `dow task schema` for task format issues), ensure fix content complies with spec definition. Don't infer correct format just from warning type name.
 
 ---
 

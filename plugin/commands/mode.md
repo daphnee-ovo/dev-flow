@@ -20,7 +20,7 @@ allowed-tools: Bash, Read, AskUserQuestion
 If user specified mode (e.g., `/mode quick`), run script directly:
 
 ```bash
-dow status --mode <mode>
+dow status set --mode <mode>
 ```
 
 If mode not specified, ask user to choose first, then run script.

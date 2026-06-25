@@ -38,11 +38,11 @@ prompt: `<read complete content of agents/task-agent.md>
 
 ## Output Path
 
-Create file via `dow doc task -n <task_count>` (auto-handles directory creation and sequence increment), write to `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`.
+Create file via `dow task create` (auto-handles directory creation and sequence increment), write to `<DOC_ROOT>/task/task_<YYYY-MM-DD>_<seq>.md`.
 
 ## Output Format
 
-Execute `dow doc task --json` to get structured format definition, append to agent prompt.
+Execute `dow task schema` to get structured format definition, append to agent prompt.
 
 ## Prohibited
 

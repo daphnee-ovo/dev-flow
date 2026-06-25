@@ -10,7 +10,7 @@ allowed-tools: Bash, Read
 Run script directly, display output:
 
 ```bash
-dow check
+dow lint
 ```
 
 Script auto-checks CHANGELOG, task completion vs phase match, issue status, code changes vs doc update time, phase required files. Agent only needs to run and display results.

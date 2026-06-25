@@ -43,8 +43,8 @@ prompt: `<read complete content of agents/test-agent.md>
 ## Output Paths
 
 - Test code: tests/ (test_<feature>.<ext>)
-- Test report: create `<DOC_ROOT>/TEST.md` via `dow doc test`
-- Issue files: create via `dow doc issue --source test`, get format via `dow doc issue --json`
+- Test report: output to stdout (no longer creates TEST.md)
+- Issue files: create via `dow issue create --source test`, get format via `dow issue schema`
 
 ## Prohibited
 

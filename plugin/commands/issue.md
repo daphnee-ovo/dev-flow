@@ -24,7 +24,7 @@ Ask user (can get from parameters):
 Check if today's `other` source issue file already exists:
 
 ```bash
-dow issue --list | grep 'other'
+dow issue list | grep 'other'
 ```
 
 - If exists and file has reasonable issue count (<10) → append to existing file
@@ -33,12 +33,12 @@ dow issue --list | grep 'other'
 ### 3. Create New File
 
 ```bash
-dow doc issue --source other -n <issue_count>
+dow issue create --source other
 ```
 
 ### 4. Write Format
 
-Execute `dow doc issue --json` to get structured format definition.
+Execute `dow issue schema` to get structured format definition.
 
 ### 5. Prompt Next Step
 

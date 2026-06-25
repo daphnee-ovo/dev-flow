@@ -57,7 +57,7 @@ prompt: `<read complete content of agents/prd-agent.md>
 
 ## Output Path
 
-Create file via `dow doc prd`, write to `<DOC_ROOT>/PRD.md`. Get format via `dow doc prd --json`.
+Create file via `dow prd create`, write to `<DOC_ROOT>/PRD.md`. Get format via `dow prd schema`.
 
 ## Prohibited
 

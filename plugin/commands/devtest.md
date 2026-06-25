@@ -10,10 +10,10 @@ devtest only does lightweight loop, not large controller.
 ## Execution Method
 
 ```bash
-dow devtest
+dow test --task <TASK-ID>
 ```
 
-Mode controlled by exec_mode field in STATUS.yaml (`dow status --exec-mode continuous` or `step`),
+Mode controlled by exec_mode field in STATUS.yaml (`dow status set --exec-mode continuous` or `step`),
 devtest reads and executes in corresponding mode automatically.
 
 ## Pre-checks
@@ -27,7 +27,7 @@ devtest reads and executes in corresponding mode automatically.
 | Outcome | Behavior |
 |---------|----------|
 | `PASS` | Keep task checked; if all tasks done, suggest `/test` |
-| `FAIL` | Uncheck current task, create issue file via `dow doc issue --source devtest -n <issue_count>`, stop progression |
+| `FAIL` | Uncheck current task, create issue file via `dow issue create --source devtest`, stop progression |
 | `NEEDS_CONTEXT` | Keep task checked, don't continue progression, require additional information |
 
 ## Agent Verification Requirements
