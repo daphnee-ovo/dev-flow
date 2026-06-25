@@ -56,16 +56,12 @@ You will receive:
    - Exception paths: invalid input, network down, insufficient permissions
    - Compatibility (if applicable)
 5. Run all tests under `tests/`
-6. Create `<DOC_ROOT>/TEST.md` (test report) via `dow doc test`
-7. Create issue files via `dow doc issue --source test`
-
-## TEST.md Format (test report)
-
-Follow format definition from `dow doc test --json` output.
+6. Output test report to stdout (do not create TEST.md file)
+7. Create issue files via `dow issue create --source test`
 
 ## Issue File Format
 
-Follow format definition from `dow doc issue --json` output.
+Get format via `dow issue schema`.
 
 Issues found in same test run write to same issue file (batched by source+date).
 

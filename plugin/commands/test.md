@@ -17,7 +17,7 @@ allowed-tools: Agent, Bash, Read, Write, Edit
 
 ## Input Assembly
 
-1. Generate project context: `dow inbox context`
+1. Generate project context: `dow hooks context`
 2. Collect all task file content (including done_task_*) as verification scope
 3. Read SPEC.md as verification standard
 
@@ -38,7 +38,7 @@ prompt: `<read complete content of agents/test-agent.md>
 <all task file content under task/ directory (including done_task_*), paste as-is>
 
 ### Project Context
-<execute dow inbox context output, paste as-is>
+<execute dow hooks context output, paste as-is>
 
 ## Output Paths
 

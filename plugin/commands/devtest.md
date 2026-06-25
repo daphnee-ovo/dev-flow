@@ -38,7 +38,7 @@ If independent agent verification needed, only pass minimal context:
 |---------------|------------------|
 | Current task title, refs, files, done_when | Other unrelated tasks |
 | Related acceptance items in SPEC | PRD.md |
-| Project context `dow inbox context` | Dev phase conversation history |
+| Project context `dow hooks context` | Dev phase conversation history |
 
 Verification focus:
 

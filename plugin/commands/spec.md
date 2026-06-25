@@ -67,7 +67,7 @@ After user confirms direction is OK:
 4. User decides:
    - Adopt some findings → revise doc → proceed to next phase
    - Skip all → proceed to next phase
-   - Request re-audit → spawn spec-audit-agent again on updated artifact
+   - Request re-audit → re-extract decision summary, spawn spec-audit-agent again with updated SPEC.md + new summary + context
 
 ## After Completion
 

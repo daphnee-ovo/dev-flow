@@ -23,7 +23,7 @@ doc_root obtained via `dow status --field doc_root` (no need to manually detect 
 
 3. Declare work association: `dow claim <ISSUE-ID>...` (pass all issue IDs to fix, guard allows writes based on this)
 
-4. Generate project context: `dow inbox context`
+4. Generate project context: `dow hooks context`
 
 5. Launch independent Agent to fix each issue (if issues have no dependencies, can parallelize)
 
@@ -49,7 +49,7 @@ prompt: `You are a senior developer. Your task is to fix the following issue.
 
 ## Project Context
 
-<execute dow inbox context output, paste as-is>
+<execute dow hooks context output, paste as-is>
 
 ## Fix Requirements
 
