@@ -41,12 +41,16 @@
 | 子命令 | 作用 |
 |--------|------|
 | `dow task create [flags \| stdin JSON]` | 创建任务 |
+| `dow task update <ID> [--field value...]` | 更新任务字段（传哪个改哪个） |
+| `dow task remove <ID> [--confirm TRM-xxx]` | 删除 pending 任务（重编号 + 清理依赖） |
 | `dow task list [--all]` | 列出待处理任务（默认 pending） |
 | `dow task show <ID>` | 任务详情 |
 | `dow task done <ID>` | 标记任务完成 |
 | `dow task reopen <ID> [--confirm TRO-xxx]` | 重开已完成任务 |
 | `dow task schema` | 输出任务字段定义 |
 | `dow issue create [flags \| stdin JSON]` | 创建 issue |
+| `dow issue update <ID> [--field value...]` | 更新 issue 字段（传哪个改哪个） |
+| `dow issue remove <ID> [--confirm IRM-xxx]` | 删除 open issue（重编号） |
 | `dow issue list [--all]` | 列出 open issue（默认 open） |
 | `dow issue show <ID>` | issue 详情 |
 | `dow issue close <ID>` | 关闭 issue |
