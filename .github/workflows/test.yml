@@ -17,5 +17,8 @@ jobs:
       - name: Build dow
         run: cd dow && cargo build --release
 
+      - name: Add dow to PATH
+        run: echo "${{ github.workspace }}/dow/target/release" >> $GITHUB_PATH
+
       - name: Run all tests
         run: bash tests/test_all.sh
