@@ -30,6 +30,7 @@
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Only do tasks listed in `dow task list` — no more, no less.
 - After completing a task, run `dow task done <ID>` then `/devtest`.
+- After fixing an issue, run `dow issue close <ID>` immediately — do not leave resolved issues open.
 - After all tasks complete, auto-enter `/test`.
 
 ### Handling ad-hoc requests during DEV
@@ -53,6 +54,9 @@ Examples:
 - Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands. Never Read/Write directly.
 - Document files (PRD.md/SPEC.md/BRAINSTORM.md): Create via dow (`dow prd create` etc), edit directly after creation.
 - Schema: use `dow <resource> schema` (e.g. `dow task schema`, `dow spec schema`) to get format definitions.
+- Batch create: pipe JSON array to stdin — `echo '[{...},{...}]' | dow task create` (same for issue).
+- Update fields: `dow task update <ID> --field value` / `dow issue update <ID> --field value` (only passed fields change).
+- Remove: `dow task remove <ID>` / `dow issue remove <ID>` (requires confirmation token; renumbers subsequent IDs).
 
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
