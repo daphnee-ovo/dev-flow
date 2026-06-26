@@ -123,6 +123,8 @@ pub enum TaskCommands {
     Create(TaskCreateArgs),
     /// Update task fields by ID
     Update(TaskUpdateArgs),
+    /// Remove a pending task (with confirmation and renumbering)
+    Remove(TaskRemoveArgs),
     /// List tasks (default: pending only)
     List(TaskListArgs),
     /// Show task details
@@ -249,6 +251,16 @@ pub struct TaskUpdateArgs {
     pub done_when: Option<String>,
 }
 
+#[derive(clap::Args)]
+pub struct TaskRemoveArgs {
+    /// Task ID to remove
+    pub id: String,
+
+    /// Confirmation token (TRM-xxxxxx)
+    #[arg(long)]
+    pub confirm: Option<String>,
+}
+
 // ─── Issue ───────────────────────────────────────────────────────────────────
 
 #[derive(Subcommand)]
@@ -257,6 +269,8 @@ pub enum IssueCommands {
     Create(IssueCreateArgs),
     /// Update issue fields by ID
     Update(IssueUpdateArgs),
+    /// Remove an open issue (with confirmation and renumbering)
+    Remove(IssueRemoveArgs),
     /// List issues (default: open only)
     List(IssueListArgs),
     /// Show issue details
@@ -337,6 +351,16 @@ pub struct IssueUpdateArgs {
     /// Fix description
     #[arg(long)]
     pub fix: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct IssueRemoveArgs {
+    /// Issue ID to remove
+    pub id: String,
+
+    /// Confirmation token (IRM-xxxxxx)
+    #[arg(long)]
+    pub confirm: Option<String>,
 }
 
 // ─── Changelog ───────────────────────────────────────────────────────────────

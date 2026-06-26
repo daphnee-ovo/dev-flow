@@ -12,7 +12,7 @@
 // Related Docs:
 // - [CLAUDE.md - Task File Format](../../../CLAUDE.md)
 
-use crate::cli::{TaskCommands, TaskCreateArgs, TaskListArgs, TaskReopenArgs, TaskUpdateArgs};
+use crate::cli::{TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs};
 use crate::core::{doc_root, task_store};
 use crate::error::DowError;
 use crate::output;
@@ -107,6 +107,7 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
     match command {
         TaskCommands::Create(args) => create(args, human),
         TaskCommands::Update(args) => update(args),
+        TaskCommands::Remove(args) => remove(args, human),
         TaskCommands::List(args) => list(args, human),
         TaskCommands::Show { id } => show(&id, human),
         TaskCommands::Done { ids } => done_multi(&ids),
@@ -544,6 +545,272 @@ fn replace_task_entry_in_content(content: &str, target_id: &str, task: &TaskInpu
         out.push('\n');
     }
     out
+}
+
+// ─── Remove ─────────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct RemoveImpact {
+    id: String,
+    title: String,
+    renumber: Vec<RenumberEntry>,
+    depends_on_updates: Vec<String>,
+    confirm_token: String,
+    command: String,
+}
+
+#[derive(Serialize)]
+struct RenumberEntry {
+    from: String,
+    to: String,
+}
+
+fn remove(args: TaskRemoveArgs, human: bool) -> Result<i32, DowError> {
+    let id = &args.id;
+    let task_dir = resolve_task_dir()?;
+    let all_files = task_store::iter_task_files(&task_dir);
+
+    // Find target task — must be pending
+    let mut found_file: Option<PathBuf> = None;
+    let mut found_title = String::new();
+    let mut target_num: Option<usize> = None;
+
+    for path in &all_files {
+        if let Ok(content) = fs::read_to_string(path) {
+            if content.contains(&format!("- [ ] {}:", id)) {
+                found_file = Some(path.clone());
+                for line in content.lines() {
+                    if line.contains(&format!("- [ ] {}:", id)) {
+                        let after_id = line.split(':').skip(1).collect::<Vec<_>>().join(":");
+                        found_title = after_id.trim().to_string();
+                        break;
+                    }
+                }
+                target_num = parse_task_num(id);
+                break;
+            }
+        }
+    }
+
+    let file_path = match found_file {
+        Some(p) => p,
+        None => return Err(DowError::new(format!("pending task {} not found", id), 1)),
+    };
+    let target_num = target_num.unwrap_or(0);
+
+    // Collect all task IDs with higher numbers (they'll be renumbered)
+    let all_files_full = all_task_files_including_done(&task_dir);
+    let mut higher_ids: Vec<usize> = Vec::new();
+    let mut deps_affected: Vec<String> = Vec::new();
+
+    for path in &all_files_full {
+        if let Ok(content) = fs::read_to_string(path) {
+            for line in content.lines() {
+                if let Some(tid) = extract_task_id(line) {
+                    if let Some(num) = parse_task_num(&tid) {
+                        if num > target_num {
+                            higher_ids.push(num);
+                        }
+                    }
+                }
+                // Check depends_on references to target
+                if line.contains("depends_on:") && line.contains(id) {
+                    if let Some(tid) = find_owning_task_id(&content, line) {
+                        if !deps_affected.contains(&tid) {
+                            deps_affected.push(tid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    higher_ids.sort();
+    higher_ids.dedup();
+
+    let renumber: Vec<RenumberEntry> = higher_ids.iter().map(|&n| RenumberEntry {
+        from: format!("TASK-T{:03}", n),
+        to: format!("TASK-T{:03}", n - 1),
+    }).collect();
+
+    match args.confirm {
+        None => {
+            let token = generate_trm_token(id);
+            let impact = RemoveImpact {
+                id: id.to_string(),
+                title: found_title,
+                renumber,
+                depends_on_updates: deps_affected,
+                confirm_token: token.clone(),
+                command: format!("dow task remove {} --confirm {}", id, token),
+            };
+            if human {
+                println!("[dev-flow] Remove impact for {}", id);
+                println!("  title: {}", impact.title);
+                if !impact.renumber.is_empty() {
+                    println!("  renumber:");
+                    for r in &impact.renumber {
+                        println!("    {} → {}", r.from, r.to);
+                    }
+                }
+                if !impact.depends_on_updates.is_empty() {
+                    println!("  depends_on updates: {:?}", impact.depends_on_updates);
+                }
+                println!("  confirm: {}", impact.command);
+            } else {
+                output::print_json(&impact);
+            }
+            Ok(0)
+        }
+        Some(ref token) => {
+            if !token.starts_with("TRM-") || token.len() != 10 {
+                return Err(DowError::new("invalid confirmation token format (expected TRM-xxxxxx)", 2));
+            }
+            let expected = generate_trm_token(id);
+            if token != &expected {
+                return Err(DowError::new("confirmation token mismatch", 1));
+            }
+
+            // 1. Remove the task entry from its file
+            let content = fs::read_to_string(&file_path)
+                .map_err(|e| DowError::new(format!("cannot read file: {}", e), 1))?;
+            let new_content = remove_task_entry(&content, id);
+
+            // Update nums in frontmatter
+            let new_count = count_tasks_in_content(&new_content);
+            let new_content = update_frontmatter_nums(&new_content, new_count);
+
+            if new_count == 0 {
+                fs::remove_file(&file_path)
+                    .map_err(|e| DowError::new(format!("cannot delete file: {}", e), 1))?;
+            } else {
+                fs::write(&file_path, &new_content)
+                    .map_err(|e| DowError::new(format!("cannot write file: {}", e), 1))?;
+            }
+
+            // 2. Purge deleted ID from depends_on in all files, then renumber
+            //    Use two-phase replacement to avoid cascade (T003→T002→T001)
+            for path in &all_files_full {
+                if let Ok(mut content) = fs::read_to_string(path) {
+                    let mut changed = false;
+
+                    // Remove references to the deleted task from depends_on
+                    let removed_pattern = format!("\"{}\"", id);
+                    if content.contains(&removed_pattern) {
+                        content = purge_id_from_depends_on(&content, id);
+                        changed = true;
+                    }
+
+                    // Phase 1: high→placeholder (reverse to avoid overwrite)
+                    for &n in higher_ids.iter().rev() {
+                        let old_id = format!("TASK-T{:03}", n);
+                        let placeholder = format!("TASK-T__{}__", n);
+                        if content.contains(&old_id) {
+                            content = content.replace(&old_id, &placeholder);
+                            changed = true;
+                        }
+                    }
+                    // Phase 2: placeholder→final
+                    for &n in &higher_ids {
+                        let placeholder = format!("TASK-T__{}__", n);
+                        let new_id = format!("TASK-T{:03}", n - 1);
+                        content = content.replace(&placeholder, &new_id);
+                    }
+
+                    if changed {
+                        fs::write(path, &content)
+                            .map_err(|e| DowError::new(format!("cannot write file: {}", e), 1))?;
+                    }
+                }
+            }
+
+            Ok(0)
+        }
+    }
+}
+
+fn remove_task_entry(content: &str, target_id: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i];
+        if let Some(id) = extract_task_id(line) {
+            if id == target_id {
+                // Skip entire entry (header + sub-fields)
+                i += 1;
+                while i < lines.len() {
+                    let sub = lines[i].trim();
+                    if sub.starts_with("- [ ]") || sub.starts_with("- [x]") || sub.is_empty() {
+                        break;
+                    }
+                    i += 1;
+                }
+                // Skip trailing blank line
+                if i < lines.len() && lines[i].trim().is_empty() {
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        result.push(line.to_string());
+        i += 1;
+    }
+
+    let mut out = result.join("\n");
+    if content.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
+}
+
+fn purge_id_from_depends_on(content: &str, removed_id: &str) -> String {
+    content.lines().map(|line| {
+        if !line.contains("depends_on:") || !line.contains(removed_id) {
+            return line.to_string();
+        }
+        // Parse the inline list and remove the target ID
+        if let Some(bracket_start) = line.find('[') {
+            if let Some(bracket_end) = line.find(']') {
+                let prefix = &line[..bracket_start + 1];
+                let inner = &line[bracket_start + 1..bracket_end];
+                let items: Vec<&str> = inner.split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| {
+                        let unquoted = s.trim_matches('"');
+                        unquoted != removed_id
+                    })
+                    .collect();
+                return format!("{}{}]", prefix, items.join(", "));
+            }
+        }
+        line.to_string()
+    }).collect::<Vec<_>>().join("\n")
+}
+
+fn find_owning_task_id(content: &str, target_line: &str) -> Option<String> {
+    let mut current_id: Option<String> = None;
+    for line in content.lines() {
+        if let Some(id) = extract_task_id(line) {
+            current_id = Some(id);
+        }
+        if line == target_line {
+            return current_id;
+        }
+    }
+    None
+}
+
+fn generate_trm_token(id: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let input = format!("TRM:{}:{}", id, today);
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    let hash = hasher.finalize();
+    let hex = format!("{:x}", hash);
+    format!("TRM-{}", &hex[..6])
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────

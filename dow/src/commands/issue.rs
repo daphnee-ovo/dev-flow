@@ -16,7 +16,7 @@
 // Related Docs:
 // - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 
-use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueReopenArgs, IssueUpdateArgs};
+use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueRemoveArgs, IssueReopenArgs, IssueUpdateArgs};
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
@@ -96,6 +96,7 @@ pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
     match command {
         IssueCommands::Create(args) => create(args, human),
         IssueCommands::Update(args) => update(args),
+        IssueCommands::Remove(args) => remove(args, human),
         IssueCommands::List(args) => list(args, human),
         IssueCommands::Show { id } => show(&id, human),
         IssueCommands::Close { ids } => close_multi(&ids),
@@ -302,6 +303,216 @@ fn replace_issue_entry_in_content(
         out.push('\n');
     }
     out
+}
+
+// ─── Remove ─────────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct IssueRemoveImpact {
+    id: String,
+    title: String,
+    renumber: Vec<IssueRenumberEntry>,
+    confirm_token: String,
+    command: String,
+}
+
+#[derive(Serialize)]
+struct IssueRenumberEntry {
+    from: String,
+    to: String,
+}
+
+fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    let issue_dir = doc_root_path.join("issue");
+
+    let (file_path, _line_content, parsed) = find_issue_by_id(&issue_dir, &args.id)?;
+    let filename = file_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+    if filename.starts_with("closed_") {
+        return Err(DowError::new(
+            format!("cannot remove closed issue {} (only open issues can be removed)", args.id), 1));
+    }
+
+    let target_num = extract_issue_id_num(&parsed.id).unwrap_or(0);
+
+    // Collect higher issue IDs for renumbering
+    let mut higher_nums: Vec<u32> = Vec::new();
+    if issue_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.ends_with(".md") { continue; }
+                if !(name.starts_with("issue_") || name.starts_with("closed_issue_")) { continue; }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    for line in content.lines() {
+                        if line.starts_with("- [") {
+                            let title = line[5..].trim();
+                            if let Some(num) = extract_issue_id_num(title) {
+                                if num > target_num {
+                                    higher_nums.push(num);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    higher_nums.sort();
+    higher_nums.dedup();
+
+    let renumber: Vec<IssueRenumberEntry> = higher_nums.iter().map(|&n| IssueRenumberEntry {
+        from: format!("ISSUE-I{:03}", n),
+        to: format!("ISSUE-I{:03}", n - 1),
+    }).collect();
+
+    match args.confirm {
+        None => {
+            let token = generate_irm_token(&args.id);
+            let impact = IssueRemoveImpact {
+                id: parsed.id.clone(),
+                title: parsed.title.clone(),
+                renumber,
+                confirm_token: token.clone(),
+                command: format!("dow issue remove {} --confirm {}", args.id, token),
+            };
+            if human {
+                println!("[dev-flow] Remove impact for {}", parsed.id);
+                println!("  title: {}", impact.title);
+                if !impact.renumber.is_empty() {
+                    println!("  renumber:");
+                    for r in &impact.renumber {
+                        println!("    {} → {}", r.from, r.to);
+                    }
+                }
+                println!("  confirm: {}", impact.command);
+            } else {
+                output::print_json(&impact);
+            }
+            Ok(0)
+        }
+        Some(ref token) => {
+            if !token.starts_with("IRM-") || token.len() != 10 {
+                return Err(DowError::new("invalid confirmation token format (expected IRM-xxxxxx)", 2));
+            }
+            let expected = generate_irm_token(&args.id);
+            if token != &expected {
+                return Err(DowError::new("confirmation token mismatch", 1));
+            }
+
+            // 1. Remove the issue entry from its file
+            let content = fs::read_to_string(&file_path)
+                .map_err(|e| DowError::new(format!("cannot read file: {}", e), 1))?;
+            let new_content = remove_issue_entry(&content, &parsed.id);
+
+            // Check if file is now empty of items
+            let remaining = new_content.lines().filter(|l| l.starts_with("- [")).count();
+            if remaining == 0 {
+                fs::remove_file(&file_path)
+                    .map_err(|e| DowError::new(format!("cannot delete file: {}", e), 1))?;
+            } else {
+                // Update nums in frontmatter
+                let new_content = update_issue_frontmatter_nums(&new_content, remaining);
+                fs::write(&file_path, &new_content)
+                    .map_err(|e| DowError::new(format!("cannot write file: {}", e), 1))?;
+            }
+
+            // 2. Renumber higher issues across all files (two-phase to avoid cascade)
+            if !higher_nums.is_empty() {
+                if let Ok(entries) = fs::read_dir(&issue_dir) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if !name.ends_with(".md") { continue; }
+                        if !(name.starts_with("issue_") || name.starts_with("closed_issue_")) { continue; }
+                        if let Ok(mut content) = fs::read_to_string(entry.path()) {
+                            let mut changed = false;
+                            // Phase 1: old → placeholder
+                            for &n in higher_nums.iter().rev() {
+                                let old_id = format!("ISSUE-I{:03}", n);
+                                let placeholder = format!("ISSUE-I__{}__", n);
+                                if content.contains(&old_id) {
+                                    content = content.replace(&old_id, &placeholder);
+                                    changed = true;
+                                }
+                            }
+                            // Phase 2: placeholder → final
+                            for &n in &higher_nums {
+                                let placeholder = format!("ISSUE-I__{}__", n);
+                                let new_id = format!("ISSUE-I{:03}", n - 1);
+                                content = content.replace(&placeholder, &new_id);
+                            }
+                            if changed {
+                                fs::write(entry.path(), &content)
+                                    .map_err(|e| DowError::new(format!("cannot write file: {}", e), 1))?;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Ok(0)
+        }
+    }
+}
+
+fn remove_issue_entry(content: &str, target_id: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i];
+        if (line.starts_with("- [ ]") || line.starts_with("- [x]")) && line.contains(target_id) {
+            // Skip entry + sub-fields
+            i += 1;
+            while i < lines.len() {
+                let sub = lines[i].trim();
+                if sub.starts_with("- [ ]") || sub.starts_with("- [x]") || sub.is_empty() {
+                    break;
+                }
+                i += 1;
+            }
+            // Skip trailing blank line
+            if i < lines.len() && lines[i].trim().is_empty() {
+                i += 1;
+            }
+            continue;
+        }
+        result.push(line.to_string());
+        i += 1;
+    }
+
+    let mut out = result.join("\n");
+    if content.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
+}
+
+fn update_issue_frontmatter_nums(content: &str, new_count: usize) -> String {
+    let mut result = String::new();
+    for line in content.lines() {
+        if line.starts_with("nums:") {
+            result.push_str(&format!("nums: {}", new_count));
+        } else {
+            result.push_str(line);
+        }
+        result.push('\n');
+    }
+    result
+}
+
+fn generate_irm_token(id: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    id.hash(&mut hasher);
+    "irm-salt".hash(&mut hasher);
+    let hash = hasher.finish();
+    format!("IRM-{:06x}", hash & 0xFFFFFF)
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
