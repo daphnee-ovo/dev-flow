@@ -26,6 +26,7 @@
 - After completing the task, run `dow claim --revoke` to release.
 
 ### DEV phase rules
+- **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
 - When hook output contains `[BLOCKED]`, stop all dev operations — only `/task`, `/issue`, `/iterate` allowed.
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Only do tasks listed in `dow task list` — no more, no less.
