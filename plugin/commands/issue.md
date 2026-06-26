@@ -30,10 +30,15 @@ dow issue list | grep 'other'
 - If exists and file has reasonable issue count (<10) → append to existing file
 - Otherwise → create new file
 
-### 3. Create New File
+### 3. Create Issue
 
 ```bash
-dow issue create --source other
+dow issue create --title "..." --severity P1 --location "file:line" --desc "..." --source other
+```
+
+Also supports stdin JSON:
+```bash
+echo '{"title":"bug","severity":"P0","location":"main.rs:10","desc":"crash on startup"}' | dow issue create
 ```
 
 ### 4. Write Format

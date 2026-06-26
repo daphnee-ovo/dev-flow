@@ -71,6 +71,12 @@ Main agent directly:
 
 Get format via `dow task schema`. Create via `dow task create`.
 
+**Batch creation**: pipe a JSON array to stdin to create multiple tasks at once:
+```bash
+echo '[{"title":"Task A","priority":"P0"},{"title":"Task B","depends_on":["TASK-T001"]}]' | dow task create
+```
+This is the preferred method when decomposing multiple tasks — one command instead of N.
+
 ## After Completion
 
 1. Confirm task files written
