@@ -16,7 +16,7 @@
 // Related Docs:
 // - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 
-use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueReopenArgs};
+use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueReopenArgs, IssueUpdateArgs};
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
@@ -95,6 +95,7 @@ struct IssueCreateInput {
 pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
     match command {
         IssueCommands::Create(args) => create(args, human),
+        IssueCommands::Update(args) => update(args),
         IssueCommands::List(args) => list(args, human),
         IssueCommands::Show { id } => show(&id, human),
         IssueCommands::Close { ids } => close_multi(&ids),
@@ -161,6 +162,149 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     // Silent on success
     Ok(0)
 }
+
+// ─── Update ─────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize, Default)]
+struct IssueUpdateInput {
+    title: Option<String>,
+    severity: Option<String>,
+    location: Option<String>,
+    desc: Option<String>,
+    reproduce: Option<String>,
+    fix: Option<String>,
+}
+
+fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
+    let id = args.id.clone();
+    let input = resolve_issue_update_input(args)?;
+
+    if !has_any_issue_update(&input) {
+        return Err(DowError::new("no fields to update (provide at least one --field)", 2));
+    }
+
+    if let Some(ref s) = input.severity {
+        let valid = ["P0", "P1", "P2"];
+        if !valid.contains(&s.as_str()) {
+            return Err(DowError::new(format!("invalid severity '{}', valid: P0/P1/P2", s), 2));
+        }
+    }
+
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    let issue_dir = doc_root_path.join("issue");
+
+    let (file_path, _line_content, parsed) = find_issue_by_id(&issue_dir, &id)?;
+    let filename = file_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+    if filename.starts_with("closed_") {
+        return Err(DowError::new(
+            format!("cannot update closed issue {} (use 'reopen' first)", id), 1));
+    }
+
+    // Merge fields
+    let new_title = input.title.unwrap_or(parsed.title);
+    let new_severity = input.severity.unwrap_or(parsed.severity);
+    let new_location = input.location.unwrap_or(parsed.location);
+    let new_desc = input.desc.unwrap_or(parsed.description);
+    let new_reproduce = input.reproduce.unwrap_or(parsed.reproduce);
+    let new_fix = input.fix.unwrap_or(parsed.fix);
+
+    // Rebuild the entry
+    let content = fs::read_to_string(&file_path)
+        .map_err(|e| DowError::new(format!("cannot read issue file: {}", e), 1))?;
+
+    let new_content = replace_issue_entry_in_content(
+        &content, &parsed.id, &new_title, &new_severity,
+        &new_location, &new_desc, &new_reproduce, &new_fix,
+    );
+
+    fs::write(&file_path, &new_content)
+        .map_err(|e| DowError::new(format!("cannot write issue file: {}", e), 1))?;
+
+    Ok(0)
+}
+
+fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput, DowError> {
+    use std::io::IsTerminal;
+    if !std::io::stdin().is_terminal() {
+        let mut buf = String::new();
+        if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
+            let trimmed = buf.trim();
+            if trimmed.starts_with('{') {
+                let input: IssueUpdateInput = serde_json::from_str(trimmed)
+                    .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
+                return Ok(input);
+            }
+        }
+    }
+
+    Ok(IssueUpdateInput {
+        title: args.title,
+        severity: args.severity,
+        location: args.location,
+        desc: args.desc,
+        reproduce: args.reproduce,
+        fix: args.fix,
+    })
+}
+
+fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
+    input.title.is_some()
+        || input.severity.is_some()
+        || input.location.is_some()
+        || input.desc.is_some()
+        || input.reproduce.is_some()
+        || input.fix.is_some()
+}
+
+fn replace_issue_entry_in_content(
+    content: &str,
+    target_id: &str,
+    title: &str,
+    severity: &str,
+    location: &str,
+    desc: &str,
+    reproduce: &str,
+    fix: &str,
+) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i];
+        if (line.starts_with("- [ ]") || line.starts_with("- [x]")) && line.contains(target_id) {
+            // Preserve checkbox state
+            let checkbox = if line.starts_with("- [x]") { "- [x]" } else { "- [ ]" };
+            result.push(format!("{} {}：{}", checkbox, target_id, title));
+            result.push(format!("  - severity: {}", severity));
+            result.push(format!("  - location：{}", location));
+            result.push(format!("  - description：{}", desc));
+            result.push(format!("  - reproduce：{}", reproduce));
+            result.push(format!("  - fix：{}", fix));
+            // Skip old sub-fields
+            i += 1;
+            while i < lines.len() {
+                let sub = lines[i].trim();
+                if sub.starts_with("- [ ]") || sub.starts_with("- [x]") || sub.is_empty() {
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        result.push(line.to_string());
+        i += 1;
+    }
+
+    let mut out = result.join("\n");
+    if content.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
+}
+
+// ─── List ────────────────────────────────────────────────────────────────────
 
 fn list(args: IssueListArgs, human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);

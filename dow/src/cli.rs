@@ -121,6 +121,8 @@ pub enum Commands {
 pub enum TaskCommands {
     /// Create task(s) — accepts flags or stdin JSON
     Create(TaskCreateArgs),
+    /// Update task fields by ID
+    Update(TaskUpdateArgs),
     /// List tasks (default: pending only)
     List(TaskListArgs),
     /// Show task details
@@ -197,12 +199,64 @@ pub struct TaskReopenArgs {
     pub confirm: Option<String>,
 }
 
+#[derive(clap::Args)]
+pub struct TaskUpdateArgs {
+    /// Task ID to update
+    pub id: String,
+
+    /// Task title
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// Task type (feat/fix/refactor/docs/perf/test/style)
+    #[arg(long, name = "type")]
+    pub task_type: Option<String>,
+
+    /// Priority (P0/P1/P2)
+    #[arg(long)]
+    pub priority: Option<String>,
+
+    /// Reference (SPEC-AC-xxx or user-request)
+    #[arg(long)]
+    pub refs: Option<String>,
+
+    /// Files to modify (comma-separated)
+    #[arg(long)]
+    pub files_modify: Option<String>,
+
+    /// Files to create (comma-separated)
+    #[arg(long)]
+    pub files_create: Option<String>,
+
+    /// Test files (comma-separated)
+    #[arg(long)]
+    pub files_test: Option<String>,
+
+    /// Dependencies (comma-separated task IDs)
+    #[arg(long)]
+    pub depends_on: Option<String>,
+
+    /// Can run in parallel
+    #[arg(long)]
+    pub parallel: Option<bool>,
+
+    /// Complexity (S/M/L/XL)
+    #[arg(long)]
+    pub complexity: Option<String>,
+
+    /// Done-when criteria (comma-separated)
+    #[arg(long)]
+    pub done_when: Option<String>,
+}
+
 // ─── Issue ───────────────────────────────────────────────────────────────────
 
 #[derive(Subcommand)]
 pub enum IssueCommands {
     /// Create issue(s) — accepts flags or stdin JSON
     Create(IssueCreateArgs),
+    /// Update issue fields by ID
+    Update(IssueUpdateArgs),
     /// List issues (default: open only)
     List(IssueListArgs),
     /// Show issue details
@@ -253,6 +307,36 @@ pub struct IssueReopenArgs {
     /// Confirmation token (IRO-xxxxxx)
     #[arg(long)]
     pub confirm: Option<String>,
+}
+
+#[derive(clap::Args)]
+pub struct IssueUpdateArgs {
+    /// Issue ID to update
+    pub id: String,
+
+    /// Issue title
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// Severity (P0/P1/P2)
+    #[arg(long)]
+    pub severity: Option<String>,
+
+    /// Code location
+    #[arg(long)]
+    pub location: Option<String>,
+
+    /// Description
+    #[arg(long)]
+    pub desc: Option<String>,
+
+    /// Steps to reproduce
+    #[arg(long)]
+    pub reproduce: Option<String>,
+
+    /// Fix description
+    #[arg(long)]
+    pub fix: Option<String>,
 }
 
 // ─── Changelog ───────────────────────────────────────────────────────────────

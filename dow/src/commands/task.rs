@@ -1,10 +1,18 @@
 // dow/src/commands/
 // ├── task.rs  -- dow task (task resource management)
+//    ├── run()
+//    ├── create()
+//    ├── update()
+//    ├── list()
+//    ├── show()
+//    ├── done_multi() / done_single()
+//    ├── reopen()
+//    ├── schema()
 //
 // Related Docs:
 // - [CLAUDE.md - Task File Format](../../../CLAUDE.md)
 
-use crate::cli::{TaskCommands, TaskCreateArgs, TaskListArgs, TaskReopenArgs};
+use crate::cli::{TaskCommands, TaskCreateArgs, TaskListArgs, TaskReopenArgs, TaskUpdateArgs};
 use crate::core::{doc_root, task_store};
 use crate::error::DowError;
 use crate::output;
@@ -98,6 +106,7 @@ struct ReopenImpact {
 pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
     match command {
         TaskCommands::Create(args) => create(args, human),
+        TaskCommands::Update(args) => update(args),
         TaskCommands::List(args) => list(args, human),
         TaskCommands::Show { id } => show(&id, human),
         TaskCommands::Done { ids } => done_multi(&ids),
@@ -374,6 +383,167 @@ fn update_frontmatter_nums(content: &str, new_count: usize) -> String {
         result.push('\n');
     }
     result
+}
+
+// ─── Update ─────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize, Default)]
+struct TaskUpdateInput {
+    title: Option<String>,
+    #[serde(rename = "type")]
+    task_type: Option<String>,
+    priority: Option<String>,
+    refs: Option<String>,
+    files_modify: Option<Vec<String>>,
+    files_create: Option<Vec<String>>,
+    files_test: Option<Vec<String>>,
+    depends_on: Option<Vec<String>>,
+    parallel: Option<bool>,
+    complexity: Option<String>,
+    done_when: Option<Vec<String>>,
+}
+
+fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
+    let id = args.id.clone();
+    let input = resolve_update_input(args)?;
+
+    if !has_any_task_update(&input) {
+        return Err(DowError::new("no fields to update (provide at least one --field)", 2));
+    }
+
+    // Validate enum fields if provided
+    if let Some(ref t) = input.task_type {
+        let valid = ["feat", "fix", "refactor", "docs", "perf", "test", "style"];
+        if !valid.contains(&t.as_str()) {
+            return Err(DowError::new(
+                format!("invalid type '{}', valid: feat/fix/refactor/docs/perf/test/style", t), 2));
+        }
+    }
+    if let Some(ref p) = input.priority {
+        let valid = ["P0", "P1", "P2"];
+        if !valid.contains(&p.as_str()) {
+            return Err(DowError::new(format!("invalid priority '{}', valid: P0/P1/P2", p), 2));
+        }
+    }
+    if let Some(ref c) = input.complexity {
+        let valid = ["S", "M", "L", "XL"];
+        if !valid.contains(&c.as_str()) {
+            return Err(DowError::new(format!("invalid complexity '{}', valid: S/M/L/XL", c), 2));
+        }
+    }
+
+    let task_dir = resolve_task_dir()?;
+    let all_files = all_task_files_including_done(&task_dir);
+
+    // Find the task
+    for path in &all_files {
+        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Some(detail) = parse_task_detail(&content, &id, &filename) {
+                if detail.status == "done" {
+                    return Err(DowError::new(
+                        format!("cannot update completed task {} (use 'reopen' first)", id), 1));
+                }
+
+                // Merge
+                let merged = TaskInput {
+                    title: input.title.unwrap_or(detail.title),
+                    r#type: input.task_type.unwrap_or(detail.r#type),
+                    priority: input.priority.unwrap_or(detail.priority),
+                    refs: input.refs.unwrap_or(detail.refs),
+                    files_modify: input.files_modify.unwrap_or(detail.files.modify),
+                    files_create: input.files_create.unwrap_or(detail.files.create),
+                    files_test: input.files_test.unwrap_or(detail.files.test),
+                    depends_on: input.depends_on.unwrap_or(detail.depends_on),
+                    parallel: input.parallel.unwrap_or(detail.parallel),
+                    complexity: input.complexity.unwrap_or(detail.complexity),
+                    done_when: input.done_when.unwrap_or(detail.done_when),
+                };
+
+                let new_content = replace_task_entry_in_content(&content, &id, &merged);
+                fs::write(path, &new_content)
+                    .map_err(|e| DowError::new(format!("cannot write task file: {}", e), 1))?;
+                return Ok(0);
+            }
+        }
+    }
+
+    Err(DowError::new(format!("task {} not found", id), 1))
+}
+
+fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowError> {
+    // Check stdin JSON
+    if let Some(stdin_data) = read_stdin_if_available() {
+        let trimmed = stdin_data.trim();
+        if trimmed.starts_with('{') {
+            let input: TaskUpdateInput = serde_json::from_str(trimmed)
+                .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
+            return Ok(input);
+        }
+    }
+
+    Ok(TaskUpdateInput {
+        title: args.title,
+        task_type: args.task_type,
+        priority: args.priority,
+        refs: args.refs,
+        files_modify: args.files_modify.map(|s| split_comma(&Some(s))),
+        files_create: args.files_create.map(|s| split_comma(&Some(s))),
+        files_test: args.files_test.map(|s| split_comma(&Some(s))),
+        depends_on: args.depends_on.map(|s| split_comma(&Some(s))),
+        parallel: args.parallel,
+        complexity: args.complexity,
+        done_when: args.done_when.map(|s| split_comma(&Some(s))),
+    })
+}
+
+fn has_any_task_update(input: &TaskUpdateInput) -> bool {
+    input.title.is_some()
+        || input.task_type.is_some()
+        || input.priority.is_some()
+        || input.refs.is_some()
+        || input.files_modify.is_some()
+        || input.files_create.is_some()
+        || input.files_test.is_some()
+        || input.depends_on.is_some()
+        || input.parallel.is_some()
+        || input.complexity.is_some()
+        || input.done_when.is_some()
+}
+
+fn replace_task_entry_in_content(content: &str, target_id: &str, task: &TaskInput) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i];
+        if let Some(id) = extract_task_id(line) {
+            if id == target_id {
+                // Write the updated entry
+                let entry = format_task_entry(&id, task);
+                result.push(entry.trim_end().to_string());
+                // Skip old sub-fields
+                i += 1;
+                while i < lines.len() {
+                    let sub = lines[i].trim();
+                    if sub.starts_with("- [ ]") || sub.starts_with("- [x]") || sub.is_empty() {
+                        break;
+                    }
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        result.push(line.to_string());
+        i += 1;
+    }
+
+    let mut out = result.join("\n");
+    if content.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
