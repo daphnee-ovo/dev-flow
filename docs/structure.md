@@ -6,11 +6,14 @@
 dev-flow/
 ├── dow/                  # Rust CLI 统一调度器（核心二进制）
 │   ├── src/              # Rust 源码
-│   │   ├── commands/     # 子命令（iterate, rollback, claim, doc, check 等）
-│   │   └── core/         # 核心模块（archive_db, doc_validator 等）
+│   │   ├── commands/     # 子命令（iterate, rollback, claim, dashboard 等）
+│   │   ├── core/         # 核心模块（archive_db, claim, doc_validator 等）
+│   │   └── dashboard/    # dashboard web 服务（axum + SSE + data）
+│   ├── dashboard-frontend/ # 前端静态资源（D3/Dagre/Marked，编译时嵌入）
 │   ├── tests/            # dow 集成测试
-│   ├── references/       # 参考资料和模板（编译时嵌入）
+│   ├── references/       # 参考资料和模板（inject prompt 等）
 │   └── tmp/              # dow 测试临时目录
+├── vscode-extension/     # VS Code 扩展（嵌入 dashboard webview）
 ├── plugin/               # 共享插件内容（跨 agent 通用）
 │   ├── commands/         # slash command 定义（.md）
 │   ├── agents/           # subagent prompts (audit agents, test agent, task challenger)
@@ -40,7 +43,9 @@ dev-flow/
 
 | 模块 | 职责 |
 |------|------|
-| `dow/` | 全局 CLI 调度器，处理 hook、状态管理、文档校验、归档、迭代交付、版本回退 |
+| `dow/` | 全局 CLI 调度器，处理 hook、状态管理、文档校验、归档、迭代交付、dashboard、版本回退 |
+| `dow/dashboard-frontend/` | dashboard 前端（D3 依赖图、看板、文档预览），编译时嵌入二进制 |
+| `vscode-extension/` | VS Code 扩展，status bar 触发 + webview 嵌入 dashboard |
 | `plugin/` | 跨 agent 共享的 command/agent/skill 定义，是插件的逻辑内核 |
 | `targets/` | 各 agent 平台的差异化配置（hook 格式、plugin.json 结构） |
 | `dist/` | assemble.sh 的输出产物，直接部署到各 agent 插件目录 |

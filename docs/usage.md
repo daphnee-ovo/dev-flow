@@ -45,6 +45,23 @@ rollback 会：
 
 注意：rollback 不撤销 git commit，仅还原流程状态。
 
+### 启动 Dashboard
+
+```bash
+dow dashboard              # 浏览器自动打开
+dow dashboard --no-open    # 不打开浏览器（VS Code 扩展使用）
+dow dashboard --port 9801  # 指定端口
+```
+
+VS Code 中安装 `vscode-extension/` 扩展后，status bar 按钮直接在编辑器内打开 dashboard。
+
+### 修改 VS Code 扩展
+
+1. 编辑 `vscode-extension/src/extension.ts`
+2. `cd vscode-extension && npm run compile`
+3. `npx vsce package --allow-missing-repository`
+4. `code --install-extension dow-dashboard-0.1.0.vsix --force`
+
 ### 测试
 
 - **禁止**在开发环境直接测试（会污染 `.dev-doc/`）

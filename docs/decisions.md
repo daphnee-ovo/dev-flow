@@ -43,6 +43,20 @@
 - **风险**：agent 可能倾向把新需求归为 S+supplement 直接吸收（阻力最小路径）。如实际使用中频繁偏移，再评估加 hook 约束
 - **观察指标**：是否出现 task scope 膨胀、done_when 不断追加、files.modify 超出原定范围
 
+## claim agent_id 检测策略
+
+- **日期**：2026-06
+- **决策**：claim 记录 agent_id 字段，检测优先级为 `DOW_AGENT_ID` 环境变量 → TTY 路径 (Unix) → caller process ID
+- **理由**：多 agent 并发开发时需要区分 claim 归属；Claude Code 环境无 TTY，需 fallback；Windows 无 PPID API
+- **后果**：guard hook 对 agent_id 不匹配发出 advisory warning（ask），不强制 block；避免误杀同用户切终端场景
+
+## dashboard 嵌入式前端
+
+- **日期**：2026-06
+- **决策**：dashboard 前端资源通过 rust-embed 编译时嵌入二进制，运行时 axum 提供 HTTP 服务 + SSE 推送
+- **理由**：零外部依赖部署；VS Code 扩展通过 iframe 嵌入 localhost 页面，复用 100% 前端代码
+- **后果**：前端改动需重新编译 dow 二进制；dashboard-frontend/ 纳入 Cargo.toml 的 embed 路径
+
 ## task/issue ID 跨文件全局唯一
 
 - **日期**：2026-06
