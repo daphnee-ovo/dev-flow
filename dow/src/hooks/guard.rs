@@ -326,6 +326,12 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         {
             return None;
         }
+        // DEV phase: check agent mismatch (advisory warning, not block)
+        if phase == "DEV" {
+            if let Some(warning) = check_claim_agent_mismatch(&ctx.doc_root_path()) {
+                return Some(PhaseDecision::Ask(warning));
+            }
+        }
         // DEV phase with no active claim → distinguish reason
         if phase == "DEV" && !has_active_claim(&ctx.doc_root_path()) {
             let doc_root = ctx.doc_root_path();
@@ -351,7 +357,8 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                     "[dev-flow] BLOCKED: DEV phase has no pending tasks or open issues, writing to {} not allowed. Please choose:\n\
                     → `dow task create` to create new task\n\
                     → `dow issue create` to create issue\n\
-                    → /test to enter test phase",
+                    → /test to enter test phase\n\
+                    IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.",
                     path.display()
                 )));
             }
@@ -490,6 +497,20 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
 
 fn has_active_claim(doc_root: &Path) -> bool {
     !crate::core::claim::get_active_claims(doc_root).is_empty()
+}
+
+/// Check if the current agent matches the claim owner; returns warning message if mismatch
+fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
+    let claim_agent = crate::core::claim::get_claim_agent_id(doc_root)?;
+    let current_agent = crate::core::claim::detect_agent_id()?;
+    if claim_agent != current_agent {
+        Some(format!(
+            "[dev-flow] WARNING: another agent ({}) holds the claim. You may be modifying files owned by a different session.",
+            claim_agent
+        ))
+    } else {
+        None
+    }
 }
 
 fn has_pending_work(doc_root: &Path) -> bool {

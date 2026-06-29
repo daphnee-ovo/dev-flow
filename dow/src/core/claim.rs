@@ -15,6 +15,8 @@ const DEFAULT_TTL: u64 = 300;
 pub struct Claim {
     pub id: String,
     pub ts: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,18 +86,48 @@ pub fn has_expired_claims(doc_root: &Path) -> bool {
     lock.claims.iter().any(|c| !is_valid_claim(c, lock.ttl))
 }
 
+/// Get agent_id from active claims (returns the first one found, since typically one agent holds claims)
+pub fn get_claim_agent_id(doc_root: &Path) -> Option<String> {
+    let lock = read_claim_lock(doc_root)?;
+    lock.claims
+        .iter()
+        .filter(|c| is_valid_claim(c, lock.ttl))
+        .find_map(|c| c.agent_id.clone())
+}
+
+/// Detect current agent ID via TTY path
+pub fn detect_agent_id() -> Option<String> {
+    use std::process::Command;
+    let output = Command::new("tty").output().ok()?;
+    if output.status.success() {
+        let tty = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if tty == "not a tty" || tty.is_empty() {
+            return None;
+        }
+        Some(tty)
+    } else {
+        None
+    }
+}
+
 /// Add claim (merge into existing list, update timestamp if already exists)
 pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
+    add_claims_with_agent(doc_root, ids, detect_agent_id())
+}
+
+pub fn add_claims_with_agent(doc_root: &Path, ids: &[String], agent_id: Option<String>) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);
     let ts = now_ts();
 
     for id in ids {
         if let Some(existing) = lock.claims.iter_mut().find(|c| &c.id == id) {
             existing.ts = ts;
+            existing.agent_id = agent_id.clone();
         } else {
             lock.claims.push(Claim {
                 id: id.clone(),
                 ts,
+                agent_id: agent_id.clone(),
             });
         }
     }

@@ -23,6 +23,7 @@
 
 ### Claim before DEV
 - Before writing code, run `dow claim <TASK-ID or ISSUE-ID>` to declare your work target. Claims expire after 5 minutes — re-claim if still working.
+- Only claim tasks/issues directly related to the current user request. Do NOT claim unrelated items — if the user's request doesn't map to an existing task/issue, create a new one instead of claiming an irrelevant one.
 - After completing the task, run `dow claim --revoke` to release.
 
 ### DEV phase rules
@@ -58,6 +59,7 @@ Examples:
 - Batch create: pipe JSON array to stdin — `echo '[{...},{...}]' | dow task create` (same for issue).
 - Update fields: `dow task update <ID> --field value` / `dow issue update <ID> --field value` (only passed fields change).
 - Remove: `dow task remove <ID>` / `dow issue remove <ID>` (requires confirmation token; renumbers subsequent IDs).
+- Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation.
 
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
