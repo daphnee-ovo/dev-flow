@@ -87,6 +87,7 @@
 | `dow hooks post-write <file>` | hook：写后联动 |
 | `dow hooks post-bash [command]` | hook：Bash 执行后检测分支切换 |
 | `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG |
+| `dow dashboard [--port PORT]` | 启动本地 web 可视化面板（依赖图 + 状态 + 文档） |
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
 | `dow self-check` | 查看安装状态和健康度 |

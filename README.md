@@ -276,6 +276,7 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow iterate` | Delivery: archive + commit + tag + bump |
 | `dow rollback --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
 | `dow doc <type>` | Generate/query document templates |
+| `dow dashboard [--port PORT]` | Launch local web dashboard (dependency graph, status, docs) |
 | `dow hooks ...` | Hook dispatch (context, guard, post-write) |
 
 ---

@@ -273,6 +273,7 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | `dow status` | 读写 STATUS.yaml |
 | `dow iterate` | 交付：归档 + commit + tag + bump |
 | `dow doc <type>` | 生成/查询文档模板 |
+| `dow dashboard [--port PORT]` | 启动本地 web 可视化面板（依赖图 + 状态 + 文档） |
 | `dow hooks ...` | Hook 调度（context, guard, post-write） |
 
 ---
