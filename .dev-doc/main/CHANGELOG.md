@@ -13,3 +13,4 @@
 ## 2026-06-29
 - 11:10 feat: add agent_id (TTY) to claim and advisory guard warning
 - 15:00 docs: mark remaining tasks done
+- 17:32 fix: detect_agent_id cross-platform + guard ask for AI config paths

@@ -3,34 +3,39 @@
 # **MUST use DEV-FLOW to manage development workflow.**
 
 ## Commands
-| Command | Purpose |
-|---|---|
-| `/init` | Initialize project |
-| `/brainstorm` | Collaborative requirement exploration |
-| `/prd` | Start PRD phase |
-| `/spec` | Start SPEC phase |
-| `/task` | Start TASK phase |
-| `/issue` | Create an issue |
-| `/devtest` | Routine dev testing |
-| `/fix` | Auto-fix open issues |
-| `/test` | Full test phase |
-| `/status` | Report status |
-| `/check` | Check doc sync |
-| `/iterate` | Iterate delivery |
-| `/mode` | Select dev mode |
+| Phase | Slash Command | CLI Command | Notes |
+|---|---|---|---|
+| any | `/init` | `dow init` | Initialize project |
+| any | `/status` | `dow status` | Report current status |
+| any | `/check` | `dow lint` | Check doc sync |
+| any | `/mode` | `dow status set --mode` | Select dev mode |
+| any | `/issue` | `dow issue create` | Create an issue |
+| BRAINSTORM | `/brainstorm` | `dow brainstorm create` (entry) | Interactive exploration → creates BRAINSTORM.md |
+| PRD | `/prd` | `dow prd create` (entry) | Interactive → creates PRD.md, then spawns audit |
+| SPEC | `/spec` | `dow spec create` (entry) | Interactive → creates SPEC.md, then spawns audit |
+| TASK | `/task` | `dow task create` (entry) | Decompose spec into tasks, batch create |
+| DEV | `/fix` | `dow issue list` + `dow claim` | Read open issues, claim, fix, close |
+| DEV | `/devtest` | `dow test --task <ID>` | Task-level testing loop |
+| TEST | `/test` | `dow test` | Full project-level test suite |
+| ITERATE | `/iterate` | `dow iterate` | Preview → confirm → archive + commit + tag + bump |
 
 ## Discipline
 
-### Claim before DEV
-- Before writing code, run `dow claim <TASK-ID or ISSUE-ID>` to declare your work target. Claims expire after 5 minutes — re-claim if still working.
+### Before writing code
+- **Sequence: confirm intent → create task/issue → claim → code.**
+  1. First confirm the user's intent — do NOT assume or start work without explicit approval.
+  2. Create a task (`dow task create`) or issue (`dow issue create`) that matches the request.
+  3. Run `dow claim <TASK-ID or ISSUE-ID>` to declare your work target.
+  4. Only then start writing code.
+- Claims expire after 5 minutes — re-claim if still working.
 - Only claim tasks/issues directly related to the current user request. Do NOT claim unrelated items — if the user's request doesn't map to an existing task/issue, create a new one instead of claiming an irrelevant one.
 - After completing the task, run `dow claim --revoke` to release.
 
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
-- When hook output contains `[BLOCKED]`, stop all dev operations — only `/task`, `/issue`, `/iterate` allowed.
+- When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
-- Only do tasks listed in `dow task list` — no more, no less.
+- Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - After completing a task, run `dow task done <ID>` then `/devtest`.
 - After fixing an issue, run `dow issue close <ID>` immediately — do not leave resolved issues open.
 - After all tasks complete, auto-enter `/test`.
