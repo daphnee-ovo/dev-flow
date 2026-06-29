@@ -95,8 +95,39 @@ pub fn get_claim_agent_id(doc_root: &Path) -> Option<String> {
         .find_map(|c| c.agent_id.clone())
 }
 
-/// Detect current agent ID via TTY path
+/// Detect current agent ID.
+/// Priority: DOW_AGENT_ID env → TTY (Unix) → caller process ID
 pub fn detect_agent_id() -> Option<String> {
+    // Explicit override via environment variable
+    if let Ok(id) = std::env::var("DOW_AGENT_ID") {
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+
+    // TTY (Unix only — interactive terminals)
+    #[cfg(unix)]
+    if let Some(tty) = detect_tty() {
+        return Some(tty);
+    }
+
+    // Fallback: caller process ID (the agent runtime that invoked dow)
+    Some(format!("pid:{}", get_caller_pid()))
+}
+
+fn get_caller_pid() -> u32 {
+    #[cfg(unix)]
+    {
+        std::os::unix::process::parent_id()
+    }
+    #[cfg(not(unix))]
+    {
+        std::process::id()
+    }
+}
+
+#[cfg(unix)]
+fn detect_tty() -> Option<String> {
     use std::process::Command;
     let output = Command::new("tty").output().ok()?;
     if output.status.success() {

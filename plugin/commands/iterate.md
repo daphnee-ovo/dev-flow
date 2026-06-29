@@ -25,8 +25,9 @@ Includes all responsibilities of original `/done` (delivery check) and original 
 | `--topic` | Archive topic (for archive directory naming) | Required |
 | `--type` | commit type (feat/fix/refactor/docs/perf/test/style/workflow) | Required |
 | `--files` | Additional source code files/directories to commit (space-separated). **No need to pass .dev-doc/ files** — they're auto-managed by iterate (archive delete + `git add -u`) | Optional |
-| `-v`/`--bump` | Version increment type: major/minor/patch | minor |
-| `--confirm` | Confirm execution (requires environment variable token) | - |
+| `-v`/`--bump` | Version increment type: major/minor/patch | patch |
+| `--tag` | Force create git tag for patch bump (minor/major always create tag) | - |
+| `--confirm` | Confirmation token (`ITR-xxxxxx`, from preview output) | - |
 
 ## Execution Flow
 
@@ -38,13 +39,13 @@ dow iterate --topic <topic> --type <type> [--files f1 f2...] [-v minor]
 
 Outputs preview info: archive content, version number, tag to be created, commit file list, confirmation token.
 
-### Phase 2: Confirm Execution (with --confirm + environment variable)
+### Phase 2: Confirm Execution (with --confirm token)
 
 ```bash
-DOW_ITERATE_<token>=1 dow iterate --confirm --topic <topic> --type <type> [--files f1 f2...]
+dow iterate --topic <topic> --type <type> [--files f1 f2...] --confirm ITR-xxxxxx
 ```
 
-Token passed via environment variable prefix, valid for 5 minutes. After confirmation executes in sequence:
+Token from preview output, valid for 5 minutes. After confirmation executes in sequence:
 
 1. **preIterate CI** — if `.dev-doc/preIterate.ci` exists, execute its steps in order first; any step fails stops entire iterate, no archive, no commit, no tag, no bump
 2. **Archive** — parse task_*, done_task_*, closed_issue_*, PRD.md, SPEC.md, TEST.md, CHANGELOG.md and write to `.dev-doc/archive.db` (SQLite), then delete source files
@@ -85,9 +86,11 @@ preIterate always executes before `git commit`. File changes produced by steps g
 
 ## Bump Type Decision
 
-1. Default minor (each iteration = new feature cycle)
-2. User specifies `--major` → major
-3. Agent detects architecture refactor/breaking changes → recommend major, ask user confirmation
+1. Default patch (lightweight iteration)
+2. User specifies `-v minor` → minor (creates git tag)
+3. User specifies `-v major` → major (creates git tag)
+4. Patch + `--tag` → patch with git tag
+5. Agent detects architecture refactor/breaking changes → recommend major, ask user confirmation
 
 ## Execution Method
 
@@ -96,7 +99,7 @@ preIterate always executes before `git commit`. File changes produced by steps g
 dow iterate --topic "<topic>" --type <type> --files <file1> <file2>
 
 # Confirm execution (token from preview output)
-DOW_ITERATE_<token>=1 dow iterate --confirm --topic "<topic>" --type <type> --files <file1> <file2>
+dow iterate --topic "<topic>" --type <type> --files <file1> <file2> --confirm ITR-xxxxxx
 ```
 
 Before agent calls:

@@ -12,3 +12,4 @@
 
 ## 2026-06-29
 - 11:10 feat: add agent_id (TTY) to claim and advisory guard warning
+- 15:00 docs: mark remaining tasks done

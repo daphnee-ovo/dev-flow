@@ -318,12 +318,21 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         if mode.starts_with("audit/") {
             return None;
         }
-        // Whitelist
+        // Whitelist (always allow)
         if path.is_under(&ctx.devdoc_dir)
             || path.is_under(&ctx.tmp_dir)
             || path.is_under(&ctx.docs_dir)
-            || ctx.is_ai_config(path)
         {
+            return None;
+        }
+        // AI config dirs: ask (not auto-allow) since they may contain business code
+        if ctx.is_ai_config(path) {
+            if !has_active_claim(&ctx.doc_root_path()) && has_pending_work(&ctx.doc_root_path()) {
+                return Some(PhaseDecision::Ask(format!(
+                    "[dev-flow] Writing to AI config path {} without a claim. Please confirm or `dow claim <TASK_ID>` first.",
+                    path.display()
+                )));
+            }
             return None;
         }
         // DEV phase: check agent mismatch (advisory warning, not block)
@@ -380,8 +389,14 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         return None;
     }
 
-    // Whitelist 2: AI config
+    // AI config: ask (may contain business code in skills/)
     if ctx.is_ai_config(path) {
+        if is_code_file(path) {
+            return Some(PhaseDecision::Ask(format!(
+                "[dev-flow] Current phase is {}, writing code file under AI config: {}. Confirm?",
+                phase, path.display()
+            )));
+        }
         return None;
     }
 
