@@ -35,6 +35,12 @@ preIterate CI (.dev-doc/preIterate.ci):
     sync-version: <path>   Sync manifest version (Cargo.toml, package.json, pyproject.toml)
     run: <command>          Execute command; non-zero exit blocks iterate
 
+Dashboard:
+  `dow dashboard [--port PORT]` launches a local web visualization panel.
+  Shows project status, task dependency graph (interactive), docs, kanban board.
+  SSE real-time updates. Auto-exits when all browser tabs close.
+  Right-click drag to pan, scroll wheel to zoom in the graph.
+
 Directory structure:
   .dev-doc/
   ├── STATUS.yaml

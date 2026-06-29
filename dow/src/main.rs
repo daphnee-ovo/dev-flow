@@ -12,6 +12,7 @@
 mod cli;
 mod commands;
 mod core;
+mod dashboard;
 mod error;
 mod hooks;
 mod output;
@@ -66,6 +67,7 @@ fn main() {
         Commands::Setup(args) => commands::setup::run(args.agent, human),
         Commands::Update => commands::update::run(human),
         Commands::SelfCheck => commands::self_check::run(human),
+        Commands::Dashboard(args) => commands::dashboard::run(args, human),
     };
 
     match result {

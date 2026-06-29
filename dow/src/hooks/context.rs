@@ -117,7 +117,8 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
                 "[dev-flow] DEV phase has no pending tasks or open issues, development not allowed. Please choose:\n\
                 → `dow task create` to create new task\n\
                 → `dow issue create` to create issue\n\
-                → /test to enter test phase";
+                → /test to enter test phase\n\
+                IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.";
             if human {
                 println!("{}", reason);
             } else if codex_hook {

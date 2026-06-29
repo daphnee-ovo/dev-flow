@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dow dashboard</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<div class="reconnecting" id="reconnecting"></div>
+
+<nav class="tab-nav" role="tablist">
+  <div class="nav-left">
+    <div class="nav-info">
+      <span class="project-name" id="nav-project-name">—</span>
+      <span class="phase-badge" id="nav-phase">—</span>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button role="tab" data-tab="home" class="active" aria-selected="true">Home</button>
+    <button role="tab" data-tab="docs" aria-selected="false">Docs</button>
+    <button role="tab" data-tab="tasks" aria-selected="false">Tasks</button>
+    <button role="tab" data-tab="issues" aria-selected="false">Issues</button>
+  </div>
+</nav>
+
+<div id="view-home" class="view active" role="tabpanel"></div>
+<div id="view-docs" class="view" role="tabpanel"></div>
+<div id="view-tasks" class="view" role="tabpanel"></div>
+<div id="view-issues" class="view" role="tabpanel"></div>
+
+<script src="/assets/vendor/d3.v7.min.js"></script>
+<script src="/assets/vendor/dagre.min.js"></script>
+<script src="/assets/vendor/marked.min.js"></script>
+<script src="/assets/vendor/highlight.min.js"></script>
+<script src="/assets/graph.js"></script>
+<script src="/assets/views.js"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>

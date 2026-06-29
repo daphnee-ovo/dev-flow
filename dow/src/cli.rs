@@ -113,6 +113,9 @@ pub enum Commands {
 
     /// Installation status diagnostics
     SelfCheck,
+
+    /// Launch web dashboard for project visualization
+    Dashboard(DashboardArgs),
 }
 
 // ─── Task ────────────────────────────────────────────────────────────────────
@@ -557,6 +560,19 @@ pub struct ClaimArgs {
     /// Release claim (release all if no ID provided)
     #[arg(long)]
     pub revoke: bool,
+}
+
+// ─── Dashboard ──────────────────────────────────────────────────────────────
+
+#[derive(clap::Args)]
+pub struct DashboardArgs {
+    /// Port to bind (default: auto-select from 9800-9900)
+    #[arg(long)]
+    pub port: Option<u16>,
+
+    /// Do not open browser automatically
+    #[arg(long)]
+    pub no_open: bool,
 }
 
 // ─── Setup ───────────────────────────────────────────────────────────────────

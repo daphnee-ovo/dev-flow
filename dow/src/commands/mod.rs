@@ -5,6 +5,7 @@ pub mod archive;
 pub mod brainstorm;
 pub mod changelog_cmd;
 pub mod claim;
+pub mod dashboard;
 pub mod info;
 pub mod init;
 pub mod issue;
