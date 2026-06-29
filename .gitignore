@@ -11,3 +11,4 @@ Thumbs.db
 dow/target/
 # 组装产出
 dist/
+scripts/bin/
