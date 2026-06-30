@@ -18,7 +18,7 @@ trap 'cp "$PROJ_ROOT/VERSION.bak" "$PROJ_ROOT/VERSION"; rm -f "$PROJ_ROOT/VERSIO
 # 1. 读取版本
 echo ""
 echo "[1] dow version 读取"
-OUT=$($DOW version 2>&1)
+OUT=$($DOW version 2>&1) || true
 if echo "$OUT" | grep -q '"version"'; then
   pass "JSON 输出包含 version 字段"
 else
@@ -74,6 +74,44 @@ if [ "$OUT" = "3.0.0" ]; then
 else
   fail "-H 输出异常: $OUT"
 fi
+
+# 6. detached HEAD fallback
+echo ""
+echo "[6] dow version detached HEAD"
+ORIG_BRANCH=$(git -C "$PROJ_ROOT" branch --show-current 2>/dev/null || echo "main")
+echo "(main)6.0.0" > "$PROJ_ROOT/VERSION"
+git -C "$PROJ_ROOT" checkout --detach HEAD >/dev/null 2>&1
+OUT=$($DOW version 2>&1) && EXIT_CODE=0 || EXIT_CODE=$?
+git -C "$PROJ_ROOT" checkout "$ORIG_BRANCH" >/dev/null 2>&1
+
+if [ "$EXIT_CODE" -eq 2 ]; then
+  pass "detached HEAD 返回 exit code 2"
+else
+  fail "detached HEAD exit code 应为 2, 实际: $EXIT_CODE"
+fi
+
+if echo "$OUT" | grep -q '"warning"'; then
+  pass "输出包含 warning 字段"
+else
+  fail "输出缺少 warning 字段: $OUT"
+fi
+
+if echo "$OUT" | grep -q '"branch".*"main"'; then
+  pass "fallback 到 main 分支"
+else
+  fail "未 fallback 到 main: $OUT"
+fi
+
+# 7. detached HEAD write 拒绝
+echo ""
+echo "[7] dow version --set detached HEAD"
+git -C "$PROJ_ROOT" checkout --detach HEAD >/dev/null 2>&1
+if $DOW version --set 9.9.9 2>/dev/null; then
+  fail "--set 在 detached HEAD 应返回 exit 1"
+else
+  pass "--set 在 detached HEAD 返回 exit 1"
+fi
+git -C "$PROJ_ROOT" checkout "$ORIG_BRANCH" >/dev/null 2>&1
 
 echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="

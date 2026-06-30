@@ -15,13 +15,29 @@ struct VersionOutput {
     previous: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    warning: Option<String>,
 }
 
 pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
-    let branch = crate::core::doc_root::current_branch()
-        .unwrap_or_else(|| "main".to_string());
+    let detached = version::is_detached();
+    let branch = version::resolve_branch();
+    let warning = if detached {
+        Some("cannot detect current branch (detached HEAD), falling back to 'main'".to_string())
+    } else {
+        None
+    };
 
-    // --set does not depend on current version being parsable (allows fixing damaged VERSION)
+    // --set / --bump require a real branch — do not fallback
+    if args.set.is_some() || args.bump.is_some() {
+        if detached {
+            return Err(DowError::new(
+                "Cannot write version in detached HEAD state — checkout a branch first",
+                1,
+            ));
+        }
+    }
+
     if let Some(ref new_ver) = args.set {
         let previous = version::read_current().ok();
         version::write_current(new_ver)?;
@@ -30,6 +46,7 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
             branch: branch.clone(),
             previous,
             action: Some("set".to_string()),
+            warning: None,
         };
         if human {
             let prev_str = result.previous.as_deref().unwrap_or("(damaged)");
@@ -49,6 +66,7 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
             branch: branch.clone(),
             previous: Some(prev),
             action: Some(format!("bump:{}", bump_type)),
+            warning: None,
         };
         if human {
             println!("[dev-flow] version({}): {} → {} ({})", branch, result.previous.as_ref().unwrap(), result.version, bump_type);
@@ -64,11 +82,15 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
         branch,
         previous: None,
         action: None,
+        warning: warning.clone(),
     };
     if human {
+        if let Some(ref w) = warning {
+            println!("[dow] WARNING: {}", w);
+        }
         println!("{}", result.version);
     } else {
         output::print_json(&result);
     }
-    Ok(0)
+    if detached { Ok(2) } else { Ok(0) }
 }

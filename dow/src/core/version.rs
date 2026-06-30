@@ -17,11 +17,20 @@ struct VersionEntry {
     version: String,
 }
 
-/// Read current branch version number
+/// Read current branch version number. Falls back to 'main' on detached HEAD.
 pub fn read_current() -> Result<String, DowError> {
-    let branch = doc_root::current_branch()
-        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
+    let branch = resolve_branch();
     read_branch(&branch)
+}
+
+/// Resolve branch: current branch or fallback to 'main'
+pub fn resolve_branch() -> String {
+    doc_root::current_branch().unwrap_or_else(|| "main".to_string())
+}
+
+/// Whether the current state is a detached HEAD (no branch detected)
+pub fn is_detached() -> bool {
+    doc_root::current_branch().is_none()
 }
 
 /// Read specified branch version number
