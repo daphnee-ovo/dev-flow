@@ -17,6 +17,8 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 # 初始化一个 git repo 模拟真实项目
 git -C "$TMPDIR" init -q
+git -C "$TMPDIR" config user.name "test"
+git -C "$TMPDIR" config user.email "test@test"
 git -C "$TMPDIR" checkout -b main >/dev/null 2>&1
 echo "(main)2.0.0" > "$TMPDIR/VERSION"
 git -C "$TMPDIR" add -A
