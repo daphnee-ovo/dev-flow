@@ -247,7 +247,7 @@ fn test_issue_close() {
 
     fs::write(
         doc.join("issue/issue_test_2026-06-20_1.md"),
-        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：bug to fix\n  - severity: P0\n  - location：x.rs:1\n  - description：broken\n  - reproduce：\n  - fix：\n",
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：bug to fix\n  - severity: P0\n  - location：x.rs:1\n  - description：broken\n  - reproduce：\n  - fix：patched the null check\n",
     ).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -298,7 +298,7 @@ fn test_issue_close_multi_item_file_partial() {
     // File with 2 issues, close only one
     fs::write(
         doc.join("issue/issue_test_2026-06-20_1.md"),
-        "---\nsource: test\nnums: 2\n---\n\n- [ ] ISSUE-I001：first bug\n  - severity: P1\n  - location：a.rs:1\n  - description：bug1\n  - reproduce：\n  - fix：\n- [ ] ISSUE-I002：second bug\n  - severity: P2\n  - location：b.rs:2\n  - description：bug2\n  - reproduce：\n  - fix：\n",
+        "---\nsource: test\nnums: 2\n---\n\n- [ ] ISSUE-I001：first bug\n  - severity: P1\n  - location：a.rs:1\n  - description：bug1\n  - reproduce：\n  - fix：fixed null pointer\n- [ ] ISSUE-I002：second bug\n  - severity: P2\n  - location：b.rs:2\n  - description：bug2\n  - reproduce：\n  - fix：\n",
     ).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))

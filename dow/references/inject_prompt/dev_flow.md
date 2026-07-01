@@ -2,22 +2,21 @@
 
 # **MUST use DEV-FLOW to manage development workflow.**
 
-## Commands
-| Phase | Slash Command | CLI Command | Notes |
-|---|---|---|---|
-| any | `/init` | `dow init` | Initialize project |
-| any | `/status` | `dow status` | Report current status |
-| any | `/check` | `dow lint` | Check doc sync |
-| any | `/mode` | `dow status set --mode` | Select dev mode |
-| any | `/issue` | `dow issue create` | Create an issue |
-| BRAINSTORM | `/brainstorm` | `dow brainstorm create` (entry) | Interactive exploration → creates BRAINSTORM.md |
-| PRD | `/prd` | `dow prd create` (entry) | Interactive → creates PRD.md, then spawns audit |
-| SPEC | `/spec` | `dow spec create` (entry) | Interactive → creates SPEC.md, then spawns audit |
-| TASK | `/task` | `dow task create` (entry) | Decompose spec into tasks, batch create |
-| DEV | `/fix` | `dow issue list` + `dow claim` | Read open issues, claim, fix, close |
-| DEV | `/devtest` | `dow test --task <ID>` | Task-level testing loop |
-| TEST | `/test` | `dow test` | Full project-level test suite |
-| ITERATE | `/iterate` | `dow iterate` | Preview → confirm → archive + commit + tag + bump |
+## Slash Commands
+| Command | Phase | Purpose |
+|---------|-------|---------|
+| `/init` | any | Initialize project |
+| `/status` | any | Report status |
+| `/mode` | any | Set dev mode |
+| `/issue` | any | Create issue |
+| `/brainstorm` | BRAINSTORM | Collaborative exploration |
+| `/prd` | PRD | Write requirements |
+| `/spec` | SPEC | Technical design |
+| `/task` | TASK | Decompose into tasks |
+| `/fix` | DEV | Fix open issues |
+| `/devtest` | DEV | Task-level test loop |
+| `/test` | TEST | Full test suite |
+| `/iterate` | ITERATE | Archive + commit + tag + bump |
 
 ## Discipline
 
@@ -36,8 +35,10 @@
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
-- After completing a task, run `dow task done <ID>` then `/devtest`.
-- After fixing an issue, run `dow issue close <ID>` immediately — do not leave resolved issues open.
+- **Completion sequence (MUST execute immediately, no delay):**
+  - Task done: `dow task done <ID>` → `dow claim --revoke` → then `/devtest`
+  - Issue fixed: `dow issue close <ID>` → `dow claim --revoke`
+  - Do NOT defer these commands. Execute them as soon as the work is verified complete — before moving to the next task, before responding to the user, before any other action.
 - After all tasks complete, auto-enter `/test`.
 
 ### Handling ad-hoc requests during DEV
@@ -60,11 +61,35 @@ Examples:
 ### .dev-doc management
 - Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands. Never Read/Write directly.
 - Document files (PRD.md/SPEC.md/BRAINSTORM.md): Create via dow (`dow prd create` etc), edit directly after creation.
-- Schema: use `dow <resource> schema` (e.g. `dow task schema`, `dow spec schema`) to get format definitions.
-- Batch create: pipe JSON array to stdin — `echo '[{...},{...}]' | dow task create` (same for issue).
-- Update fields: `dow task update <ID> --field value` / `dow issue update <ID> --field value` (only passed fields change).
-- Remove: `dow task remove <ID>` / `dow issue remove <ID>` (requires confirmation token; renumbers subsequent IDs).
-- Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation. The preview and the confirmed execution MUST happen in separate turns — presenting the preview and executing in the same turn makes user confirmation meaningless.
+- **When unsure about any dow command syntax, run `dow <command> --help` first.**
+- Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation. The preview and the confirmed execution MUST happen in separate turns.
+
+#### dow task/issue command reference
+
+| Operation | Command | Notes |
+|-----------|---------|-------|
+| create | `echo '<JSON>' \| dow task create` | pipe JSON object or array to stdin; all fields required |
+| list | `dow task list [--all]` | default shows pending only |
+| show | `dow task show <ID>` | full detail with files, deps, done_when |
+| update | `dow task update <ID> --field value` | only passed fields change |
+| done/close | `dow task done <ID>` / `dow issue close <ID>` | marks complete |
+| remove | `dow task remove <ID>` | preview → confirm token (destructive) |
+| reopen | `dow task reopen <ID>` | preview → confirm token (destructive) |
+| schema | `dow task schema` | outputs field definitions |
+
+Replace `task` with `issue` for issue operations (same pattern).
+
+#### task create — all fields required
+
+```json
+{"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files_modify":[], "files_create":[], "files_test":[], "depends_on":[], "parallel":false, "complexity":"S|M|L|XL", "done_when":["criterion"]}
+```
+
+#### issue create — all fields required (except fix)
+
+```json
+{"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|devtest|audit|other"}
+```
 
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.

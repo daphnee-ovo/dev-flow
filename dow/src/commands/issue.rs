@@ -663,6 +663,14 @@ fn close(id: &str) -> Result<i32, DowError> {
         ));
     }
 
+    // fix field must be filled before closing
+    if parsed.fix.trim().is_empty() {
+        return Err(DowError::new(
+            format!("cannot close {}: fix field is empty (use `dow issue update {} --fix \"...\"` to describe the fix first)", id, id),
+            2,
+        ));
+    }
+
     // Read file, change "- [ ] ISSUE-I###" to "- [x] ISSUE-I###" for matching ID
     let content = fs::read_to_string(&file_path)
         .map_err(|e| DowError::new(format!("Failed to read issue file: {}", e), 1))?;
