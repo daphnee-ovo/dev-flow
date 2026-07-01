@@ -5,11 +5,13 @@
 // - [Guard Hook](../hooks/guard.rs)
 // - [Claim Core](../core/claim.rs)
 
+use crate::commands::task as task_cmd;
 use crate::core::{claim, doc_root};
 use crate::error::DowError;
 use crate::output;
 use crate::cli::ClaimArgs;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs;
 
 #[derive(Serialize)]
@@ -56,6 +58,9 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
                 1,
             ));
         }
+
+        // Check dependencies before allowing claim
+        check_dependencies(&doc_root_path, &normalized)?;
 
         claim::add_claims(&doc_root_path, &normalized).map_err(|e| {
             DowError::new(format!("Failed to add claim: {}", e), 1)
@@ -206,4 +211,90 @@ fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String
         .collect();
 
     (invalid, duplicates)
+}
+
+/// Check explicit dependencies (depends_on) and implicit file conflicts (already-claimed tasks)
+fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), DowError> {
+    // Only check task IDs (not issues)
+    let task_ids: Vec<&String> = ids.iter().filter(|id| id.starts_with("T")).collect();
+    if task_ids.is_empty() {
+        return Ok(());
+    }
+
+    let all_tasks = task_cmd::get_all_task_details(doc_root);
+
+    // Get currently claimed task IDs (excluding the ones being claimed now)
+    let currently_claimed: Vec<String> = claim::get_active_claims(doc_root)
+        .into_iter()
+        .filter(|c| c.starts_with("T") && !ids.contains(c))
+        .collect();
+
+    let mut errors: Vec<String> = Vec::new();
+
+    for target_id in &task_ids {
+        let full_id = format!("TASK-{}", target_id);
+        let target = match all_tasks.iter().find(|t| t.id == full_id) {
+            Some(t) => t,
+            None => continue,
+        };
+
+        // 1. Check explicit depends_on: all must be done
+        let incomplete_deps: Vec<&str> = target.depends_on.iter()
+            .filter_map(|dep_id| {
+                let dep = all_tasks.iter().find(|t| t.id == *dep_id)?;
+                if dep.status != "done" { Some(dep_id.as_str()) } else { None }
+            })
+            .collect();
+
+        if !incomplete_deps.is_empty() {
+            errors.push(format!(
+                "cannot claim {}: blocked by incomplete dependencies [{}]",
+                full_id, incomplete_deps.join(", ")
+            ));
+        }
+
+        // 2. Check file conflicts with currently claimed tasks
+        let target_files: HashSet<&str> = target.files.create.iter()
+            .chain(target.files.modify.iter())
+            .filter(|f| !f.is_empty())
+            .map(|f| f.as_str())
+            .collect();
+
+        if target_files.is_empty() {
+            continue;
+        }
+
+        for claimed_id in &currently_claimed {
+            let claimed_full_id = format!("TASK-{}", claimed_id);
+            let claimed_task = match all_tasks.iter().find(|t| t.id == claimed_full_id) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            if claimed_task.status == "done" {
+                continue;
+            }
+
+            let claimed_files: HashSet<&str> = claimed_task.files.create.iter()
+                .chain(claimed_task.files.modify.iter())
+                .filter(|f| !f.is_empty())
+                .map(|f| f.as_str())
+                .collect();
+
+            let shared: Vec<&&str> = target_files.intersection(&claimed_files).collect();
+            if !shared.is_empty() {
+                let shared_list: Vec<&str> = shared.into_iter().copied().collect();
+                errors.push(format!(
+                    "cannot claim {}: file conflict with currently claimed {} (shared: {})",
+                    full_id, claimed_full_id, shared_list.join(", ")
+                ));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(DowError::new(errors.join("\n"), 1))
+    }
 }

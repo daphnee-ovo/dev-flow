@@ -31,6 +31,10 @@ pub struct TaskData {
     pub depends_on: Vec<String>,
     pub done_when: Vec<String>,
     pub r#type: String,
+    pub refs: String,
+    pub files_create: Vec<String>,
+    pub files_modify: Vec<String>,
+    pub files_test: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -148,9 +152,14 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
         let mut task_type = String::new();
         let mut priority = String::new();
         let mut complexity = String::new();
+        let mut refs = String::new();
         let mut depends_on = Vec::new();
         let mut done_when = Vec::new();
+        let mut files_create = Vec::new();
+        let mut files_modify = Vec::new();
+        let mut files_test = Vec::new();
         let mut in_done_when = false;
+        let mut in_files = false;
 
         for j in (i + 1)..lines.len() {
             let sub = lines[j];
@@ -168,10 +177,29 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
                 in_done_when = false;
             }
 
+            if in_files {
+                if sub_trimmed.starts_with("create:") {
+                    files_create = parse_inline_list(sub_trimmed.strip_prefix("create:").unwrap());
+                    continue;
+                } else if sub_trimmed.starts_with("modify:") {
+                    files_modify = parse_inline_list(sub_trimmed.strip_prefix("modify:").unwrap());
+                    continue;
+                } else if sub_trimmed.starts_with("test:") {
+                    files_test = parse_inline_list(sub_trimmed.strip_prefix("test:").unwrap());
+                    continue;
+                } else if !sub_trimmed.is_empty() && !sub.starts_with("      ") {
+                    in_files = false;
+                }
+            }
+
             if sub_trimmed.starts_with("- type:") {
                 task_type = sub_trimmed.strip_prefix("- type:").unwrap().trim().to_string();
             } else if sub_trimmed.starts_with("- priority:") {
                 priority = sub_trimmed.strip_prefix("- priority:").unwrap().trim().to_string();
+            } else if sub_trimmed.starts_with("- refs:") {
+                refs = sub_trimmed.strip_prefix("- refs:").unwrap().trim().to_string();
+            } else if sub_trimmed.starts_with("- files:") {
+                in_files = true;
             } else if sub_trimmed.starts_with("- complexity:") {
                 complexity = sub_trimmed.strip_prefix("- complexity:").unwrap().trim().to_string();
             } else if sub_trimmed.starts_with("- depends_on:") {
@@ -190,6 +218,10 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
             depends_on,
             done_when,
             r#type: task_type,
+            refs,
+            files_create,
+            files_modify,
+            files_test,
         });
     }
 

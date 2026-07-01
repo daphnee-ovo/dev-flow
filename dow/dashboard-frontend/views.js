@@ -64,7 +64,9 @@ function renderHome(data) {
           <span class="badge" style="background:var(--color-surface-alt)">${item.complexity || 'S'}</span>
           <span class="badge" style="background:var(--color-surface-alt)">${item.status}</span>
         </div>
+        ${item.refs ? `<div class="refs">refs: ${item.refs}</div>` : ''}
         ${(item.depends_on||[]).length ? `<div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">Depends: ${item.depends_on.join(', ')}</div>` : ''}
+        ${renderFilesSection(item)}
         ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
       `;
       panel.appendChild(overlay);
@@ -164,7 +166,9 @@ function renderTasks(data) {
         <span class="badge" style="background:var(--color-surface-alt)">${t.complexity || 'S'}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.type || 'feat'}</span>
       </div>
+      ${t.refs ? `<div class="refs">refs: ${t.refs}</div>` : ''}
       ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.join(', ')}</div>` : ''}
+      ${renderFilesSection(t)}
       ${(t.done_when||[]).length ? '<ul class="done-when">' + t.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
     </div>
   `).join('');
@@ -255,4 +259,19 @@ function renderIssueKanbanCol(title, issues) {
   }).join('');
   const empty = issues.length === 0 ? '<div class="kanban-empty">No items</div>' : '';
   return `<div class="kanban-col"><h4>${title} <span class="count">${issues.length}</span></h4>${cards}${empty}</div>`;
+}
+
+function renderFilesSection(t) {
+  const create = t.files_create || [];
+  const modify = t.files_modify || [];
+  const test = t.files_test || [];
+  const total = create.length + modify.length + test.length;
+  if (total === 0) return '';
+
+  let inner = '';
+  if (modify.length) inner += `<div class="files-group"><span class="files-label">modify:</span> ${modify.join(', ')}</div>`;
+  if (create.length) inner += `<div class="files-group"><span class="files-label">create:</span> ${create.join(', ')}</div>`;
+  if (test.length) inner += `<div class="files-group"><span class="files-label">test:</span> ${test.join(', ')}</div>`;
+
+  return `<details class="files-section"><summary>files (${total})</summary>${inner}</details>`;
 }

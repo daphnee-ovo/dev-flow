@@ -119,14 +119,19 @@ echo "--- Testing task creation ---"
 TASK_JSON=$(cat <<'EOF'
 {
   "title": "Integration test task",
+  "type": "feat",
+  "priority": "P1",
+  "refs": "",
+  "files_modify": [],
+  "files_create": ["test.txt"],
+  "files_test": [],
+  "depends_on": [],
+  "parallel": false,
+  "complexity": "S",
   "done_when": [
     "file test.txt exists",
     "test.txt contains 'hello'"
-  ],
-  "priority": "P1",
-  "files": {
-    "create": ["test.txt"]
-  }
+  ]
 }
 EOF
 )
@@ -162,8 +167,10 @@ echo "--- Testing issue creation ---"
 ISSUE_JSON=$(cat <<'EOF'
 {
   "title": "Integration test issue",
-  "description": "Test issue description",
   "severity": "P2",
+  "location": "test.txt:1",
+  "desc": "Test issue description",
+  "reproduce": "run test",
   "source": "test"
 }
 EOF

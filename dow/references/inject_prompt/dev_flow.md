@@ -64,7 +64,7 @@ Examples:
 - Batch create: pipe JSON array to stdin — `echo '[{...},{...}]' | dow task create` (same for issue).
 - Update fields: `dow task update <ID> --field value` / `dow issue update <ID> --field value` (only passed fields change).
 - Remove: `dow task remove <ID>` / `dow issue remove <ID>` (requires confirmation token; renumbers subsequent IDs).
-- Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation.
+- Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation. The preview and the confirmed execution MUST happen in separate turns — presenting the preview and executing in the same turn makes user confirmation meaningless.
 
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.

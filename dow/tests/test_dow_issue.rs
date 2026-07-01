@@ -37,6 +37,7 @@ fn test_issue_create_with_flags() {
             "--severity", "P0",
             "--location", "src/parser.rs:42",
             "--desc", "crashes on empty input",
+            "--reproduce", "run with empty string",
             "--source", "test",
         ])
         .current_dir(dir.path())
@@ -70,7 +71,7 @@ fn test_issue_create_with_stdin_json() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
 
-    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","source":"devtest"}"#;
+    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"devtest"}"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "create"])
@@ -99,6 +100,10 @@ fn test_issue_create_invalid_severity() {
             "issue", "create",
             "--title", "test",
             "--severity", "CRITICAL",
+            "--location", "a.rs:1",
+            "--desc", "test desc",
+            "--reproduce", "steps",
+            "--source", "other",
         ])
         .current_dir(dir.path())
         .output()
@@ -141,6 +146,9 @@ fn test_issue_create_auto_increments_id() {
             "issue", "create",
             "--title", "second issue",
             "--severity", "P2",
+            "--location", "b.rs:5",
+            "--desc", "another bug",
+            "--reproduce", "steps here",
             "--source", "test",
         ])
         .current_dir(dir.path())

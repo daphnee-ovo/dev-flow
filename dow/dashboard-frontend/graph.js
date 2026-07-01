@@ -18,22 +18,26 @@ function renderGraph(container, tasks, issues) {
     return;
   }
 
-  // Build edges
+  // Build explicit edges
   const edges = [];
   allItems.forEach(t => {
     (t.depends_on || []).forEach(dep => {
       if (allItems.find(x => x.id === dep)) {
-        edges.push({ source: t.id, target: dep });
+        edges.push({ source: t.id, target: dep, implicit: false });
       }
     });
   });
+
+  // Compute implicit edges from file overlap
+  const implicitEdges = computeImplicitEdges(allItems.filter(t => t.kind === 'task'), edges);
+  const allEdges = [...edges, ...implicitEdges];
 
   // Dagre layout
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 80 });
   g.setDefaultEdgeLabel(() => ({}));
   allItems.forEach(t => g.setNode(t.id, { width: (sizeMap[t.complexity] || 30) * 2.5, height: (sizeMap[t.complexity] || 30) * 2.5 }));
-  edges.forEach(e => g.setEdge(e.source, e.target));
+  allEdges.forEach(e => g.setEdge(e.source, e.target));
   dagre.layout(g);
 
   const rect = container.getBoundingClientRect();
@@ -64,7 +68,7 @@ function renderGraph(container, tasks, issues) {
     };
   });
 
-  graphLinks = edges.map(e => ({ source: e.source, target: e.target }));
+  graphLinks = allEdges.map(e => ({ source: e.source, target: e.target, implicit: e.implicit || false, sharedFiles: e.sharedFiles || [] }));
 
   // Render SVG
   if (!svgEl || container.querySelector('svg') !== svgEl.node()) {
@@ -76,6 +80,9 @@ function renderGraph(container, tasks, issues) {
     defs.append('marker').attr('id', 'arrow-default').attr('viewBox', '0 0 10 10')
       .attr('refX', 10).attr('refY', 5).attr('markerWidth', 5).attr('markerHeight', 5)
       .attr('orient', 'auto').append('path').attr('d', 'M0,0 L10,5 L0,10 Z').attr('fill', '#D4C4BE');
+    defs.append('marker').attr('id', 'arrow-implicit').attr('viewBox', '0 0 10 10')
+      .attr('refX', 10).attr('refY', 5).attr('markerWidth', 5).attr('markerHeight', 5)
+      .attr('orient', 'auto').append('path').attr('d', 'M0,0 L10,5 L0,10 Z').attr('fill', '#B8A8A0');
     defs.append('marker').attr('id', 'arrow-hl').attr('viewBox', '0 0 10 10')
       .attr('refX', 10).attr('refY', 5).attr('markerWidth', 5).attr('markerHeight', 5)
       .attr('orient', 'auto').append('path').attr('d', 'M0,0 L10,5 L0,10 Z').attr('fill', '#F2A0B0');
@@ -116,11 +123,14 @@ function renderGraph(container, tasks, issues) {
 
   // Edges
   const edgesGroup = svgEl.select('.zoom-container .edges-group');
-  const edgeEls = edgesGroup.selectAll('line').data(graphLinks, d => d.source + '-' + d.target);
+  const edgeEls = edgesGroup.selectAll('line').data(graphLinks, d => d.source + '-' + d.target + (d.implicit ? '-impl' : ''));
   edgeEls.exit().remove();
   edgeEls.enter().append('line')
-    .attr('stroke', '#D4C4BE').attr('stroke-opacity', 0.6).attr('stroke-width', 1.5)
-    .attr('marker-end', 'url(#arrow-default)');
+    .attr('stroke', d => d.implicit ? '#B8A8A0' : '#D4C4BE')
+    .attr('stroke-opacity', d => d.implicit ? 0.35 : 0.6)
+    .attr('stroke-width', 1.5)
+    .attr('stroke-dasharray', d => d.implicit ? '4,3' : 'none')
+    .attr('marker-end', d => d.implicit ? 'url(#arrow-implicit)' : 'url(#arrow-default)');
 
   // Nodes
   const nodesGroup = svgEl.select('.zoom-container .nodes-group');
@@ -185,7 +195,13 @@ function renderGraph(container, tasks, issues) {
 
   svgEl.on('click', () => {
     allNodes.style('opacity', 1);
-    edgesGroup.selectAll('line').attr('stroke', '#D4C4BE').attr('stroke-opacity', 0.6).attr('marker-end', 'url(#arrow-default)');
+    edgesGroup.selectAll('line').each(function(d) {
+      d3.select(this)
+        .attr('stroke', d.implicit ? '#B8A8A0' : '#D4C4BE')
+        .attr('stroke-opacity', d.implicit ? 0.35 : 0.6)
+        .attr('stroke-dasharray', d.implicit ? '4,3' : 'none')
+        .attr('marker-end', d.implicit ? 'url(#arrow-implicit)' : 'url(#arrow-default)');
+    });
   });
 
   // Force simulation
@@ -255,8 +271,35 @@ function highlightChain(nodeId, allNodes, allEdges) {
     const tid = typeof e.target === 'string' ? e.target : e.target.id;
     const isRel = related.has(sid) && related.has(tid);
     d3.select(this)
-      .attr('stroke', isRel ? '#F2A0B0' : '#D4C4BE')
+      .attr('stroke', isRel ? '#F2A0B0' : (e.implicit ? '#B8A8A0' : '#D4C4BE'))
       .attr('stroke-opacity', isRel ? 1 : 0.08)
-      .attr('marker-end', isRel ? 'url(#arrow-hl)' : 'url(#arrow-default)');
+      .attr('stroke-dasharray', e.implicit ? '4,3' : 'none')
+      .attr('marker-end', isRel ? 'url(#arrow-hl)' : (e.implicit ? 'url(#arrow-implicit)' : 'url(#arrow-default)'));
   });
+}
+
+function computeImplicitEdges(tasks, explicitEdges) {
+  const explicitSet = new Set();
+  explicitEdges.forEach(e => {
+    explicitSet.add(e.source + '->' + e.target);
+    explicitSet.add(e.target + '->' + e.source);
+  });
+
+  const implicit = [];
+  for (let i = 0; i < tasks.length; i++) {
+    for (let j = i + 1; j < tasks.length; j++) {
+      const a = tasks[i], b = tasks[j];
+      const filesA = new Set([...(a.files_create || []), ...(a.files_modify || [])]);
+      const filesB = new Set([...(b.files_create || []), ...(b.files_modify || [])]);
+      if (filesA.size === 0 || filesB.size === 0) continue;
+
+      const shared = [...filesA].filter(f => f && filesB.has(f));
+      if (shared.length === 0) continue;
+
+      if (!explicitSet.has(a.id + '->' + b.id) && !explicitSet.has(b.id + '->' + a.id)) {
+        implicit.push({ source: a.id, target: b.id, implicit: true, sharedFiles: shared });
+      }
+    }
+  }
+  return implicit;
 }

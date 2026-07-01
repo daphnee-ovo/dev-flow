@@ -179,8 +179,8 @@ pub struct TaskCreateArgs {
     pub parallel: bool,
 
     /// Complexity (S/M/L/XL)
-    #[arg(long, default_value = "S")]
-    pub complexity: String,
+    #[arg(long)]
+    pub complexity: Option<String>,
 
     /// Done-when criteria (comma-separated)
     #[arg(long)]
@@ -304,9 +304,13 @@ pub struct IssueCreateArgs {
     #[arg(long)]
     pub desc: Option<String>,
 
+    /// Steps to reproduce
+    #[arg(long)]
+    pub reproduce: Option<String>,
+
     /// Issue source (test/devtest/audit/other)
-    #[arg(long, default_value = "other")]
-    pub source: String,
+    #[arg(long)]
+    pub source: Option<String>,
 }
 
 #[derive(clap::Args)]

@@ -90,6 +90,8 @@ struct IssueCreateInput {
     desc: Option<String>,
     source: Option<String>,
     reproduce: Option<String>,
+    #[serde(default)]
+    fix: Option<String>,
 }
 
 pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
@@ -118,11 +120,11 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     let input = read_stdin_json_or_flags(&args)?;
 
     let title = input.title.ok_or_else(|| DowError::new("--title is required", 2))?;
-    let severity = input.severity.unwrap_or_else(|| "P1".to_string());
-    let location = input.location.unwrap_or_default();
-    let desc = input.desc.unwrap_or_default();
-    let source = input.source.unwrap_or_else(|| "other".to_string());
-    let reproduce = input.reproduce.unwrap_or_default();
+    let severity = input.severity.ok_or_else(|| DowError::new("--severity is required", 2))?;
+    let location = input.location.ok_or_else(|| DowError::new("--location is required", 2))?;
+    let desc = input.desc.ok_or_else(|| DowError::new("--desc is required", 2))?;
+    let source = input.source.ok_or_else(|| DowError::new("--source is required", 2))?;
+    let reproduce = input.reproduce.ok_or_else(|| DowError::new("--reproduce is required", 2))?;
 
     // Validate severity
     let valid_severities = ["P0", "P1", "P2"];
@@ -837,21 +839,21 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             },
             SchemaField {
                 name: "location".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Code location (file:line)".to_string(),
                 valid_values: vec![],
             },
             SchemaField {
                 name: "description".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Issue description".to_string(),
                 valid_values: vec![],
             },
             SchemaField {
                 name: "reproduce".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Steps to reproduce".to_string(),
                 valid_values: vec![],
@@ -1134,8 +1136,9 @@ fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<IssueCreateInput, 
         severity: args.severity.clone(),
         location: args.location.clone(),
         desc: args.desc.clone(),
-        source: Some(args.source.clone()),
-        reproduce: None,
+        source: args.source.clone(),
+        reproduce: args.reproduce.clone(),
+        fix: None,
     })
 }
 
