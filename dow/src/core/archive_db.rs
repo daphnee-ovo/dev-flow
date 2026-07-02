@@ -18,7 +18,6 @@ pub struct IterationRecord {
     pub branch: String,
     pub released_at: String,
     pub tag: String,
-    pub mode: Option<String>,
 }
 
 pub struct TaskRecord {
@@ -88,7 +87,6 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
             branch TEXT NOT NULL DEFAULT 'main',
             released_at TEXT NOT NULL,
             tag TEXT NOT NULL,
-            mode TEXT,
             revoked INTEGER NOT NULL DEFAULT 0
         );
 
@@ -200,6 +198,41 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
         ").ok();
     }
 
+    // Backwards compatibility: drop legacy `mode` column (no longer read or written).
+    // Rebuild the table without it; preserves all other data and indexes.
+    let has_mode: bool = conn
+        .prepare("PRAGMA table_info(iterations)")
+        .and_then(|mut stmt| {
+            let names = stmt.query_map([], |r| r.get::<_, String>(1))?;
+            for name in names {
+                if name? == "mode" {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        })
+        .unwrap_or(false);
+    if has_mode {
+        conn.execute_batch("
+            CREATE TABLE IF NOT EXISTS iterations_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                commit_type TEXT,
+                branch TEXT NOT NULL DEFAULT 'main',
+                released_at TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO iterations_new (id, version, topic, commit_type, branch, released_at, tag, revoked)
+                SELECT id, version, topic, commit_type, branch, released_at, tag, COALESCE(revoked, 0)
+                FROM iterations;
+            DROP TABLE iterations;
+            ALTER TABLE iterations_new RENAME TO iterations;
+            CREATE INDEX IF NOT EXISTS idx_iterations_version ON iterations(version);
+        ").ok();
+    }
+
     Ok(())
 }
 
@@ -207,8 +240,8 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
 
 pub fn insert_iteration(conn: &Connection, rec: &IterationRecord) -> Result<(), DowError> {
     conn.execute(
-        "INSERT INTO iterations (version, topic, commit_type, branch, released_at, tag, mode, revoked)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)",
+        "INSERT INTO iterations (version, topic, commit_type, branch, released_at, tag, revoked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
         params![
             rec.version,
             rec.topic,
@@ -216,7 +249,6 @@ pub fn insert_iteration(conn: &Connection, rec: &IterationRecord) -> Result<(), 
             rec.branch,
             rec.released_at,
             rec.tag,
-            rec.mode,
         ],
     )
     .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -302,6 +334,7 @@ pub fn insert_changelog(conn: &Connection, version: &str, date: Option<&str>, te
 pub struct IterationSummary {
     pub version: String,
     pub topic: String,
+    pub commit_type: Option<String>,
     pub branch: String,
     pub released_at: String,
     pub tag: String,
@@ -311,7 +344,7 @@ pub struct IterationSummary {
 
 pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<IterationSummary>, DowError> {
     let mut sql = String::from(
-        "SELECT i.version, i.topic, i.branch, i.released_at, i.tag,
+        "SELECT i.version, i.topic, i.commit_type, i.branch, i.released_at, i.tag,
          (SELECT COUNT(*) FROM tasks t WHERE t.version = i.version) as task_count,
          (SELECT COUNT(*) FROM issues s WHERE s.version = i.version) as issue_count
          FROM iterations i"
@@ -331,11 +364,12 @@ pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<It
         Ok(IterationSummary {
             version: row.get(0)?,
             topic: row.get(1)?,
-            branch: row.get(2)?,
-            released_at: row.get(3)?,
-            tag: row.get(4)?,
-            task_count: row.get(5)?,
-            issue_count: row.get(6)?,
+            commit_type: row.get(2)?,
+            branch: row.get(3)?,
+            released_at: row.get(4)?,
+            tag: row.get(5)?,
+            task_count: row.get(6)?,
+            issue_count: row.get(7)?,
         })
     }).map_err(|e| DowError::new(e.to_string(), 1))?;
 
@@ -449,25 +483,6 @@ pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&
         results.push(row.map_err(|e| DowError::new(e.to_string(), 1))?);
     }
     Ok(results)
-}
-
-pub fn get_iteration(conn: &Connection, version: &str) -> Result<Option<IterationRecord>, DowError> {
-    let mut stmt = conn.prepare(
-        "SELECT version, topic, commit_type, branch, released_at, tag, mode FROM iterations WHERE version = ?1"
-    ).map_err(|e| DowError::new(e.to_string(), 1))?;
-
-    let result = stmt.query_row(params![version], |row| {
-        Ok(IterationRecord {
-            version: row.get(0)?,
-            topic: row.get(1)?,
-            commit_type: row.get(2)?,
-            branch: row.get(3)?,
-            released_at: row.get(4)?,
-            tag: row.get(5)?,
-            mode: row.get(6)?,
-        })
-    }).ok();
-    Ok(result)
 }
 
 pub fn query_changelog(conn: &Connection, version: &str) -> Result<Vec<(Option<String>, String)>, DowError> {
@@ -842,7 +857,6 @@ pub fn migrate_archive_dir(
         branch: branch.to_string(),
         released_at,
         tag: format!("v{}", version),
-        mode: None,
     })?;
 
     Ok(count)
@@ -948,4 +962,69 @@ fn extract_date_from_dir(dir: &Path) -> String {
         }
     }
     chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: an archive DB with the legacy `mode` column must be migrated
+    /// on open — `mode` dropped, all other columns and row data preserved.
+    #[test]
+    fn test_migrate_drops_mode_column_preserving_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("archive.db");
+
+        // Old schema (with mode) + one row carrying a mode value.
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE iterations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version TEXT NOT NULL,
+                    topic TEXT NOT NULL,
+                    commit_type TEXT,
+                    branch TEXT NOT NULL DEFAULT 'main',
+                    released_at TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    mode TEXT,
+                    revoked INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO iterations (version, topic, commit_type, branch, released_at, tag, mode, revoked)
+                    VALUES ('0.9.0', 'legacy-release', 'fix', 'main', '2026-01-01', 'v0.9.0', 'fast', 0);
+                CREATE INDEX idx_iterations_version ON iterations(version);",
+            ).unwrap();
+        }
+
+        // Trigger migration.
+        let conn = open_or_create(dir.path()).unwrap();
+
+        // mode column must be gone.
+        let has_mode: bool = {
+            let mut stmt = conn.prepare("PRAGMA table_info(iterations)").unwrap();
+            let names = stmt.query_map([], |r| r.get::<_, String>(1)).unwrap();
+            let mut found = false;
+            for name in names {
+                if name.unwrap() == "mode" {
+                    found = true;
+                }
+            }
+            found
+        };
+        assert!(!has_mode, "mode column should be dropped after migration");
+
+        // All other data preserved.
+        let row: (String, String, Option<String>, String, i64) = conn
+            .query_row(
+                "SELECT version, topic, commit_type, tag, revoked FROM iterations WHERE version = '0.9.0'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(row.0, "0.9.0");
+        assert_eq!(row.1, "legacy-release");
+        assert_eq!(row.2, Some("fix".to_string()));
+        assert_eq!(row.3, "v0.9.0");
+        assert_eq!(row.4, 0);
+    }
 }

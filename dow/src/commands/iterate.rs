@@ -197,6 +197,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     let conn = archive_db::open_or_create(&archive_base)?;
     let released_at = chrono::Local::now().format("%Y-%m-%d").to_string();
     let cur_branch = doc_root::current_branch().unwrap_or_else(|| "main".to_string());
+    // Whether a git tag will be created for this release (minor/major or --tag).
+    // The archived `tag` field must match this so the archive reflects reality.
+    let should_tag = args.bump != "patch" || args.tag;
     archive_db::insert_iteration(
         &conn,
         &archive_db::IterationRecord {
@@ -205,8 +208,11 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             commit_type: Some(args.r#type.clone()),
             branch: cur_branch,
             released_at,
-            tag: format!("v{}", released_version),
-            mode: Some(effective_mode.clone()),
+            tag: if should_tag {
+                format!("v{}", released_version)
+            } else {
+                "no-tag".to_string()
+            },
         },
     )?;
 
@@ -298,7 +304,6 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     git_commit(&commit_msg, &commit_files)?;
 
     // Only create git tag for minor/major or explicit --tag
-    let should_tag = args.bump != "patch" || args.tag;
     if should_tag {
         git_tag(&released_version)?;
     }

@@ -12,3 +12,4 @@ dow/target/
 # 组装产出
 dist/
 scripts/bin/
+.dev-doc/**/claim.lock

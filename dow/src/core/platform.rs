@@ -43,15 +43,6 @@ pub fn data_dir() -> PathBuf {
     }
 }
 
-pub fn bin_dir() -> PathBuf {
-    if cfg!(target_os = "windows") {
-        data_dir().join("bin")
-    } else {
-        let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".local").join("bin")
-    }
-}
-
 pub fn bundle_dir() -> PathBuf {
     // Prioritize checking bundle adjacent to exe (supports winget portable / manual extraction)
     if let Ok(exe) = env::current_exe() {

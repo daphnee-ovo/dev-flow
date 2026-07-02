@@ -91,6 +91,43 @@ fn test_issue_create_with_stdin_json() {
 }
 
 #[test]
+fn test_issue_create_rejects_fix_in_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let _doc = setup_env(dir.path());
+
+    // stdin JSON carrying a `fix` field must be rejected transparently,
+    // not silently dropped.
+    let json_input = r#"{"title":"x","severity":"P1","location":"src/a.rs:1","desc":"d","reproduce":"r","source":"test","fix":"already fixed"}"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    use std::io::Write;
+    child.stdin.take().unwrap().write_all(json_input.as_bytes()).unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success(), "create should fail when `fix` is provided");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("update") && stderr.contains("--fix"),
+        "stderr should point to `dow issue update <id> --fix`, got: {}",
+        stderr
+    );
+    // Must not mislead users toward the non-existent `close --fix`.
+    assert!(
+        !stderr.contains("close --fix"),
+        "stderr must not suggest `close --fix` (close has no --fix flag), got: {}",
+        stderr
+    );
+}
+
+#[test]
 fn test_issue_create_invalid_severity() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());

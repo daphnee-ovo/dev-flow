@@ -68,6 +68,7 @@ pub fn run(args: LintArgs, human: bool) -> Result<i32, DowError> {
     check_directories(&doc_root_path, &mut fixed);
     check_gitignore(&mut fixed);
     check_stale_root_files(&doc_root_path, &mut warnings);
+    check_legacy_doc_dir(&mut warnings);
 
     // ══════════════════════════════════════════════════════════════════════
     // Phase 3: doc_validator::validate_all() (content validation)
@@ -471,6 +472,32 @@ fn check_stale_root_files(doc_root: &Path, warnings: &mut Vec<String>) {
             }
         }
     }
+}
+
+/// Detect a legacy `dev-doc/` directory (no leading dot) that still holds
+/// dev-flow-managed content (STATUS.yaml). dev-flow has migrated to `.dev-doc/`;
+/// such a directory will silently shadow the new layout and should be renamed.
+fn check_legacy_doc_dir(warnings: &mut Vec<String>) {
+    let legacy = Path::new(crate::core::DOC_DIR_LEGACY);
+    if !legacy.is_dir() {
+        return;
+    }
+    // Only flag if it carries dev-flow characteristics (STATUS.yaml anywhere),
+    // to avoid misidentifying an unrelated `dev-doc/` directory.
+    let has_status = fs::read_dir(legacy)
+        .map(|entries| {
+            entries
+                .flatten()
+                .any(|e| e.path().is_dir() && e.path().join("STATUS.yaml").exists())
+        })
+        .unwrap_or(false);
+    let has_top_status = legacy.join("STATUS.yaml").exists();
+    if !has_status && !has_top_status {
+        return;
+    }
+    warnings.push(
+        "legacy `dev-doc/` directory detected (contains STATUS.yaml); dev-flow now uses `.dev-doc/` — run `mv dev-doc .dev-doc` to migrate".to_string(),
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -1,9 +1,26 @@
 // dow/src/core/
 // ├── version.rs  -- VERSION file multi-branch read/write
 //
+// Path resolution: VERSION lives at the git repository root (project_root).
+// All read/write goes through doc_root::project_root(); no caller needs to
+// thread a path. Path-taking helpers below are private implementation detail.
+//
 // Format: Each line (<branch>)<version>, e.g.:
 //   (main)3.4.0
 //   (feature-x)3.4.0
+//
+// Internal Framework:
+// version.rs
+// ├── VersionEntry
+// ├── resolve_branch() / is_detached()            # branch detection
+// ├── read_current                                # public, zero-arg → project_root()
+// ├── write_current / write_branch                # public, zero-arg → project_root()
+// ├── init_branch / bump                          # public, zero-arg → project_root()
+// ├── bump_version_str / bump_version             # pure calc, no file I/O
+// ├── read_at / write_at / init_at / bump_at      # private, path-taking
+// ├── parse_file(project_root) / write_file(project_root, entries)
+// ├── parse_line / is_plain_semver / validate_semver
+// └── version_file_path(project_root)
 //
 // Related Docs:
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
@@ -11,16 +28,22 @@
 use crate::core::doc_root;
 use crate::error::DowError;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 struct VersionEntry {
     branch: String,
     version: String,
 }
 
+/// Resolve VERSION file path under a project root.
+fn version_file_path(project_root: &Path) -> PathBuf {
+    project_root.join("VERSION")
+}
+
 /// Read current branch version number. Falls back to 'main' on detached HEAD.
 pub fn read_current() -> Result<String, DowError> {
-    let branch = resolve_branch();
-    read_branch(&branch)
+    let project_root = doc_root::project_root();
+    read_at(&project_root, &resolve_branch())
 }
 
 /// Resolve branch: current branch or fallback to 'main'
@@ -33,9 +56,38 @@ pub fn is_detached() -> bool {
     doc_root::current_branch().is_none()
 }
 
-/// Read specified branch version number
-pub fn read_branch(branch: &str) -> Result<String, DowError> {
-    let entries = parse_file()?;
+/// Write current branch version number (update existing line or append new line).
+pub fn write_current(version: &str) -> Result<(), DowError> {
+    let branch = doc_root::current_branch()
+        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
+    write_at(&doc_root::project_root(), &branch, version)
+}
+
+/// Write specified branch version number.
+pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
+    write_at(&doc_root::project_root(), branch, version)
+}
+
+
+/// Initialize version for new branch (inherit from main).
+pub fn init_branch(branch: &str) -> Result<String, DowError> {
+    init_at(&doc_root::project_root(), branch)
+}
+
+/// Bump current branch version number (read + calculate + write).
+pub fn bump(bump_type: &str) -> Result<(String, String), DowError> {
+    bump_at(&doc_root::project_root(), bump_type)
+}
+
+/// Pure calculation: given version number + bump type, return new version number (don't write to file)
+pub fn bump_version_str(version: &str, bump_type: &str) -> Result<String, DowError> {
+    bump_version(version, bump_type)
+}
+
+// ─── private, path-taking implementation ─────────────────────────────────────
+
+fn read_at(project_root: &Path, branch: &str) -> Result<String, DowError> {
+    let entries = parse_file(project_root)?;
     entries
         .iter()
         .find(|e| e.branch == branch)
@@ -43,17 +95,9 @@ pub fn read_branch(branch: &str) -> Result<String, DowError> {
         .ok_or_else(|| DowError::new(format!("No record for branch {} in VERSION", branch), 1))
 }
 
-/// Write current branch version number (update existing line or append new line)
-pub fn write_current(version: &str) -> Result<(), DowError> {
-    let branch = doc_root::current_branch()
-        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
-    write_branch(&branch, version)
-}
-
-/// Write specified branch version number
-pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
+fn write_at(project_root: &Path, branch: &str, version: &str) -> Result<(), DowError> {
     validate_semver(version)?;
-    let mut entries = parse_file().unwrap_or_default();
+    let mut entries = parse_file(project_root).unwrap_or_default();
 
     if let Some(entry) = entries.iter_mut().find(|e| e.branch == branch) {
         entry.version = version.to_string();
@@ -64,19 +108,11 @@ pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
         });
     }
 
-    write_file(&entries)
+    write_file(project_root, &entries)
 }
 
-/// Delete specified branch version record
-pub fn remove_branch(branch: &str) -> Result<(), DowError> {
-    let mut entries = parse_file().unwrap_or_default();
-    entries.retain(|e| e.branch != branch);
-    write_file(&entries)
-}
-
-/// Initialize version for new branch (inherit from main)
-pub fn init_branch(branch: &str) -> Result<String, DowError> {
-    let entries = parse_file().unwrap_or_default();
+fn init_at(project_root: &Path, branch: &str) -> Result<String, DowError> {
+    let entries = parse_file(project_root).unwrap_or_default();
 
     // If already exists, return directly
     if let Some(entry) = entries.iter().find(|e| e.branch == branch) {
@@ -90,27 +126,32 @@ pub fn init_branch(branch: &str) -> Result<String, DowError> {
         .map(|e| e.version.clone())
         .unwrap_or_else(|| "0.1.0".to_string());
 
-    write_branch(branch, &base_version)?;
+    write_at(project_root, branch, &base_version)?;
     Ok(base_version)
 }
 
-/// Bump current branch version number (read + calculate + write)
-pub fn bump(bump_type: &str) -> Result<(String, String), DowError> {
-    let current = read_current()?;
+fn bump_at(project_root: &Path, bump_type: &str) -> Result<(String, String), DowError> {
+    let current = read_at(project_root, &resolve_branch())?;
     let new = bump_version(&current, bump_type)?;
-    write_current(&new)?;
+    let branch = doc_root::current_branch()
+        .ok_or_else(|| DowError::new("Failed to get current branch", 1))?;
+    write_at(project_root, &branch, &new)?;
     Ok((current, new))
 }
 
-/// Pure calculation: given version number + bump type, return new version number (don't write to file)
-pub fn bump_version_str(version: &str, bump_type: &str) -> Result<String, DowError> {
-    bump_version(version, bump_type)
-}
-
-/// Parse version file, compatible with old format (plain version number, treated as main)
-fn parse_file() -> Result<Vec<VersionEntry>, DowError> {
-    let content = fs::read_to_string("VERSION")
-        .map_err(|_| DowError::new("VERSION file does not exist or is not readable", 1))?;
+/// Parse VERSION file under project_root, compatible with old format
+/// (plain version number, treated as main)
+fn parse_file(project_root: &Path) -> Result<Vec<VersionEntry>, DowError> {
+    let path = version_file_path(project_root);
+    let content = fs::read_to_string(&path).map_err(|_| {
+        DowError::new(
+            format!(
+                "VERSION file does not exist or is not readable at {}",
+                path.display()
+            ),
+            1,
+        )
+    })?;
 
     let mut entries = Vec::new();
     for line in content.lines() {
@@ -161,7 +202,7 @@ fn is_plain_semver(s: &str) -> bool {
     parts.len() == 3 && parts.iter().all(|p| p.parse::<u32>().is_ok())
 }
 
-fn write_file(entries: &[VersionEntry]) -> Result<(), DowError> {
+fn write_file(project_root: &Path, entries: &[VersionEntry]) -> Result<(), DowError> {
     let content: String = entries
         .iter()
         .map(|e| format!("({}){}", e.branch, e.version))
@@ -169,7 +210,7 @@ fn write_file(entries: &[VersionEntry]) -> Result<(), DowError> {
         .join("\n")
         + "\n";
 
-    fs::write("VERSION", content)
+    fs::write(version_file_path(project_root), content)
         .map_err(|e| DowError::new(e.to_string(), 1))
 }
 

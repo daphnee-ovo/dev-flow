@@ -27,8 +27,10 @@ pub fn run(cmd: ArchiveCommands, human: bool) -> Result<i32, DowError> {
 struct ListItem {
     version: String,
     topic: String,
+    commit_type: Option<String>,
     branch: String,
     released_at: String,
+    tag: String,
     tasks: i64,
     issues: i64,
 }
@@ -42,9 +44,10 @@ fn run_list(branch: Option<&str>, human: bool) -> Result<i32, DowError> {
         println!("[archive] {} versions total", items.len());
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         for it in &items {
+            let ctype = it.commit_type.as_deref().unwrap_or("-");
             println!(
-                "  v{:<10} {:<30} [{} tasks, {} issues] ({})",
-                it.version, it.topic, it.task_count, it.issue_count, it.released_at
+                "  v{:<10} {:<10} {:<24} [{} tasks, {} issues] {:<8} ({})",
+                it.version, ctype, it.topic, it.task_count, it.issue_count, it.tag, it.released_at
             );
         }
     } else {
@@ -53,8 +56,10 @@ fn run_list(branch: Option<&str>, human: bool) -> Result<i32, DowError> {
             .map(|it| ListItem {
                 version: it.version,
                 topic: it.topic,
+                commit_type: it.commit_type,
                 branch: it.branch,
                 released_at: it.released_at,
+                tag: it.tag,
                 tasks: it.task_count,
                 issues: it.issue_count,
             })

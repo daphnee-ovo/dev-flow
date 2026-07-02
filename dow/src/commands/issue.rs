@@ -119,6 +119,17 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     // Detect stdin JSON or use flags
     let input = read_stdin_json_or_flags(&args)?;
 
+    // fix is not accepted at creation time: an issue is created open, and the
+    // fix is recorded via `dow issue update <id> --fix` once resolved (closing
+    // then verifies the fix is filled). Reject rather than silently dropping a
+    // user-provided field.
+    if input.fix.is_some() {
+        return Err(DowError::new(
+            "`fix` cannot be specified when creating an issue; record it later via `dow issue update <id> --fix \"...\"`",
+            2,
+        ));
+    }
+
     let title = input.title.ok_or_else(|| DowError::new("--title is required", 2))?;
     let severity = input.severity.ok_or_else(|| DowError::new("--severity is required", 2))?;
     let location = input.location.ok_or_else(|| DowError::new("--location is required", 2))?;

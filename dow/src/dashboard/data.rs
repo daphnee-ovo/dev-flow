@@ -80,7 +80,7 @@ fn read_status(doc_root: &Path) -> StatusData {
             .unwrap_or_default()
     };
 
-    let version = read_version(doc_root);
+    let version = read_version();
 
     StatusData {
         name: get("name"),
@@ -92,7 +92,7 @@ fn read_status(doc_root: &Path) -> StatusData {
     }
 }
 
-fn read_version(_doc_root: &Path) -> String {
+fn read_version() -> String {
     crate::core::version::read_current().unwrap_or_default()
 }
 
@@ -360,12 +360,38 @@ fn parse_inline_list(s: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
+    use std::path::PathBuf;
+
+    /// Restore the process cwd when dropped (tests that chdir into a tempdir).
+    struct CwdGuard {
+        original: PathBuf,
+    }
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.original);
+        }
+    }
 
     #[test]
+    #[serial]
     fn test_collect_project_data() {
         let dir = tempfile::tempdir().unwrap();
         let doc_root = dir.path();
+
+        // Make the tempdir a git repo and chdir into it so doc_root::project_root()
+        // (git rev-parse --show-toplevel) resolves here, letting read_current()
+        // find the VERSION file written below. #[serial] avoids concurrent cwd races.
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(doc_root)
+            .status()
+            .expect("git init failed");
+        let _cwd_guard = CwdGuard {
+            original: std::env::current_dir().unwrap(),
+        };
+        std::env::set_current_dir(doc_root).unwrap();
 
         // STATUS.yaml
         fs::write(
@@ -403,8 +429,15 @@ nums: 2
         // BRAINSTORM.md
         fs::write(doc_root.join("BRAINSTORM.md"), "# Brainstorm\nContent here").unwrap();
 
-        // VERSION (parent)
-        fs::write(doc_root.join("VERSION"), "1.0.0\n").unwrap();
+        // VERSION at project_root (== doc_root after chdir): entry for the branch
+        // read_current() will resolve (env-independent — matches whatever the
+        // fresh git repo's initial branch is).
+        let branch = crate::core::version::resolve_branch();
+        fs::write(
+            doc_root.join("VERSION"),
+            format!("({})1.0.0\n", branch),
+        )
+        .unwrap();
 
         let data = collect_project_data(doc_root);
 
