@@ -281,6 +281,42 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 
 ---
 
+## VS Code Extension
+
+The **Dow Dashboard** extension embeds the dev-flow dashboard directly in VS Code as a webview panel.
+
+### Install
+
+```bash
+cd vscode-extension
+npm install
+npm run compile
+```
+
+Then press `F5` in VS Code to launch the Extension Development Host, or package it:
+
+```bash
+npx vsce package
+code --install-extension dow-dashboard-0.1.0.vsix
+```
+
+### Usage
+
+Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
+
+```
+Dow: Open Dashboard
+```
+
+The dashboard displays your project's task/issue dependency graph, kanban board, document viewer, and status overview — the same content served by `dow dashboard`, but integrated into your editor.
+
+### Requirements
+
+- The `dow` CLI must be installed and available in your PATH
+- A `.dev-doc/` directory must exist in the workspace (run `/init` first)
+
+---
+
 ## Project Structure
 
 ```

@@ -278,6 +278,42 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 
 ---
 
+## VS Code 插件
+
+**Dow Dashboard** 插件将 dev-flow 的 dashboard 以 webview 面板形式嵌入 VS Code。
+
+### 安装
+
+```bash
+cd vscode-extension
+npm install
+npm run compile
+```
+
+按 `F5` 启动扩展开发宿主，或打包安装：
+
+```bash
+npx vsce package
+code --install-extension dow-dashboard-0.1.0.vsix
+```
+
+### 使用
+
+打开命令面板（`Ctrl+Shift+P` / `Cmd+Shift+P`），执行：
+
+```
+Dow: Open Dashboard
+```
+
+Dashboard 展示项目的任务/Issue 依赖图、看板、文档查看器和状态概览——与 `dow dashboard` 提供的内容一致，但集成在编辑器中。
+
+### 前置条件
+
+- `dow` CLI 已安装且在 PATH 中
+- 工作区中存在 `.dev-doc/` 目录（先执行 `/init`）
+
+---
+
 ## 项目结构
 
 ```
