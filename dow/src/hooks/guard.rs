@@ -549,17 +549,23 @@ fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath
     let mut allowed_files: Vec<String> = Vec::new();
 
     for cid in &claimed_ids {
-        let full_id = if cid.starts_with("TASK-") { cid.clone() } else { format!("TASK-{}", cid) };
-        if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
-            for f in task.files.create.iter().chain(task.files.modify.iter()).chain(task.files.test.iter()) {
-                if !f.is_empty() {
-                    allowed_files.push(f.clone());
+        if cid.starts_with("T") {
+            let full_id = format!("TASK-{}", cid);
+            if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
+                for f in task.files.create.iter().chain(task.files.modify.iter()).chain(task.files.test.iter()) {
+                    if !f.is_empty() {
+                        allowed_files.push(f.clone());
+                    }
                 }
             }
+        } else if cid.starts_with("I") {
+            let full_id = format!("ISSUE-{}", cid);
+            let issue_files = get_issue_files(doc_root, &full_id);
+            allowed_files.extend(issue_files);
         }
     }
 
-    // If no files declared in any claimed task, skip scope check (issue claims have no files)
+    // If no files declared in any claimed item, skip scope check
     if allowed_files.is_empty() {
         return None;
     }
@@ -581,6 +587,40 @@ fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath
             path.display(), rel_str
         ))
     }
+}
+
+fn get_issue_files(doc_root: &Path, target_id: &str) -> Vec<String> {
+    let issue_dir = doc_root.join("issue");
+    let mut files = Vec::new();
+    let entries = match std::fs::read_dir(&issue_dir) {
+        Ok(e) => e,
+        Err(_) => return files,
+    };
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".md") || name.starts_with("closed_") {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(entry.path()) {
+            let mut in_target = false;
+            for line in content.lines() {
+                if line.starts_with("- [ ]") && line.contains(target_id) {
+                    in_target = true;
+                } else if in_target && (line.starts_with("- [ ]") || line.starts_with("- [x]")) {
+                    break;
+                } else if in_target {
+                    let trimmed = line.trim();
+                    if let Some(rest) = trimmed.strip_prefix("- files_modify:") {
+                        files.extend(crate::commands::task::parse_inline_list(rest));
+                    } else if let Some(rest) = trimmed.strip_prefix("- files_create:") {
+                        files.extend(crate::commands::task::parse_inline_list(rest));
+                    }
+                }
+            }
+        }
+    }
+    files
 }
 
 fn has_pending_work(doc_root: &Path) -> bool {
