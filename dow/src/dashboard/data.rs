@@ -31,6 +31,10 @@ pub struct TaskData {
     pub depends_on: Vec<String>,
     pub done_when: Vec<String>,
     pub r#type: String,
+    pub refs: String,
+    pub files_create: Vec<String>,
+    pub files_modify: Vec<String>,
+    pub files_test: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -40,6 +44,8 @@ pub struct IssueData {
     pub severity: String,
     pub status: String,
     pub description: String,
+    pub files_modify: Vec<String>,
+    pub files_create: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -76,7 +82,7 @@ fn read_status(doc_root: &Path) -> StatusData {
             .unwrap_or_default()
     };
 
-    let version = read_version(doc_root);
+    let version = read_version();
 
     StatusData {
         name: get("name"),
@@ -88,7 +94,7 @@ fn read_status(doc_root: &Path) -> StatusData {
     }
 }
 
-fn read_version(_doc_root: &Path) -> String {
+fn read_version() -> String {
     crate::core::version::read_current().unwrap_or_default()
 }
 
@@ -148,9 +154,14 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
         let mut task_type = String::new();
         let mut priority = String::new();
         let mut complexity = String::new();
+        let mut refs = String::new();
         let mut depends_on = Vec::new();
         let mut done_when = Vec::new();
+        let mut files_create = Vec::new();
+        let mut files_modify = Vec::new();
+        let mut files_test = Vec::new();
         let mut in_done_when = false;
+        let mut in_files = false;
 
         for j in (i + 1)..lines.len() {
             let sub = lines[j];
@@ -168,10 +179,29 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
                 in_done_when = false;
             }
 
+            if in_files {
+                if sub_trimmed.starts_with("create:") {
+                    files_create = parse_inline_list(sub_trimmed.strip_prefix("create:").unwrap());
+                    continue;
+                } else if sub_trimmed.starts_with("modify:") {
+                    files_modify = parse_inline_list(sub_trimmed.strip_prefix("modify:").unwrap());
+                    continue;
+                } else if sub_trimmed.starts_with("test:") {
+                    files_test = parse_inline_list(sub_trimmed.strip_prefix("test:").unwrap());
+                    continue;
+                } else if !sub_trimmed.is_empty() && !sub.starts_with("      ") {
+                    in_files = false;
+                }
+            }
+
             if sub_trimmed.starts_with("- type:") {
                 task_type = sub_trimmed.strip_prefix("- type:").unwrap().trim().to_string();
             } else if sub_trimmed.starts_with("- priority:") {
                 priority = sub_trimmed.strip_prefix("- priority:").unwrap().trim().to_string();
+            } else if sub_trimmed.starts_with("- refs:") {
+                refs = sub_trimmed.strip_prefix("- refs:").unwrap().trim().to_string();
+            } else if sub_trimmed.starts_with("- files:") {
+                in_files = true;
             } else if sub_trimmed.starts_with("- complexity:") {
                 complexity = sub_trimmed.strip_prefix("- complexity:").unwrap().trim().to_string();
             } else if sub_trimmed.starts_with("- depends_on:") {
@@ -190,6 +220,10 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
             depends_on,
             done_when,
             r#type: task_type,
+            refs,
+            files_create,
+            files_modify,
+            files_test,
         });
     }
 
@@ -263,6 +297,8 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
 
         let mut severity = String::new();
         let mut description = String::new();
+        let mut files_modify = Vec::new();
+        let mut files_create = Vec::new();
 
         for j in (i + 1)..lines.len() {
             let sub = lines[j].trim();
@@ -275,6 +311,10 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
                 description = sub.strip_prefix("- description:").unwrap().trim().to_string();
             } else if sub.starts_with("- description：") {
                 description = sub.strip_prefix("- description：").unwrap().trim().to_string();
+            } else if sub.starts_with("- files_modify:") {
+                files_modify = parse_inline_list(sub.strip_prefix("- files_modify:").unwrap());
+            } else if sub.starts_with("- files_create:") {
+                files_create = parse_inline_list(sub.strip_prefix("- files_create:").unwrap());
             }
         }
 
@@ -284,6 +324,8 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
             severity,
             status: if is_closed { "closed".to_string() } else { "open".to_string() },
             description,
+            files_modify,
+            files_create,
         });
     }
 
@@ -328,12 +370,38 @@ fn parse_inline_list(s: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
+    use std::path::PathBuf;
+
+    /// Restore the process cwd when dropped (tests that chdir into a tempdir).
+    struct CwdGuard {
+        original: PathBuf,
+    }
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.original);
+        }
+    }
 
     #[test]
+    #[serial]
     fn test_collect_project_data() {
         let dir = tempfile::tempdir().unwrap();
         let doc_root = dir.path();
+
+        // Make the tempdir a git repo and chdir into it so doc_root::project_root()
+        // (git rev-parse --show-toplevel) resolves here, letting read_current()
+        // find the VERSION file written below. #[serial] avoids concurrent cwd races.
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(doc_root)
+            .status()
+            .expect("git init failed");
+        let _cwd_guard = CwdGuard {
+            original: std::env::current_dir().unwrap(),
+        };
+        std::env::set_current_dir(doc_root).unwrap();
 
         // STATUS.yaml
         fs::write(
@@ -371,8 +439,15 @@ nums: 2
         // BRAINSTORM.md
         fs::write(doc_root.join("BRAINSTORM.md"), "# Brainstorm\nContent here").unwrap();
 
-        // VERSION (parent)
-        fs::write(doc_root.join("VERSION"), "1.0.0\n").unwrap();
+        // VERSION at project_root (== doc_root after chdir): entry for the branch
+        // read_current() will resolve (env-independent — matches whatever the
+        // fresh git repo's initial branch is).
+        let branch = crate::core::version::resolve_branch();
+        fs::write(
+            doc_root.join("VERSION"),
+            format!("({})1.0.0\n", branch),
+        )
+        .unwrap();
 
         let data = collect_project_data(doc_root);
 

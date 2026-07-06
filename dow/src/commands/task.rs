@@ -27,36 +27,16 @@ use std::path::{Path, PathBuf};
 #[derive(Serialize, Deserialize, Clone)]
 struct TaskInput {
     title: String,
-    #[serde(default = "default_type")]
     r#type: String,
-    #[serde(default = "default_priority")]
     priority: String,
-    #[serde(default)]
     refs: String,
-    #[serde(default)]
     files_modify: Vec<String>,
-    #[serde(default)]
     files_create: Vec<String>,
-    #[serde(default)]
     files_test: Vec<String>,
-    #[serde(default)]
     depends_on: Vec<String>,
-    #[serde(default)]
     parallel: bool,
-    #[serde(default = "default_complexity")]
     complexity: String,
-    #[serde(default)]
     done_when: Vec<String>,
-}
-
-fn default_type() -> String {
-    "feat".to_string()
-}
-fn default_priority() -> String {
-    "P1".to_string()
-}
-fn default_complexity() -> String {
-    "S".to_string()
 }
 
 #[derive(Serialize)]
@@ -70,26 +50,26 @@ struct TaskListItem {
 }
 
 #[derive(Serialize)]
-struct TaskDetail {
-    id: String,
-    title: String,
-    r#type: String,
-    priority: String,
-    status: String,
-    refs: String,
-    files: TaskFiles,
-    depends_on: Vec<String>,
-    parallel: bool,
-    complexity: String,
-    done_when: Vec<String>,
-    file: String,
+pub(crate) struct TaskDetail {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) r#type: String,
+    pub(crate) priority: String,
+    pub(crate) status: String,
+    pub(crate) refs: String,
+    pub(crate) files: TaskFiles,
+    pub(crate) depends_on: Vec<String>,
+    pub(crate) parallel: bool,
+    pub(crate) complexity: String,
+    pub(crate) done_when: Vec<String>,
+    pub(crate) file: String,
 }
 
 #[derive(Serialize)]
-struct TaskFiles {
-    create: Vec<String>,
-    modify: Vec<String>,
-    test: Vec<String>,
+pub(crate) struct TaskFiles {
+    pub(crate) create: Vec<String>,
+    pub(crate) modify: Vec<String>,
+    pub(crate) test: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -99,6 +79,32 @@ struct ReopenImpact {
     file: String,
     confirm_token: String,
     message: String,
+}
+
+// ─── Brace Expansion ─────────────────────────────────────────────────────────
+
+pub(crate) fn expand_braces(input: &str) -> Vec<String> {
+    let Some(open) = input.find('{') else {
+        return vec![input.to_string()];
+    };
+    let Some(close) = input[open..].find('}') else {
+        return vec![input.to_string()];
+    };
+    let close = open + close;
+    let prefix = &input[..open];
+    let suffix = &input[close + 1..];
+    let inner = &input[open + 1..close];
+
+    inner.split(',')
+        .flat_map(|part| expand_braces(&format!("{}{}{}", prefix, part.trim(), suffix)))
+        .collect()
+}
+
+pub(crate) fn expand_file_list(files: Vec<String>) -> Vec<String> {
+    files.into_iter()
+        .flat_map(|f| expand_braces(&f))
+        .filter(|f| !f.is_empty())
+        .collect()
 }
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
@@ -119,9 +125,15 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
-    let tasks = resolve_create_input(args)?;
+    let mut tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
         return Err(DowError::new("no task input provided (use --title or pipe JSON to stdin)", 2));
+    }
+
+    for task in &mut tasks {
+        task.files_modify = expand_file_list(std::mem::take(&mut task.files_modify));
+        task.files_create = expand_file_list(std::mem::take(&mut task.files_create));
+        task.files_test = expand_file_list(std::mem::take(&mut task.files_test));
     }
 
     let task_dir = resolve_task_dir()?;
@@ -139,11 +151,13 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
     let existing_count = count_tasks_in_content(&content);
     let new_total = existing_count + tasks.len();
 
+    let mut created_ids = Vec::new();
     for (i, task) in tasks.iter().enumerate() {
         let id_num = next_id + i;
         let id_str = format!("TASK-T{:03}", id_num);
         let entry = format_task_entry(&id_str, task);
         content.push_str(&entry);
+        created_ids.push(id_str);
     }
 
     // Update frontmatter nums
@@ -151,6 +165,10 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
 
     fs::write(&batch_file, &content)
         .map_err(|e| DowError::new(format!("cannot write task file: {}", e), 1))?;
+
+    for id in &created_ids {
+        println!("{}", id);
+    }
 
     Ok(0)
 }
@@ -170,24 +188,42 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
         }
     }
 
-    // Use flags
+    // Use flags — all fields required
     let title = match args.title {
         Some(t) => t,
         None => return Ok(Vec::new()),
     };
+    let task_type = args.task_type
+        .ok_or_else(|| DowError::new("--task-type is required", 2))?;
+    let priority = args.priority
+        .ok_or_else(|| DowError::new("--priority is required", 2))?;
+    let refs = args.refs
+        .ok_or_else(|| DowError::new("--refs is required", 2))?;
+    let files_modify = args.files_modify
+        .ok_or_else(|| DowError::new("--files-modify is required", 2))?;
+    let files_create = args.files_create
+        .ok_or_else(|| DowError::new("--files-create is required", 2))?;
+    let files_test = args.files_test
+        .ok_or_else(|| DowError::new("--files-test is required", 2))?;
+    let depends_on = args.depends_on
+        .ok_or_else(|| DowError::new("--depends-on is required", 2))?;
+    let complexity = args.complexity
+        .ok_or_else(|| DowError::new("--complexity is required", 2))?;
+    let done_when = args.done_when
+        .ok_or_else(|| DowError::new("--done-when is required", 2))?;
 
     let task = TaskInput {
         title,
-        r#type: args.task_type.unwrap_or_else(default_type),
-        priority: args.priority.unwrap_or_else(default_priority),
-        refs: args.refs.unwrap_or_default(),
-        files_modify: split_comma(&args.files_modify),
-        files_create: split_comma(&args.files_create),
-        files_test: split_comma(&args.files_test),
-        depends_on: split_comma(&args.depends_on),
+        r#type: task_type,
+        priority,
+        refs,
+        files_modify: split_comma(&Some(files_modify)),
+        files_create: split_comma(&Some(files_create)),
+        files_test: split_comma(&Some(files_test)),
+        depends_on: split_comma(&Some(depends_on)),
         parallel: args.parallel,
-        complexity: args.complexity,
-        done_when: split_comma(&args.done_when),
+        complexity,
+        done_when: split_comma(&Some(done_when)),
     };
 
     Ok(vec![task])
@@ -238,7 +274,7 @@ fn scan_next_id(task_dir: &Path) -> usize {
     max_id + 1
 }
 
-fn all_task_files_including_done(task_dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn all_task_files_including_done(task_dir: &Path) -> Vec<PathBuf> {
     if !task_dir.is_dir() {
         return Vec::new();
     }
@@ -406,10 +442,20 @@ struct TaskUpdateInput {
 
 fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
     let id = args.id.clone();
-    let input = resolve_update_input(args)?;
+    let mut input = resolve_update_input(args)?;
 
     if !has_any_task_update(&input) {
         return Err(DowError::new("no fields to update (provide at least one --field)", 2));
+    }
+
+    if let Some(files) = input.files_modify.take() {
+        input.files_modify = Some(expand_file_list(files));
+    }
+    if let Some(files) = input.files_create.take() {
+        input.files_create = Some(expand_file_list(files));
+    }
+    if let Some(files) = input.files_test.take() {
+        input.files_test = Some(expand_file_list(files));
     }
 
     // Validate enum fields if provided
@@ -932,7 +978,7 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
     Err(DowError::new(format!("task {} not found", id), 1))
 }
 
-fn parse_task_detail(content: &str, target_id: &str, filename: &str) -> Option<TaskDetail> {
+pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) -> Option<TaskDetail> {
     let lines: Vec<&str> = content.lines().collect();
 
     for (i, line) in lines.iter().enumerate() {
@@ -1062,7 +1108,7 @@ fn parse_task_detail(content: &str, target_id: &str, filename: &str) -> Option<T
     None
 }
 
-fn parse_inline_list(s: &str) -> Vec<String> {
+pub(crate) fn parse_inline_list(s: &str) -> Vec<String> {
     let trimmed = s.trim();
     // Handle [item1, item2] or ["item1", "item2"] format
     let inner = trimmed.trim_start_matches('[').trim_end_matches(']').trim();
@@ -1276,22 +1322,24 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             },
             "type": {
                 "type": "string",
+                "required": true,
                 "enum": ["feat", "fix", "refactor", "docs", "perf", "test", "style"],
-                "default": "feat",
                 "description": "Task type"
             },
             "priority": {
                 "type": "string",
+                "required": true,
                 "enum": ["P0", "P1", "P2"],
-                "default": "P1",
                 "description": "Priority level"
             },
             "refs": {
                 "type": "string",
+                "required": true,
                 "description": "Reference to SPEC acceptance criteria or user request"
             },
             "files": {
                 "type": "object",
+                "required": true,
                 "properties": {
                     "create": { "type": "array", "items": "string" },
                     "modify": { "type": "array", "items": "string" },
@@ -1300,22 +1348,24 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             },
             "depends_on": {
                 "type": "array",
+                "required": true,
                 "items": "string",
                 "description": "Task IDs this task depends on"
             },
             "parallel": {
                 "type": "boolean",
-                "default": false,
+                "required": true,
                 "description": "Whether this task can run in parallel with others"
             },
             "complexity": {
                 "type": "string",
+                "required": true,
                 "enum": ["S", "M", "L", "XL"],
-                "default": "S",
                 "description": "Estimated complexity"
             },
             "done_when": {
                 "type": "array",
+                "required": true,
                 "items": "string",
                 "description": "Acceptance criteria for task completion"
             }
@@ -1343,4 +1393,40 @@ fn resolve_task_dir() -> Result<PathBuf, DowError> {
         ));
     }
     Ok(doc_root_path.join("task"))
+}
+
+/// Get all task details from a doc_root (used by claim dependency checking)
+pub(crate) fn get_all_task_details(doc_root: &Path) -> Vec<TaskDetail> {
+    let task_dir = doc_root.join("task");
+    if !task_dir.is_dir() {
+        return Vec::new();
+    }
+    let all_files = all_task_files_including_done(&task_dir);
+    let mut results = Vec::new();
+
+    for path in &all_files {
+        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        if let Ok(content) = fs::read_to_string(path) {
+            // Extract all task IDs from this file
+            for line in content.lines() {
+                let trimmed = line.trim();
+                let id = if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
+                    rest.split(':').next().map(|s| s.trim().to_string())
+                } else if let Some(rest) = trimmed.strip_prefix("- [x] ") {
+                    rest.split(':').next().map(|s| s.trim().to_string())
+                } else {
+                    None
+                };
+                if let Some(id) = id {
+                    if id.starts_with("TASK-T") {
+                        if let Some(detail) = parse_task_detail(&content, &id, &filename) {
+                            results.push(detail);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    results
 }

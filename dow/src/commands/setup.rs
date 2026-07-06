@@ -580,27 +580,6 @@ fn canonical_json(value: &serde_json::Value) -> serde_json::Value {
     }
 }
 
-fn remove_plugin_metadata_dirs(root: &Path, strip_skills: bool) -> Result<(), String> {
-    let mut dirs = vec![".agents"];
-    if strip_skills {
-        dirs.extend(["skills", "commands", "agents"]);
-    }
-
-    for dir in dirs {
-        let candidate = root.join(dir);
-        if candidate.exists() {
-            fs::remove_dir_all(&candidate).map_err(|e| {
-                format!(
-                    "Failed to clean up Codex plugin metadata directory {}: {}",
-                    candidate.display(),
-                    e
-                )
-            })?;
-        }
-    }
-    Ok(())
-}
-
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
 

@@ -40,16 +40,6 @@ fn phase_chain(mode: &str) -> Vec<&'static str> {
     }
 }
 
-// Starting phase corresponding to mode
-fn mode_start_phase(mode: &str) -> &'static str {
-    match mode {
-        "full" => "PRD",
-        "quick" | "mvp" => "SPEC",
-        "fast" => "TASK",
-        _ => "DEV",
-    }
-}
-
 // Validate whether phase transition is legal
 fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<(), String> {
     // TEST → DEV always allowed (rollback to fix bugs)

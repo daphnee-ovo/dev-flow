@@ -7,7 +7,6 @@
 // ├── inject_global_instructions()
 // │   └── build_global_instruction_content()
 // ├── verify_plugin_integrity()
-// ├── is_agent_available()
 // └── copy_dir_recursive()
 //
 // Related Docs:
@@ -183,22 +182,6 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     }
 
     Ok(issues)
-}
-
-pub fn is_agent_available(agent: &str) -> bool {
-    match agent {
-        "claude" => which_command("claude"),
-        "codex" => which_command("codex"),
-        _ => false,
-    }
-}
-
-fn which_command(cmd: &str) -> bool {
-    std::process::Command::new("which")
-        .arg(cmd)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {

@@ -57,6 +57,11 @@ fn test_task_create_with_flags() {
             "--title", "Implement login flow",
             "--task-type", "feat",
             "--priority", "P0",
+            "--refs", "user-request",
+            "--files-modify", "",
+            "--files-create", "",
+            "--files-test", "",
+            "--depends-on", "",
             "--complexity", "M",
             "--done-when", "login works,tests pass",
         ])
@@ -92,7 +97,7 @@ fn test_task_create_with_stdin_json_object() {
     let dir = create_test_dir();
     setup_env(&dir);
 
-    let json_input = r#"{"title": "Add auth middleware", "type": "feat", "priority": "P1", "complexity": "S"}"#;
+    let json_input = r#"{"title": "Add auth middleware", "type": "feat", "priority": "P1", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["middleware added"]}"#;
 
     let mut child = Command::new(dow_cmd())
         .args(["task", "create"])
@@ -126,8 +131,8 @@ fn test_task_create_with_stdin_json_array() {
     setup_env(&dir);
 
     let json_input = r#"[
-        {"title": "Task A", "type": "feat", "priority": "P0"},
-        {"title": "Task B", "type": "fix", "priority": "P1"}
+        {"title": "Task A", "type": "feat", "priority": "P0", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]},
+        {"title": "Task B", "type": "fix", "priority": "P1", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]}
     ]"#;
 
     let mut child = Command::new(dow_cmd())
@@ -178,6 +183,13 @@ fn test_task_create_increments_id() {
             "--title", "New task",
             "--task-type", "feat",
             "--priority", "P1",
+            "--refs", "",
+            "--files-modify", "",
+            "--files-create", "",
+            "--files-test", "",
+            "--depends-on", "",
+            "--complexity", "S",
+            "--done-when", "done",
         ])
         .current_dir(&dir)
         .output()
@@ -185,13 +197,14 @@ fn test_task_create_increments_id() {
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 
-    // Should create TASK-T003
+    // Should create TASK-T003 in today's batch file
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let files: Vec<_> = fs::read_dir(&task_dir)
         .unwrap()
         .flatten()
         .filter(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            name.starts_with("task_2026-06-25") // today's file
+            name.starts_with(&format!("task_{}", today))
         })
         .collect();
     assert_eq!(files.len(), 1);

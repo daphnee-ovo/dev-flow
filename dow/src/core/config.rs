@@ -57,10 +57,6 @@ impl DowConfig {
             self.registered_agents.push(agent.to_string());
         }
     }
-
-    pub fn has_agent(&self, agent: &str) -> bool {
-        self.registered_agents.contains(&agent.to_string())
-    }
 }
 
 #[cfg(test)]
@@ -78,8 +74,8 @@ mod tests {
     fn test_add_agent() {
         let mut config = DowConfig::default();
         config.add_agent("claude");
-        assert!(config.has_agent("claude"));
-        assert!(!config.has_agent("codex"));
+        assert!(config.registered_agents.contains(&"claude".to_string()));
+        assert!(!config.registered_agents.contains(&"codex".to_string()));
         config.add_agent("claude");
         assert_eq!(config.registered_agents.len(), 1);
     }

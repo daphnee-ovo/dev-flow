@@ -351,6 +351,13 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
             message: "Missing YAML frontmatter (---)".into(),
             fixable: true,
         });
+    } else if content[3..].find("---").is_none() {
+        errors.push(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFrontmatter,
+            message: "Malformed YAML frontmatter: opening `---` has no closing `---`".into(),
+            fixable: false,
+        });
     } else {
         let fm = extract_frontmatter(content);
         // source field
@@ -452,6 +459,13 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
             kind: ErrorKind::MissingFrontmatter,
             message: "Missing YAML frontmatter (---)".into(),
             fixable: true,
+        });
+    } else if content[3..].find("---").is_none() {
+        errors.push(ValidationError {
+            file: filename.to_string(),
+            kind: ErrorKind::InvalidFrontmatter,
+            message: "Malformed YAML frontmatter: opening `---` has no closing `---`".into(),
+            fixable: false,
         });
     } else {
         let fm = extract_frontmatter(content);
@@ -1203,4 +1217,52 @@ fn should_ignore(name: &str, ignore_set: &IgnoreSet) -> bool {
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// Regression: a frontmatter block with an opening `---` but no closing
+    /// `---` must be reported as InvalidFrontmatter (not misreported as a
+    /// missing required field).
+    #[test]
+    fn test_unclosed_frontmatter_reported_as_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("issue_test_2026-01-01_1.md");
+        // Opening delimiter present, but no closing `---` anywhere.
+        fs::write(
+            &path,
+            "---\nsource: test\nnums: 1\nthis never closes\n- [ ] ISSUE-I001: x\n",
+        )
+        .unwrap();
+
+        let errors = validate_issue_file(&path);
+        assert!(
+            errors.iter().any(|e| e.kind == ErrorKind::InvalidFrontmatter),
+            "expected InvalidFrontmatter for unclosed frontmatter, got: {:?}",
+            errors.iter().map(|e| &e.kind).collect::<Vec<_>>()
+        );
+    }
+
+    /// Sanity: a well-formed frontmatter (opening + closing `---`) must NOT
+    /// be flagged InvalidFrontmatter.
+    #[test]
+    fn test_well_formed_frontmatter_not_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("issue_test_2026-01-01_2.md");
+        fs::write(
+            &path,
+            "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I002: y\n",
+        )
+        .unwrap();
+
+        let errors = validate_issue_file(&path);
+        assert!(
+            !errors.iter().any(|e| e.kind == ErrorKind::InvalidFrontmatter),
+            "well-formed frontmatter must not be InvalidFrontmatter, got: {:?}",
+            errors.iter().map(|e| &e.kind).collect::<Vec<_>>()
+        );
+    }
 }

@@ -17,6 +17,7 @@
 // - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 
 use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueRemoveArgs, IssueReopenArgs, IssueUpdateArgs};
+use crate::commands::task::{expand_file_list, parse_inline_list};
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
@@ -90,6 +91,8 @@ struct IssueCreateInput {
     desc: Option<String>,
     source: Option<String>,
     reproduce: Option<String>,
+    #[serde(default)]
+    fix: Option<String>,
 }
 
 pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
@@ -117,12 +120,23 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     // Detect stdin JSON or use flags
     let input = read_stdin_json_or_flags(&args)?;
 
+    // fix is not accepted at creation time: an issue is created open, and the
+    // fix is recorded via `dow issue update <id> --fix` once resolved (closing
+    // then verifies the fix is filled). Reject rather than silently dropping a
+    // user-provided field.
+    if input.fix.is_some() {
+        return Err(DowError::new(
+            "`fix` cannot be specified when creating an issue; record it later via `dow issue update <id> --fix \"...\"`",
+            2,
+        ));
+    }
+
     let title = input.title.ok_or_else(|| DowError::new("--title is required", 2))?;
-    let severity = input.severity.unwrap_or_else(|| "P1".to_string());
-    let location = input.location.unwrap_or_default();
-    let desc = input.desc.unwrap_or_default();
-    let source = input.source.unwrap_or_else(|| "other".to_string());
-    let reproduce = input.reproduce.unwrap_or_default();
+    let severity = input.severity.ok_or_else(|| DowError::new("--severity is required", 2))?;
+    let location = input.location.ok_or_else(|| DowError::new("--location is required", 2))?;
+    let desc = input.desc.ok_or_else(|| DowError::new("--desc is required", 2))?;
+    let source = input.source.ok_or_else(|| DowError::new("--source is required", 2))?;
+    let reproduce = input.reproduce.ok_or_else(|| DowError::new("--reproduce is required", 2))?;
 
     // Validate severity
     let valid_severities = ["P0", "P1", "P2"];
@@ -160,7 +174,8 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     fs::write(issue_dir.join(&filename), &content)
         .map_err(|e| DowError::new(format!("Failed to write issue file: {}", e), 1))?;
 
-    // Silent on success
+    println!("{}", id_str);
+
     Ok(0)
 }
 
@@ -174,6 +189,8 @@ struct IssueUpdateInput {
     desc: Option<String>,
     reproduce: Option<String>,
     fix: Option<String>,
+    files_modify: Option<Vec<String>>,
+    files_create: Option<Vec<String>>,
 }
 
 fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
@@ -209,6 +226,8 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let new_desc = input.desc.unwrap_or(parsed.description);
     let new_reproduce = input.reproduce.unwrap_or(parsed.reproduce);
     let new_fix = input.fix.unwrap_or(parsed.fix);
+    let new_files_modify = expand_file_list(input.files_modify.unwrap_or(parsed.files_modify));
+    let new_files_create = expand_file_list(input.files_create.unwrap_or(parsed.files_create));
 
     // Rebuild the entry
     let content = fs::read_to_string(&file_path)
@@ -217,6 +236,7 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let new_content = replace_issue_entry_in_content(
         &content, &parsed.id, &new_title, &new_severity,
         &new_location, &new_desc, &new_reproduce, &new_fix,
+        &new_files_modify, &new_files_create,
     );
 
     fs::write(&file_path, &new_content)
@@ -246,6 +266,8 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
         desc: args.desc,
         reproduce: args.reproduce,
         fix: args.fix,
+        files_modify: args.files_modify.map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
+        files_create: args.files_create.map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
     })
 }
 
@@ -256,6 +278,8 @@ fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
         || input.desc.is_some()
         || input.reproduce.is_some()
         || input.fix.is_some()
+        || input.files_modify.is_some()
+        || input.files_create.is_some()
 }
 
 fn replace_issue_entry_in_content(
@@ -267,6 +291,8 @@ fn replace_issue_entry_in_content(
     desc: &str,
     reproduce: &str,
     fix: &str,
+    files_modify: &[String],
+    files_create: &[String],
 ) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
@@ -283,6 +309,12 @@ fn replace_issue_entry_in_content(
             result.push(format!("  - description：{}", desc));
             result.push(format!("  - reproduce：{}", reproduce));
             result.push(format!("  - fix：{}", fix));
+            if !files_modify.is_empty() || !files_create.is_empty() {
+                let modify_str = if files_modify.is_empty() { "[]".to_string() } else { format!("[{}]", files_modify.join(", ")) };
+                let create_str = if files_create.is_empty() { "[]".to_string() } else { format!("[{}]", files_create.join(", ")) };
+                result.push(format!("  - files_modify: {}", modify_str));
+                result.push(format!("  - files_create: {}", create_str));
+            }
             // Skip old sub-fields
             i += 1;
             while i < lines.len() {
@@ -661,6 +693,14 @@ fn close(id: &str) -> Result<i32, DowError> {
         ));
     }
 
+    // fix field must be filled before closing
+    if parsed.fix.trim().is_empty() {
+        return Err(DowError::new(
+            format!("cannot close {}: fix field is empty (use `dow issue update {} --fix \"...\"` to describe the fix first)", id, id),
+            2,
+        ));
+    }
+
     // Read file, change "- [ ] ISSUE-I###" to "- [x] ISSUE-I###" for matching ID
     let content = fs::read_to_string(&file_path)
         .map_err(|e| DowError::new(format!("Failed to read issue file: {}", e), 1))?;
@@ -837,21 +877,21 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             },
             SchemaField {
                 name: "location".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Code location (file:line)".to_string(),
                 valid_values: vec![],
             },
             SchemaField {
                 name: "description".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Issue description".to_string(),
                 valid_values: vec![],
             },
             SchemaField {
                 name: "reproduce".to_string(),
-                required: false,
+                required: true,
                 r#type: "string".to_string(),
                 description: "Steps to reproduce".to_string(),
                 valid_values: vec![],
@@ -895,6 +935,8 @@ struct ParsedIssueItem {
     description: String,
     reproduce: String,
     fix: String,
+    files_modify: Vec<String>,
+    files_create: Vec<String>,
 }
 
 /// Find issue by ID across all issue files. Returns (file_path, matching_line, parsed_fields).
@@ -939,6 +981,8 @@ fn find_issue_by_id(
         let mut description = String::new();
         let mut reproduce = String::new();
         let mut fix = String::new();
+        let mut files_modify: Vec<String> = Vec::new();
+        let mut files_create: Vec<String> = Vec::new();
         let mut in_target = false;
 
         for line in content.lines() {
@@ -992,6 +1036,10 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     fix = val;
+                } else if trimmed.starts_with("- files_modify:") {
+                    files_modify = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
+                } else if trimmed.starts_with("- files_create:") {
+                    files_create = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
                 }
             }
         }
@@ -1017,6 +1065,8 @@ fn find_issue_by_id(
                     description,
                     reproduce,
                     fix,
+                    files_modify,
+                    files_create,
                 },
             ));
         }
@@ -1134,8 +1184,9 @@ fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<IssueCreateInput, 
         severity: args.severity.clone(),
         location: args.location.clone(),
         desc: args.desc.clone(),
-        source: Some(args.source.clone()),
-        reproduce: None,
+        source: args.source.clone(),
+        reproduce: args.reproduce.clone(),
+        fix: None,
     })
 }
 

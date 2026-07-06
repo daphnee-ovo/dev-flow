@@ -118,6 +118,7 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
                 → `dow task create` to create new task\n\
                 → `dow issue create` to create issue\n\
                 → /test to enter test phase\n\
+                → `dow status set --phase <PHASE>` to switch phase (PRD/SPEC/TASK/TEST/ITERATE)\n\
                 IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.";
             if human {
                 println!("{}", reason);

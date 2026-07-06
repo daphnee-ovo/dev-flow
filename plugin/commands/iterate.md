@@ -34,7 +34,7 @@ Includes all responsibilities of original `/done` (delivery check) and original 
 ### Phase 1: Preview (without --confirm)
 
 ```bash
-dow iterate --topic <topic> --type <type> [--files f1 f2...] [-v minor]
+dow iterate --topic <topic> --type <type> [--files f1 f2...] [-v patch]
 ```
 
 Outputs preview info: archive content, version number, tag to be created, commit file list, confirmation token.
@@ -86,11 +86,22 @@ preIterate always executes before `git commit`. File changes produced by steps g
 
 ## Bump Type Decision
 
-1. Default patch (lightweight iteration)
-2. User specifies `-v minor` → minor (creates git tag)
-3. User specifies `-v major` → major (creates git tag)
-4. Patch + `--tag` → patch with git tag
-5. Agent detects architecture refactor/breaking changes → recommend major, ask user confirmation
+The agent MUST evaluate bump level by comparing delivered scope against project goals:
+
+1. Run `dow status` to read `goals_minor` and `goals_major`
+2. Compare the CHANGELOG entries / completed tasks against these goals:
+   - If delivered work **fulfills or substantially completes** a `goals_minor` → recommend `minor`
+   - If delivered work **fulfills or substantially completes** a `goals_major` → recommend `major`
+   - If delivered work is incremental progress toward goals (partial, not a milestone) → `patch`
+3. Also consider overall change magnitude:
+   - Patch: ≤5 tasks, no new user-facing features, docs/fix/style only
+   - Minor: new features, behavioral changes, significant improvements
+   - Major: breaking changes, architecture refactor, dependency overhaul
+4. Present the recommendation with reasoning to the user for confirmation
+
+Override rules:
+- User explicitly specifies `-v minor/major` → use that
+- Patch + `--tag` → patch with git tag
 
 ## Execution Method
 
@@ -102,11 +113,14 @@ dow iterate --topic "<topic>" --type <type> --files <file1> <file2>
 dow iterate --topic "<topic>" --type <type> --files <file1> <file2> --confirm ITR-xxxxxx
 ```
 
+**CRITICAL: Preview and confirm MUST happen in separate turns.**
+
 Before agent calls:
 1. Ask user for this iteration's topic and commit type
-2. Judge bump type (default minor, recommend major if big changes detected)
-3. Run preview, display summary output
-4. After getting user confirmation, execute full flow with token
+2. Run `dow status` to get goals; evaluate bump type (compare delivered scope vs goals + change magnitude)
+3. Run preview, display summary to the user
+4. **STOP. Wait for explicit user confirmation.** Do NOT run the confirm command in the same turn as the preview. The user must see the preview output and approve before proceeding.
+5. Only after the user confirms (next message), execute with the token
 
 ## audit Mode Behavior
 

@@ -37,6 +37,7 @@ fn test_issue_create_with_flags() {
             "--severity", "P0",
             "--location", "src/parser.rs:42",
             "--desc", "crashes on empty input",
+            "--reproduce", "run with empty string",
             "--source", "test",
         ])
         .current_dir(dir.path())
@@ -70,7 +71,7 @@ fn test_issue_create_with_stdin_json() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
 
-    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","source":"devtest"}"#;
+    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"devtest"}"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "create"])
@@ -90,6 +91,43 @@ fn test_issue_create_with_stdin_json() {
 }
 
 #[test]
+fn test_issue_create_rejects_fix_in_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let _doc = setup_env(dir.path());
+
+    // stdin JSON carrying a `fix` field must be rejected transparently,
+    // not silently dropped.
+    let json_input = r#"{"title":"x","severity":"P1","location":"src/a.rs:1","desc":"d","reproduce":"r","source":"test","fix":"already fixed"}"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    use std::io::Write;
+    child.stdin.take().unwrap().write_all(json_input.as_bytes()).unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success(), "create should fail when `fix` is provided");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("update") && stderr.contains("--fix"),
+        "stderr should point to `dow issue update <id> --fix`, got: {}",
+        stderr
+    );
+    // Must not mislead users toward the non-existent `close --fix`.
+    assert!(
+        !stderr.contains("close --fix"),
+        "stderr must not suggest `close --fix` (close has no --fix flag), got: {}",
+        stderr
+    );
+}
+
+#[test]
 fn test_issue_create_invalid_severity() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
@@ -99,6 +137,10 @@ fn test_issue_create_invalid_severity() {
             "issue", "create",
             "--title", "test",
             "--severity", "CRITICAL",
+            "--location", "a.rs:1",
+            "--desc", "test desc",
+            "--reproduce", "steps",
+            "--source", "other",
         ])
         .current_dir(dir.path())
         .output()
@@ -141,6 +183,9 @@ fn test_issue_create_auto_increments_id() {
             "issue", "create",
             "--title", "second issue",
             "--severity", "P2",
+            "--location", "b.rs:5",
+            "--desc", "another bug",
+            "--reproduce", "steps here",
             "--source", "test",
         ])
         .current_dir(dir.path())
@@ -239,7 +284,7 @@ fn test_issue_close() {
 
     fs::write(
         doc.join("issue/issue_test_2026-06-20_1.md"),
-        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：bug to fix\n  - severity: P0\n  - location：x.rs:1\n  - description：broken\n  - reproduce：\n  - fix：\n",
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：bug to fix\n  - severity: P0\n  - location：x.rs:1\n  - description：broken\n  - reproduce：\n  - fix：patched the null check\n",
     ).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -290,7 +335,7 @@ fn test_issue_close_multi_item_file_partial() {
     // File with 2 issues, close only one
     fs::write(
         doc.join("issue/issue_test_2026-06-20_1.md"),
-        "---\nsource: test\nnums: 2\n---\n\n- [ ] ISSUE-I001：first bug\n  - severity: P1\n  - location：a.rs:1\n  - description：bug1\n  - reproduce：\n  - fix：\n- [ ] ISSUE-I002：second bug\n  - severity: P2\n  - location：b.rs:2\n  - description：bug2\n  - reproduce：\n  - fix：\n",
+        "---\nsource: test\nnums: 2\n---\n\n- [ ] ISSUE-I001：first bug\n  - severity: P1\n  - location：a.rs:1\n  - description：bug1\n  - reproduce：\n  - fix：fixed null pointer\n- [ ] ISSUE-I002：second bug\n  - severity: P2\n  - location：b.rs:2\n  - description：bug2\n  - reproduce：\n  - fix：\n",
     ).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
