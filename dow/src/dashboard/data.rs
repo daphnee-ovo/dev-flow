@@ -44,6 +44,8 @@ pub struct IssueData {
     pub severity: String,
     pub status: String,
     pub description: String,
+    pub files_modify: Vec<String>,
+    pub files_create: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -295,6 +297,8 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
 
         let mut severity = String::new();
         let mut description = String::new();
+        let mut files_modify = Vec::new();
+        let mut files_create = Vec::new();
 
         for j in (i + 1)..lines.len() {
             let sub = lines[j].trim();
@@ -307,6 +311,10 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
                 description = sub.strip_prefix("- description:").unwrap().trim().to_string();
             } else if sub.starts_with("- description：") {
                 description = sub.strip_prefix("- description：").unwrap().trim().to_string();
+            } else if sub.starts_with("- files_modify:") {
+                files_modify = parse_inline_list(sub.strip_prefix("- files_modify:").unwrap());
+            } else if sub.starts_with("- files_create:") {
+                files_create = parse_inline_list(sub.strip_prefix("- files_create:").unwrap());
             }
         }
 
@@ -316,6 +324,8 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
             severity,
             status: if is_closed { "closed".to_string() } else { "open".to_string() },
             description,
+            files_modify,
+            files_create,
         });
     }
 

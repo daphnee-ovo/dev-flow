@@ -81,6 +81,32 @@ struct ReopenImpact {
     message: String,
 }
 
+// ─── Brace Expansion ─────────────────────────────────────────────────────────
+
+pub(crate) fn expand_braces(input: &str) -> Vec<String> {
+    let Some(open) = input.find('{') else {
+        return vec![input.to_string()];
+    };
+    let Some(close) = input[open..].find('}') else {
+        return vec![input.to_string()];
+    };
+    let close = open + close;
+    let prefix = &input[..open];
+    let suffix = &input[close + 1..];
+    let inner = &input[open + 1..close];
+
+    inner.split(',')
+        .flat_map(|part| expand_braces(&format!("{}{}{}", prefix, part.trim(), suffix)))
+        .collect()
+}
+
+pub(crate) fn expand_file_list(files: Vec<String>) -> Vec<String> {
+    files.into_iter()
+        .flat_map(|f| expand_braces(&f))
+        .filter(|f| !f.is_empty())
+        .collect()
+}
+
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
 pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
@@ -99,9 +125,15 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
-    let tasks = resolve_create_input(args)?;
+    let mut tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
         return Err(DowError::new("no task input provided (use --title or pipe JSON to stdin)", 2));
+    }
+
+    for task in &mut tasks {
+        task.files_modify = expand_file_list(std::mem::take(&mut task.files_modify));
+        task.files_create = expand_file_list(std::mem::take(&mut task.files_create));
+        task.files_test = expand_file_list(std::mem::take(&mut task.files_test));
     }
 
     let task_dir = resolve_task_dir()?;
@@ -119,11 +151,13 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
     let existing_count = count_tasks_in_content(&content);
     let new_total = existing_count + tasks.len();
 
+    let mut created_ids = Vec::new();
     for (i, task) in tasks.iter().enumerate() {
         let id_num = next_id + i;
         let id_str = format!("TASK-T{:03}", id_num);
         let entry = format_task_entry(&id_str, task);
         content.push_str(&entry);
+        created_ids.push(id_str);
     }
 
     // Update frontmatter nums
@@ -131,6 +165,10 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
 
     fs::write(&batch_file, &content)
         .map_err(|e| DowError::new(format!("cannot write task file: {}", e), 1))?;
+
+    for id in &created_ids {
+        println!("{}", id);
+    }
 
     Ok(0)
 }
@@ -404,10 +442,20 @@ struct TaskUpdateInput {
 
 fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
     let id = args.id.clone();
-    let input = resolve_update_input(args)?;
+    let mut input = resolve_update_input(args)?;
 
     if !has_any_task_update(&input) {
         return Err(DowError::new("no fields to update (provide at least one --field)", 2));
+    }
+
+    if let Some(files) = input.files_modify.take() {
+        input.files_modify = Some(expand_file_list(files));
+    }
+    if let Some(files) = input.files_create.take() {
+        input.files_create = Some(expand_file_list(files));
+    }
+    if let Some(files) = input.files_test.take() {
+        input.files_test = Some(expand_file_list(files));
     }
 
     // Validate enum fields if provided

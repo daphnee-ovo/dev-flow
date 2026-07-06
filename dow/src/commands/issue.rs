@@ -17,6 +17,7 @@
 // - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 
 use crate::cli::{IssueCommands, IssueCreateArgs, IssueListArgs, IssueRemoveArgs, IssueReopenArgs, IssueUpdateArgs};
+use crate::commands::task::{expand_file_list, parse_inline_list};
 use crate::core::{doc_root, doc_validator};
 use crate::error::DowError;
 use crate::output;
@@ -173,7 +174,8 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     fs::write(issue_dir.join(&filename), &content)
         .map_err(|e| DowError::new(format!("Failed to write issue file: {}", e), 1))?;
 
-    // Silent on success
+    println!("{}", id_str);
+
     Ok(0)
 }
 
@@ -187,6 +189,8 @@ struct IssueUpdateInput {
     desc: Option<String>,
     reproduce: Option<String>,
     fix: Option<String>,
+    files_modify: Option<Vec<String>>,
+    files_create: Option<Vec<String>>,
 }
 
 fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
@@ -222,6 +226,8 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let new_desc = input.desc.unwrap_or(parsed.description);
     let new_reproduce = input.reproduce.unwrap_or(parsed.reproduce);
     let new_fix = input.fix.unwrap_or(parsed.fix);
+    let new_files_modify = expand_file_list(input.files_modify.unwrap_or(parsed.files_modify));
+    let new_files_create = expand_file_list(input.files_create.unwrap_or(parsed.files_create));
 
     // Rebuild the entry
     let content = fs::read_to_string(&file_path)
@@ -230,6 +236,7 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let new_content = replace_issue_entry_in_content(
         &content, &parsed.id, &new_title, &new_severity,
         &new_location, &new_desc, &new_reproduce, &new_fix,
+        &new_files_modify, &new_files_create,
     );
 
     fs::write(&file_path, &new_content)
@@ -259,6 +266,8 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
         desc: args.desc,
         reproduce: args.reproduce,
         fix: args.fix,
+        files_modify: args.files_modify.map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
+        files_create: args.files_create.map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
     })
 }
 
@@ -269,6 +278,8 @@ fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
         || input.desc.is_some()
         || input.reproduce.is_some()
         || input.fix.is_some()
+        || input.files_modify.is_some()
+        || input.files_create.is_some()
 }
 
 fn replace_issue_entry_in_content(
@@ -280,6 +291,8 @@ fn replace_issue_entry_in_content(
     desc: &str,
     reproduce: &str,
     fix: &str,
+    files_modify: &[String],
+    files_create: &[String],
 ) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
@@ -296,6 +309,12 @@ fn replace_issue_entry_in_content(
             result.push(format!("  - description：{}", desc));
             result.push(format!("  - reproduce：{}", reproduce));
             result.push(format!("  - fix：{}", fix));
+            if !files_modify.is_empty() || !files_create.is_empty() {
+                let modify_str = if files_modify.is_empty() { "[]".to_string() } else { format!("[{}]", files_modify.join(", ")) };
+                let create_str = if files_create.is_empty() { "[]".to_string() } else { format!("[{}]", files_create.join(", ")) };
+                result.push(format!("  - files_modify: {}", modify_str));
+                result.push(format!("  - files_create: {}", create_str));
+            }
             // Skip old sub-fields
             i += 1;
             while i < lines.len() {
@@ -916,6 +935,8 @@ struct ParsedIssueItem {
     description: String,
     reproduce: String,
     fix: String,
+    files_modify: Vec<String>,
+    files_create: Vec<String>,
 }
 
 /// Find issue by ID across all issue files. Returns (file_path, matching_line, parsed_fields).
@@ -960,6 +981,8 @@ fn find_issue_by_id(
         let mut description = String::new();
         let mut reproduce = String::new();
         let mut fix = String::new();
+        let mut files_modify: Vec<String> = Vec::new();
+        let mut files_create: Vec<String> = Vec::new();
         let mut in_target = false;
 
         for line in content.lines() {
@@ -1013,6 +1036,10 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     fix = val;
+                } else if trimmed.starts_with("- files_modify:") {
+                    files_modify = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
+                } else if trimmed.starts_with("- files_create:") {
+                    files_create = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
                 }
             }
         }
@@ -1038,6 +1065,8 @@ fn find_issue_by_id(
                     description,
                     reproduce,
                     fix,
+                    files_modify,
+                    files_create,
                 },
             ));
         }

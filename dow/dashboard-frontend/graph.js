@@ -28,8 +28,11 @@ function renderGraph(container, tasks, issues) {
     });
   });
 
-  // Compute implicit edges from file overlap
-  const implicitEdges = computeImplicitEdges(allItems.filter(t => t.kind === 'task'), edges);
+  // Compute implicit edges from file overlap (tasks + issues with files)
+  const itemsWithFiles = allItems.filter(t =>
+    (t.files_create && t.files_create.length) || (t.files_modify && t.files_modify.length)
+  );
+  const implicitEdges = computeImplicitEdges(itemsWithFiles, edges);
   const allEdges = [...edges, ...implicitEdges];
 
   // Dagre layout
@@ -296,10 +299,34 @@ function computeImplicitEdges(tasks, explicitEdges) {
       const shared = [...filesA].filter(f => f && filesB.has(f));
       if (shared.length === 0) continue;
 
-      if (!explicitSet.has(a.id + '->' + b.id) && !explicitSet.has(b.id + '->' + a.id)) {
-        implicit.push({ source: a.id, target: b.id, implicit: true, sharedFiles: shared });
-      }
+      if (explicitSet.has(a.id + '->' + b.id) || explicitSet.has(b.id + '->' + a.id)) continue;
+
+      // Determine direction: source depends on target (arrow: source → target)
+      const [dependent, dependency] = resolveImplicitDirection(a, b, shared);
+      implicit.push({ source: dependent.id, target: dependency.id, implicit: true, sharedFiles: shared });
     }
   }
   return implicit;
+}
+
+// Resolve direction for implicit dependency edge.
+// Returns [dependent, dependency] — dependent depends on dependency.
+// Priority: create→modify > status > ID order
+function resolveImplicitDirection(a, b, sharedFiles) {
+  // Rule 1 (highest): modify depends on create — if one creates a shared file and the other modifies it
+  const createsA = new Set(a.files_create || []);
+  const createsB = new Set(b.files_create || []);
+  const aCreatesShared = sharedFiles.some(f => createsA.has(f));
+  const bCreatesShared = sharedFiles.some(f => createsB.has(f));
+  if (aCreatesShared && !bCreatesShared) return [b, a]; // b(modify) depends on a(create)
+  if (bCreatesShared && !aCreatesShared) return [a, b]; // a(modify) depends on b(create)
+
+  // Rule 2: undone/open depends on done/closed
+  const aDone = a.status === 'done' || a.status === 'closed';
+  const bDone = b.status === 'done' || b.status === 'closed';
+  if (aDone && !bDone) return [b, a]; // b(undone) depends on a(done)
+  if (bDone && !aDone) return [a, b]; // a(undone) depends on b(done)
+
+  // Rule 3 (lowest): higher ID depends on lower ID
+  return a.id < b.id ? [b, a] : [a, b];
 }

@@ -358,6 +358,14 @@ pub struct IssueUpdateArgs {
     /// Fix description
     #[arg(long)]
     pub fix: Option<String>,
+
+    /// Files to modify (comma-separated, supports brace expansion)
+    #[arg(long)]
+    pub files_modify: Option<String>,
+
+    /// Files to create (comma-separated, supports brace expansion)
+    #[arg(long)]
+    pub files_create: Option<String>,
 }
 
 #[derive(clap::Args)]

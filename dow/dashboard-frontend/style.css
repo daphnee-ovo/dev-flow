@@ -362,6 +362,59 @@ body {
 .graph-tooltip.visible { opacity: 1; }
 
 /* ─── Tasks/Issues Layout ─── */
+/* ─── Filter Bar ─── */
+.filter-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 1px 4px var(--color-shadow);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-right: 4px;
+  letter-spacing: 0.3px;
+}
+
+.filter-btn {
+  font-size: 12px;
+  font-family: inherit;
+  padding: 3px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.filter-btn.active {
+  background: var(--color-surface-alt);
+  color: var(--color-accent-pink);
+  border-color: var(--color-accent-pink);
+  font-weight: 600;
+}
+
 .tasks-layout {
   display: flex;
   flex-direction: column;
@@ -440,6 +493,34 @@ body {
   font-size: 12px;
   margin-top: 3px;
   line-height: 1.4;
+}
+
+.kanban-card-hidden {
+  display: none;
+}
+
+.kanban-col-expanded .kanban-card-hidden {
+  display: block;
+}
+
+.kanban-toggle {
+  width: 100%;
+  padding: 6px 0;
+  margin-top: 4px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kanban-toggle:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-accent-pink);
+  border-color: var(--color-accent-pink);
 }
 
 /* ─── Detail Section ─── */

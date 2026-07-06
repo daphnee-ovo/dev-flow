@@ -39,6 +39,7 @@ function renderHome(data) {
     ...data.tasks.map(t => ({ ...t, kind: 'task' })),
     ...data.issues.filter(i => i.status === 'open').map(i => ({ ...i, kind: 'issue', priority: i.severity })),
   ];
+  items.sort((a, b) => a.id.localeCompare(b.id));
 
   const panel = document.getElementById('items-panel');
 
@@ -140,15 +141,43 @@ function renderDocs(data) {
 }
 
 // ─── Tasks View ───
+const taskFilters = { priority: 'all', status: 'all' };
+
 function renderTasks(data) {
   const el = document.getElementById('view-tasks');
-  const tasks = data.tasks;
+  const tasks = data.tasks.filter(t => {
+    if (taskFilters.priority !== 'all' && t.priority !== taskFilters.priority) return false;
+    if (taskFilters.status !== 'all' && t.status !== taskFilters.status) return false;
+    return true;
+  });
 
   const groups = { pending: [], in_progress: [], done: [] };
   tasks.forEach(t => {
     const g = groups[t.status] || groups.pending;
     g.push(t);
   });
+  const sortById = (a, b) => a.id.localeCompare(b.id);
+  groups.pending.sort(sortById);
+  groups.in_progress.sort(sortById);
+  groups.done.sort(sortById);
+
+  const filterBarHtml = `
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Priority</span>
+        <button class="filter-btn ${taskFilters.priority === 'all' ? 'active' : ''}" data-filter="priority" data-value="all">All</button>
+        <button class="filter-btn ${taskFilters.priority === 'P0' ? 'active' : ''}" data-filter="priority" data-value="P0">P0</button>
+        <button class="filter-btn ${taskFilters.priority === 'P1' ? 'active' : ''}" data-filter="priority" data-value="P1">P1</button>
+        <button class="filter-btn ${taskFilters.priority === 'P2' ? 'active' : ''}" data-filter="priority" data-value="P2">P2</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Status</span>
+        <button class="filter-btn ${taskFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${taskFilters.status === 'pending' ? 'active' : ''}" data-filter="status" data-value="pending">Pending</button>
+        <button class="filter-btn ${taskFilters.status === 'done' ? 'active' : ''}" data-filter="status" data-value="done">Done</button>
+      </div>
+    </div>
+  `;
 
   const kanbanHtml = `
     <div class="kanban">
@@ -158,7 +187,8 @@ function renderTasks(data) {
     </div>
   `;
 
-  const detailHtml = tasks.map(t => `
+  const sortedTasks = [...tasks].sort(sortById);
+  const detailHtml = sortedTasks.map(t => `
     <div class="detail-item ${t.status === 'done' ? 'status-done' : ''}" id="detail-${t.id}">
       <h4><span class="task-id">${t.id}</span>${t.title}</h4>
       <div class="meta">
@@ -174,9 +204,17 @@ function renderTasks(data) {
   `).join('');
 
   el.innerHTML = `<div class="tasks-layout">
+    ${filterBarHtml}
     ${kanbanHtml}
     <div class="detail-section">${detailHtml}</div>
   </div>`;
+
+  el.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      taskFilters[btn.dataset.filter] = btn.dataset.value;
+      renderTasks(data);
+    });
+  });
 
   el.querySelectorAll('.kanban-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -188,15 +226,44 @@ function renderTasks(data) {
       }
     });
   });
+
+  bindKanbanToggles(el);
 }
 
 // ─── Issues View ───
+const issueFilters = { severity: 'all', status: 'all' };
+
 function renderIssues(data) {
   const el = document.getElementById('view-issues');
-  const issues = data.issues;
+  const issues = data.issues.filter(i => {
+    if (issueFilters.severity !== 'all' && i.severity !== issueFilters.severity) return false;
+    if (issueFilters.status !== 'all' && i.status !== issueFilters.status) return false;
+    return true;
+  });
 
   const groups = { open: [], closed: [] };
   issues.forEach(i => { (groups[i.status] || groups.open).push(i); });
+  const sortById = (a, b) => a.id.localeCompare(b.id);
+  groups.open.sort(sortById);
+  groups.closed.sort(sortById);
+
+  const filterBarHtml = `
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Severity</span>
+        <button class="filter-btn ${issueFilters.severity === 'all' ? 'active' : ''}" data-filter="severity" data-value="all">All</button>
+        <button class="filter-btn ${issueFilters.severity === 'P0' ? 'active' : ''}" data-filter="severity" data-value="P0">P0</button>
+        <button class="filter-btn ${issueFilters.severity === 'P1' ? 'active' : ''}" data-filter="severity" data-value="P1">P1</button>
+        <button class="filter-btn ${issueFilters.severity === 'P2' ? 'active' : ''}" data-filter="severity" data-value="P2">P2</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Status</span>
+        <button class="filter-btn ${issueFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${issueFilters.status === 'open' ? 'active' : ''}" data-filter="status" data-value="open">Open</button>
+        <button class="filter-btn ${issueFilters.status === 'closed' ? 'active' : ''}" data-filter="status" data-value="closed">Closed</button>
+      </div>
+    </div>
+  `;
 
   const kanbanHtml = `
     <div class="kanban">
@@ -205,20 +272,30 @@ function renderIssues(data) {
     </div>
   `;
 
-  const detailHtml = issues.map(i => `
+  const sortedIssues = [...issues].sort(sortById);
+  const detailHtml = sortedIssues.map(i => `
     <div class="detail-item ${i.status === 'closed' ? 'status-done' : ''}" id="detail-${i.id}">
       <h4><span class="task-id">${i.id}</span>${i.title}</h4>
       <div class="meta">
         <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
       </div>
       ${i.description ? `<p style="font-size:13px;margin-top:8px;color:var(--color-text);">${i.description}</p>` : ''}
+      ${renderIssueFiles(i)}
     </div>
   `).join('');
 
   el.innerHTML = `<div class="tasks-layout">
+    ${filterBarHtml}
     ${kanbanHtml}
     <div class="detail-section">${detailHtml || '<div class="docs-empty">No issues</div>'}</div>
   </div>`;
+
+  el.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      issueFilters[btn.dataset.filter] = btn.dataset.value;
+      renderIssues(data);
+    });
+  });
 
   el.querySelectorAll('.kanban-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -230,35 +307,47 @@ function renderIssues(data) {
       }
     });
   });
+
+  bindKanbanToggles(el);
 }
 
 // ─── Helpers ───
+const KANBAN_FOLD_LIMIT = 5;
+
 function renderKanbanCol(title, tasks) {
   const bgMap = { P0: '#FFF5F6', P1: '#FFF8F2', P2: '#F2FBF5' };
-  const cards = tasks.map(t => {
+  const cards = tasks.map((t, i) => {
     const color = colorMap[t.priority] || '#D4C4BE';
     const bg = bgMap[t.priority] || '#FFF8F2';
-    return `<div class="kanban-card" style="border-color:${color};background:${bg}" data-id="${t.id}">
+    const hidden = i >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
+    return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${t.id}">
       <div class="card-id">${t.id} · ${t.complexity || 'S'}</div>
       <div class="card-title">${t.title}</div>
     </div>`;
   }).join('');
   const empty = tasks.length === 0 ? '<div class="kanban-empty">No items</div>' : '';
-  return `<div class="kanban-col"><h4>${title} <span class="count">${tasks.length}</span></h4>${cards}${empty}</div>`;
+  const toggle = tasks.length > KANBAN_FOLD_LIMIT
+    ? `<button class="kanban-toggle" data-expanded="false">Show ${tasks.length - KANBAN_FOLD_LIMIT} more ▾</button>`
+    : '';
+  return `<div class="kanban-col"><h4>${title} <span class="count">${tasks.length}</span></h4>${cards}${empty}${toggle}</div>`;
 }
 
 function renderIssueKanbanCol(title, issues) {
   const bgMap = { P0: '#FFF5F6', P1: '#FFF8F2', P2: '#F2FBF5' };
-  const cards = issues.map(i => {
+  const cards = issues.map((i, idx) => {
     const color = colorMap[i.severity] || '#D4C4BE';
     const bg = bgMap[i.severity] || '#FFF8F2';
-    return `<div class="kanban-card" style="border-color:${color};background:${bg}" data-id="${i.id}">
+    const hidden = idx >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
+    return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${i.id}">
       <div class="card-id">${i.id}</div>
       <div class="card-title">${i.title}</div>
     </div>`;
   }).join('');
   const empty = issues.length === 0 ? '<div class="kanban-empty">No items</div>' : '';
-  return `<div class="kanban-col"><h4>${title} <span class="count">${issues.length}</span></h4>${cards}${empty}</div>`;
+  const toggle = issues.length > KANBAN_FOLD_LIMIT
+    ? `<button class="kanban-toggle" data-expanded="false">Show ${issues.length - KANBAN_FOLD_LIMIT} more ▾</button>`
+    : '';
+  return `<div class="kanban-col"><h4>${title} <span class="count">${issues.length}</span></h4>${cards}${empty}${toggle}</div>`;
 }
 
 function renderFilesSection(t) {
@@ -274,4 +363,28 @@ function renderFilesSection(t) {
   if (test.length) inner += `<div class="files-group"><span class="files-label">test:</span> ${test.join(', ')}</div>`;
 
   return `<details class="files-section"><summary>files (${total})</summary>${inner}</details>`;
+}
+
+function renderIssueFiles(i) {
+  const modify = i.files_modify || [];
+  const create = i.files_create || [];
+  const total = modify.length + create.length;
+  if (total === 0) return '';
+
+  let inner = '';
+  if (modify.length) inner += `<div class="files-group"><span class="files-label">modify:</span> ${modify.join(', ')}</div>`;
+  if (create.length) inner += `<div class="files-group"><span class="files-label">create:</span> ${create.join(', ')}</div>`;
+
+  return `<details class="files-section"><summary>files (${total})</summary>${inner}</details>`;
+}
+
+function bindKanbanToggles(container) {
+  container.querySelectorAll('.kanban-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const col = btn.closest('.kanban-col');
+      const isExpanded = col.classList.toggle('kanban-col-expanded');
+      const count = col.querySelectorAll('.kanban-card-hidden').length;
+      btn.textContent = isExpanded ? 'Show less ▴' : `Show ${count} more ▾`;
+    });
+  });
 }

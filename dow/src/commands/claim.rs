@@ -62,6 +62,9 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         // Check dependencies before allowing claim
         check_dependencies(&doc_root_path, &normalized)?;
 
+        // Check issue files requirement
+        check_issue_files(&doc_root_path, &normalized)?;
+
         claim::add_claims(&doc_root_path, &normalized).map_err(|e| {
             DowError::new(format!("Failed to add claim: {}", e), 1)
         })?;
@@ -297,4 +300,69 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
     } else {
         Err(DowError::new(errors.join("\n"), 1))
     }
+}
+
+/// Check that issue claims have files declared (required for scope tracking)
+fn check_issue_files(doc_root: &std::path::Path, ids: &[String]) -> Result<(), DowError> {
+    let issue_ids: Vec<&String> = ids.iter().filter(|id| id.starts_with("I")).collect();
+    if issue_ids.is_empty() {
+        return Ok(());
+    }
+
+    let issue_dir = doc_root.join("issue");
+    if !issue_dir.is_dir() {
+        return Ok(());
+    }
+
+    let mut errors: Vec<String> = Vec::new();
+
+    for iid in &issue_ids {
+        let full_id = format!("ISSUE-{}", iid);
+        let has_files = check_issue_has_files(&issue_dir, &full_id);
+        if !has_files {
+            errors.push(format!(
+                "cannot claim {}: no files declared. Use `dow issue update {} --files-modify \"path/to/file\"` first.",
+                full_id, full_id
+            ));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(DowError::new(errors.join("\n"), 1))
+    }
+}
+
+fn check_issue_has_files(issue_dir: &std::path::Path, target_id: &str) -> bool {
+    let entries = match fs::read_dir(issue_dir) {
+        Ok(e) => e,
+        Err(_) => return false,
+    };
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".md") || name.starts_with("closed_") {
+            continue;
+        }
+        if let Ok(content) = fs::read_to_string(entry.path()) {
+            let mut in_target = false;
+            for line in content.lines() {
+                if line.starts_with("- [ ]") && line.contains(target_id) {
+                    in_target = true;
+                } else if in_target && (line.starts_with("- [ ]") || line.starts_with("- [x]")) {
+                    break;
+                } else if in_target {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("- files_modify:") || trimmed.starts_with("- files_create:") {
+                        let after_colon = trimmed.splitn(2, ':').nth(1).unwrap_or("").trim();
+                        if after_colon != "[]" && !after_colon.is_empty() {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }

@@ -341,6 +341,12 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                 return Some(PhaseDecision::Ask(warning));
             }
         }
+        // DEV phase with active claim: check file scope
+        if phase == "DEV" && has_active_claim(&ctx.doc_root_path()) {
+            if let Some(warning) = check_claim_file_scope(&ctx.doc_root_path(), &ctx.root, path) {
+                return Some(PhaseDecision::Ask(warning));
+            }
+        }
         // DEV phase with no active claim → distinguish reason
         if phase == "DEV" && !has_active_claim(&ctx.doc_root_path()) {
             let doc_root = ctx.doc_root_path();
@@ -367,6 +373,7 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                     → `dow task create` to create new task\n\
                     → `dow issue create` to create issue\n\
                     → /test to enter test phase\n\
+                    → `dow status set --phase <PHASE>` to switch phase (PRD/SPEC/TASK/TEST/ITERATE)\n\
                     IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.",
                     path.display()
                 )));
@@ -433,7 +440,11 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
 
     // Everything else → deny
     Some(PhaseDecision::Deny(format!(
-        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase: create task (`dow task create`) or issue (`dow issue create`) to enter DEV. (Exploratory code/demos can go under tmp/)",
+        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase:\n\
+        → `dow task create` to create task and enter DEV\n\
+        → `dow issue create` to create issue and enter DEV\n\
+        → `dow status set --phase DEV` to switch to DEV phase directly\n\
+        (Exploratory code/demos can go under tmp/)",
         phase, path.display()
     )))
 }
@@ -525,6 +536,50 @@ fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
         ))
     } else {
         None
+    }
+}
+
+fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath) -> Option<String> {
+    let claimed_ids = crate::core::claim::get_active_claims(doc_root);
+    if claimed_ids.is_empty() {
+        return None;
+    }
+
+    let all_tasks = crate::commands::task::get_all_task_details(doc_root);
+    let mut allowed_files: Vec<String> = Vec::new();
+
+    for cid in &claimed_ids {
+        let full_id = if cid.starts_with("TASK-") { cid.clone() } else { format!("TASK-{}", cid) };
+        if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
+            for f in task.files.create.iter().chain(task.files.modify.iter()).chain(task.files.test.iter()) {
+                if !f.is_empty() {
+                    allowed_files.push(f.clone());
+                }
+            }
+        }
+    }
+
+    // If no files declared in any claimed task, skip scope check (issue claims have no files)
+    if allowed_files.is_empty() {
+        return None;
+    }
+
+    // Get relative path from project root
+    let rel_path = path.relative_to(project_root)?;
+    let rel_str = rel_path.to_string_lossy();
+
+    let in_scope = allowed_files.iter().any(|f| {
+        rel_str.ends_with(f.as_str()) || *rel_str == *f
+    });
+
+    if in_scope {
+        None
+    } else {
+        Some(format!(
+            "[dev-flow] WARNING: writing to {} which is outside claimed task's declared files.\n\
+            → Consider `dow task update <ID> --files-modify \"{}\"` to declare this file.",
+            path.display(), rel_str
+        ))
     }
 }
 
