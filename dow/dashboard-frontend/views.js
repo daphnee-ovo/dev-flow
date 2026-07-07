@@ -7,6 +7,7 @@ function esc(s) {
 // ─── Home View ───
 let homeInitialized = false;
 let selectedItemId = null;
+const graphFilters = { status: 'active', priority: 'all' };
 
 // Called by graph.js when a node is clicked
 function selectItemFromGraph(taskId) {
@@ -24,7 +25,10 @@ function renderHome(data) {
           <div class="panel" id="status-panel"></div>
           <div class="panel" id="items-panel"></div>
         </div>
-        <div class="graph-container" id="graph-panel"></div>
+        <div class="graph-area">
+          <div class="filter-bar graph-filter-bar" id="graph-filters"></div>
+          <div class="graph-container" id="graph-panel"></div>
+        </div>
       </div>
     `;
     homeInitialized = true;
@@ -94,8 +98,46 @@ function renderHome(data) {
     });
   });
 
+  // Graph filters
+  const gfEl = document.getElementById('graph-filters');
+  gfEl.innerHTML = `
+    <div class="filter-group">
+      <span class="filter-label">Status</span>
+      <button class="filter-btn ${graphFilters.status === 'all' ? 'active' : ''}" data-gf="status" data-value="all">All</button>
+      <button class="filter-btn ${graphFilters.status === 'active' ? 'active' : ''}" data-gf="status" data-value="active">Active</button>
+      <button class="filter-btn ${graphFilters.status === 'closed' ? 'active' : ''}" data-gf="status" data-value="closed">Closed</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Priority</span>
+      <button class="filter-btn ${graphFilters.priority === 'all' ? 'active' : ''}" data-gf="priority" data-value="all">All</button>
+      <button class="filter-btn ${graphFilters.priority === 'P0' ? 'active' : ''}" data-gf="priority" data-value="P0">P0</button>
+      <button class="filter-btn ${graphFilters.priority === 'P1' ? 'active' : ''}" data-gf="priority" data-value="P1">P1</button>
+      <button class="filter-btn ${graphFilters.priority === 'P2' ? 'active' : ''}" data-gf="priority" data-value="P2">P2</button>
+    </div>
+  `;
+  gfEl.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      graphFilters[btn.dataset.gf] = btn.dataset.value;
+      renderHome(data);
+    });
+  });
+
+  // Filter graph data
+  const filteredTasks = data.tasks.filter(t => {
+    if (graphFilters.status === 'active' && t.status === 'done') return false;
+    if (graphFilters.status === 'closed' && t.status !== 'done') return false;
+    if (graphFilters.priority !== 'all' && t.priority !== graphFilters.priority) return false;
+    return true;
+  });
+  const filteredIssues = data.issues.filter(i => {
+    if (graphFilters.status === 'active' && i.status === 'closed') return false;
+    if (graphFilters.status === 'closed' && i.status !== 'closed') return false;
+    if (graphFilters.priority !== 'all' && i.severity !== graphFilters.priority) return false;
+    return true;
+  });
+
   // Graph
-  renderGraph(document.getElementById('graph-panel'), data.tasks, data.issues);
+  renderGraph(document.getElementById('graph-panel'), filteredTasks, filteredIssues);
 }
 
 // ─── Docs View ───
@@ -179,7 +221,7 @@ function renderTasks(data) {
       <div class="filter-group">
         <span class="filter-label">Status</span>
         <button class="filter-btn ${taskFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
-        <button class="filter-btn ${taskFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">Active</button>
+        <button class="filter-btn ${taskFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">In Progress</button>
         <button class="filter-btn ${taskFilters.status === 'pending' ? 'active' : ''}" data-filter="status" data-value="pending">Pending</button>
         <button class="filter-btn ${taskFilters.status === 'done' ? 'active' : ''}" data-filter="status" data-value="done">Done</button>
       </div>
@@ -271,6 +313,7 @@ function renderIssues(data) {
       <div class="filter-group">
         <span class="filter-label">Status</span>
         <button class="filter-btn ${issueFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${issueFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">In Progress</button>
         <button class="filter-btn ${issueFilters.status === 'open' ? 'active' : ''}" data-filter="status" data-value="open">Open</button>
         <button class="filter-btn ${issueFilters.status === 'closed' ? 'active' : ''}" data-filter="status" data-value="closed">Closed</button>
       </div>
