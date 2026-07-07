@@ -71,13 +71,26 @@ Examples:
 | create | `echo '<JSON>' \| dow task create` | pipe JSON object or array to stdin; all fields required |
 | list | `dow task list [--all]` | default shows pending only |
 | show | `dow task show <ID>` | full detail with files, deps, done_when |
-| update | `dow task update <ID> --field value` | only passed fields change |
+| update | `dow task update <ID> --field value` | only passed fields change; array fields support incremental syntax |
 | done/close | `dow task done <ID>` / `dow issue close <ID>` | marks complete |
 | remove | `dow task remove <ID>` | preview → confirm token (destructive) |
 | reopen | `dow task reopen <ID>` | preview → confirm token (destructive) |
 | schema | `dow task schema` | outputs field definitions |
 
 Replace `task` with `issue` for issue operations (same pattern).
+
+#### update — incremental array syntax
+
+Array fields (`files_modify`, `files_create`, `files_test`, `depends_on`, `done_when`) support incremental operations:
+- `+item` → append (deduplicated)
+- `-item` → remove
+
+```bash
+dow task update T001 --files-modify "+new.rs,-old.rs"   # append new.rs, remove old.rs
+dow task update T001 --done-when "+新验收标准"            # append criterion
+```
+
+If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing prefixed and unprefixed in one list is not supported — either all incremental or all full replace.
 
 #### task create — all fields required
 

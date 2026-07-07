@@ -107,6 +107,31 @@ pub(crate) fn expand_file_list(files: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+/// Apply incremental update to an array field.
+/// If any item in `input` starts with '+' or '-', treat as incremental:
+///   +item → append to existing, -item → remove from existing.
+/// If no items have prefix → full replacement (backward compatible).
+pub(crate) fn apply_incremental(input: Vec<String>, existing: Vec<String>) -> Vec<String> {
+    let is_incremental = input.iter().any(|s| s.starts_with('+') || s.starts_with('-'));
+    if !is_incremental {
+        return input;
+    }
+
+    let mut result = existing;
+    for item in &input {
+        if let Some(val) = item.strip_prefix('+') {
+            let val = val.to_string();
+            if !val.is_empty() && !result.contains(&val) {
+                result.push(val);
+            }
+        } else if let Some(val) = item.strip_prefix('-') {
+            result.retain(|x| x != val);
+        }
+        // items without prefix in incremental mode are ignored
+    }
+    result
+}
+
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
 pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
@@ -492,19 +517,34 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
                         format!("cannot update completed task {} (use 'reopen' first)", id), 1));
                 }
 
-                // Merge
+                // Merge (array fields use incremental logic)
                 let merged = TaskInput {
                     title: input.title.unwrap_or(detail.title),
                     r#type: input.task_type.unwrap_or(detail.r#type),
                     priority: input.priority.unwrap_or(detail.priority),
                     refs: input.refs.unwrap_or(detail.refs),
-                    files_modify: input.files_modify.unwrap_or(detail.files.modify),
-                    files_create: input.files_create.unwrap_or(detail.files.create),
-                    files_test: input.files_test.unwrap_or(detail.files.test),
-                    depends_on: input.depends_on.unwrap_or(detail.depends_on),
+                    files_modify: match input.files_modify {
+                        Some(v) => apply_incremental(v, detail.files.modify),
+                        None => detail.files.modify,
+                    },
+                    files_create: match input.files_create {
+                        Some(v) => apply_incremental(v, detail.files.create),
+                        None => detail.files.create,
+                    },
+                    files_test: match input.files_test {
+                        Some(v) => apply_incremental(v, detail.files.test),
+                        None => detail.files.test,
+                    },
+                    depends_on: match input.depends_on {
+                        Some(v) => apply_incremental(v, detail.depends_on),
+                        None => detail.depends_on,
+                    },
                     parallel: input.parallel.unwrap_or(detail.parallel),
                     complexity: input.complexity.unwrap_or(detail.complexity),
-                    done_when: input.done_when.unwrap_or(detail.done_when),
+                    done_when: match input.done_when {
+                        Some(v) => apply_incremental(v, detail.done_when),
+                        None => detail.done_when,
+                    },
                 };
 
                 let new_content = replace_task_entry_in_content(&content, &id, &merged);

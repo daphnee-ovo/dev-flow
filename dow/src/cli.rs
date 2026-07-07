@@ -225,19 +225,19 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// Files to modify (comma-separated)
+    /// Files to modify (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_modify: Option<String>,
 
-    /// Files to create (comma-separated)
+    /// Files to create (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_create: Option<String>,
 
-    /// Test files (comma-separated)
+    /// Test files (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_test: Option<String>,
 
-    /// Dependencies (comma-separated task IDs)
+    /// Dependencies (comma-separated task IDs; +item to append, -item to remove)
     #[arg(long)]
     pub depends_on: Option<String>,
 
@@ -249,7 +249,7 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub complexity: Option<String>,
 
-    /// Done-when criteria (comma-separated)
+    /// Done-when criteria (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub done_when: Option<String>,
 }
@@ -359,11 +359,11 @@ pub struct IssueUpdateArgs {
     #[arg(long)]
     pub fix: Option<String>,
 
-    /// Files to modify (comma-separated, supports brace expansion)
+    /// Files to modify (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_modify: Option<String>,
 
-    /// Files to create (comma-separated, supports brace expansion)
+    /// Files to create (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_create: Option<String>,
 }

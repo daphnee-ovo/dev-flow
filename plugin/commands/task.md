@@ -77,6 +77,13 @@ echo '[{"title":"Task A","priority":"P0"},{"title":"Task B","depends_on":["TASK-
 ```
 This is the preferred method when decomposing multiple tasks — one command instead of N.
 
+**Incremental update**: array fields support `+item` (append) / `-item` (remove) syntax:
+```bash
+dow task update T001 --files-modify "+new.rs,-old.rs"
+dow task update T001 --done-when "+新验收标准"
+```
+Without `+`/`-` prefix = full replacement. Applies to: `files_modify`, `files_create`, `files_test`, `depends_on`, `done_when`.
+
 ## After Completion
 
 1. Confirm task files written

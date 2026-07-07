@@ -1,3 +1,9 @@
+// ─── Util ───
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ─── Home View ───
 let homeInitialized = false;
 let selectedItemId = null;
@@ -46,7 +52,7 @@ function renderHome(data) {
   // Always render the list
   const itemsHtml = items.map(item => {
     const color = item.kind === 'task' ? (colorMap[item.priority] || '#D4C4BE') : (colorMap[item.severity] || '#D4C4BE');
-    return `<li data-item-id="${item.id}"><span class="dot" style="background:${color}"></span><span class="id">${item.id}</span>${item.title}</li>`;
+    return `<li data-item-id="${item.id}"><span class="dot" style="background:${color}"></span><span class="id">${item.id}</span>${esc(item.title)}</li>`;
   }).join('');
 
   panel.innerHTML = `<h3>Tasks</h3><ul class="item-list">${itemsHtml || '<li style="color:var(--color-text-muted)">All clear</li>'}</ul>`;
@@ -59,16 +65,16 @@ function renderHome(data) {
       overlay.className = 'item-detail-overlay';
       overlay.innerHTML = `
         <button class="back-btn" id="back-to-list">← Back</button>
-        <h4>${item.title}</h4>
+        <h4>${esc(item.title)}</h4>
         <div class="meta-row">
           <span class="badge badge-${(item.priority||'P1').toLowerCase()}">${item.priority}</span>
           <span class="badge" style="background:var(--color-surface-alt)">${item.complexity || 'S'}</span>
           <span class="badge" style="background:var(--color-surface-alt)">${item.status}</span>
         </div>
-        ${item.refs ? `<div class="refs">refs: ${item.refs}</div>` : ''}
-        ${(item.depends_on||[]).length ? `<div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">Depends: ${item.depends_on.join(', ')}</div>` : ''}
+        ${item.refs ? `<div class="refs">refs: ${esc(item.refs)}</div>` : ''}
+        ${(item.depends_on||[]).length ? `<div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">Depends: ${item.depends_on.map(esc).join(', ')}</div>` : ''}
         ${renderFilesSection(item)}
-        ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
+        ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${esc(d)}</li>`).join('') + '</ul>' : ''}
       `;
       panel.appendChild(overlay);
       overlay.querySelector('#back-to-list').addEventListener('click', () => {
@@ -173,6 +179,7 @@ function renderTasks(data) {
       <div class="filter-group">
         <span class="filter-label">Status</span>
         <button class="filter-btn ${taskFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${taskFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">Active</button>
         <button class="filter-btn ${taskFilters.status === 'pending' ? 'active' : ''}" data-filter="status" data-value="pending">Pending</button>
         <button class="filter-btn ${taskFilters.status === 'done' ? 'active' : ''}" data-filter="status" data-value="done">Done</button>
       </div>
@@ -190,16 +197,16 @@ function renderTasks(data) {
   const sortedTasks = [...tasks].sort(sortById);
   const detailHtml = sortedTasks.map(t => `
     <div class="detail-item ${t.status === 'done' ? 'status-done' : ''}" id="detail-${t.id}">
-      <h4><span class="task-id">${t.id}</span>${t.title}</h4>
+      <h4><span class="task-id">${t.id}</span>${esc(t.title)}</h4>
       <div class="meta">
         <span class="badge badge-${(t.priority||'P1').toLowerCase()}">${t.priority}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.complexity || 'S'}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.type || 'feat'}</span>
       </div>
-      ${t.refs ? `<div class="refs">refs: ${t.refs}</div>` : ''}
-      ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.join(', ')}</div>` : ''}
+      ${t.refs ? `<div class="refs">refs: ${esc(t.refs)}</div>` : ''}
+      ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.map(esc).join(', ')}</div>` : ''}
       ${renderFilesSection(t)}
-      ${(t.done_when||[]).length ? '<ul class="done-when">' + t.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
+      ${(t.done_when||[]).length ? '<ul class="done-when">' + t.done_when.map(d => `<li>${esc(d)}</li>`).join('') + '</ul>' : ''}
     </div>
   `).join('');
 
@@ -237,13 +244,18 @@ function renderIssues(data) {
   const el = document.getElementById('view-issues');
   const issues = data.issues.filter(i => {
     if (issueFilters.severity !== 'all' && i.severity !== issueFilters.severity) return false;
-    if (issueFilters.status !== 'all' && i.status !== issueFilters.status) return false;
+    if (issueFilters.status !== 'all') {
+      if (issueFilters.status === 'open' && i.status !== 'open' && i.status !== 'in_progress') return false;
+      if (issueFilters.status === 'in_progress' && i.status !== 'in_progress') return false;
+      if (issueFilters.status === 'closed' && i.status !== 'closed') return false;
+    }
     return true;
   });
 
-  const groups = { open: [], closed: [] };
+  const groups = { in_progress: [], open: [], closed: [] };
   issues.forEach(i => { (groups[i.status] || groups.open).push(i); });
   const sortById = (a, b) => a.id.localeCompare(b.id);
+  groups.in_progress.sort(sortById);
   groups.open.sort(sortById);
   groups.closed.sort(sortById);
 
@@ -267,6 +279,7 @@ function renderIssues(data) {
 
   const kanbanHtml = `
     <div class="kanban">
+      ${renderIssueKanbanCol('In Progress', groups.in_progress)}
       ${renderIssueKanbanCol('Open', groups.open)}
       ${renderIssueKanbanCol('Closed', groups.closed)}
     </div>
@@ -275,11 +288,11 @@ function renderIssues(data) {
   const sortedIssues = [...issues].sort(sortById);
   const detailHtml = sortedIssues.map(i => `
     <div class="detail-item ${i.status === 'closed' ? 'status-done' : ''}" id="detail-${i.id}">
-      <h4><span class="task-id">${i.id}</span>${i.title}</h4>
+      <h4><span class="task-id">${i.id}</span>${esc(i.title)}</h4>
       <div class="meta">
         <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
       </div>
-      ${i.description ? `<p style="font-size:13px;margin-top:8px;color:var(--color-text);">${i.description}</p>` : ''}
+      ${i.description ? `<p style="font-size:13px;margin-top:8px;color:var(--color-text);">${esc(i.description)}</p>` : ''}
       ${renderIssueFiles(i)}
     </div>
   `).join('');
@@ -322,7 +335,7 @@ function renderKanbanCol(title, tasks) {
     const hidden = i >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
     return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${t.id}">
       <div class="card-id">${t.id} · ${t.complexity || 'S'}</div>
-      <div class="card-title">${t.title}</div>
+      <div class="card-title">${esc(t.title)}</div>
     </div>`;
   }).join('');
   const empty = tasks.length === 0 ? '<div class="kanban-empty">No items</div>' : '';
@@ -340,7 +353,7 @@ function renderIssueKanbanCol(title, issues) {
     const hidden = idx >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
     return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${i.id}">
       <div class="card-id">${i.id}</div>
-      <div class="card-title">${i.title}</div>
+      <div class="card-title">${esc(i.title)}</div>
     </div>`;
   }).join('');
   const empty = issues.length === 0 ? '<div class="kanban-empty">No items</div>' : '';

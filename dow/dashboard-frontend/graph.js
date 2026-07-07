@@ -1,6 +1,7 @@
 const sizeMap = { S: 22, M: 30, L: 38, XL: 46 };
 const colorMap = { P0: '#E85D6F', P1: '#E8A44C', P2: '#6DC08A' };
 const borderMap = { done: '#6DC08A', in_progress: '#F2A0B0', pending: '#D4C4BE', open: '#E8A44C', closed: '#6DC08A' };
+const PULSE_CLASS = 'node-pulse';
 
 let simulation = null;
 let graphNodes = [];
@@ -169,6 +170,7 @@ function renderGraph(container, tasks, issues) {
     }
   });
   allNodes.select('text').text(d => d.id.replace('TASK-', '').replace('ISSUE-', ''));
+  allNodes.classed(PULSE_CLASS, d => d.status === 'in_progress');
 
   // Tooltip
   let tooltip = container.querySelector('.graph-tooltip');
@@ -181,7 +183,8 @@ function renderGraph(container, tasks, issues) {
   allNodes
     .on('mouseenter', function(event, d) {
       const badge = d.kind === 'issue' ? d.severity : d.priority;
-      tooltip.innerHTML = `<b>${d.id}</b><br>${d.title}<br><span class="badge badge-${(badge||'P1').toLowerCase()}">${badge}</span> · ${d.status}`;
+      const _esc = s => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+      tooltip.innerHTML = `<b>${d.id}</b><br>${_esc(d.title)}<br><span class="badge badge-${(badge||'P1').toLowerCase()}">${badge}</span> · ${d.status}`;
       tooltip.classList.add('visible');
     })
     .on('mousemove', function(event) {

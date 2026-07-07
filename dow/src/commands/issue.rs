@@ -54,6 +54,10 @@ struct IssueShowOutput {
     description: String,
     reproduce: String,
     fix: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    files_modify: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    files_create: Vec<String>,
     status: String,
     file: String,
 }
@@ -219,15 +223,22 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
             format!("cannot update closed issue {} (use 'reopen' first)", id), 1));
     }
 
-    // Merge fields
+    // Merge fields (array fields use incremental logic)
+    use crate::commands::task::apply_incremental;
     let new_title = input.title.unwrap_or(parsed.title);
     let new_severity = input.severity.unwrap_or(parsed.severity);
     let new_location = input.location.unwrap_or(parsed.location);
     let new_desc = input.desc.unwrap_or(parsed.description);
     let new_reproduce = input.reproduce.unwrap_or(parsed.reproduce);
     let new_fix = input.fix.unwrap_or(parsed.fix);
-    let new_files_modify = expand_file_list(input.files_modify.unwrap_or(parsed.files_modify));
-    let new_files_create = expand_file_list(input.files_create.unwrap_or(parsed.files_create));
+    let new_files_modify = expand_file_list(match input.files_modify {
+        Some(v) => apply_incremental(v, parsed.files_modify),
+        None => parsed.files_modify,
+    });
+    let new_files_create = expand_file_list(match input.files_create {
+        Some(v) => apply_incremental(v, parsed.files_create),
+        None => parsed.files_create,
+    });
 
     // Rebuild the entry
     let content = fs::read_to_string(&file_path)
@@ -642,6 +653,8 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         description: parsed.description.clone(),
         reproduce: parsed.reproduce.clone(),
         fix: parsed.fix.clone(),
+        files_modify: parsed.files_modify.clone(),
+        files_create: parsed.files_create.clone(),
         status: status.to_string(),
         file: filename,
     };
@@ -656,6 +669,12 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         println!("  Description: {}", result.description);
         println!("  Reproduce:   {}", result.reproduce);
         println!("  Fix:         {}", result.fix);
+        if !result.files_modify.is_empty() {
+            println!("  Files modify: {}", result.files_modify.join(", "));
+        }
+        if !result.files_create.is_empty() {
+            println!("  Files create: {}", result.files_create.join(", "));
+        }
         println!("  File:        {}", result.file);
     } else {
         output::print_json(&result);
