@@ -170,9 +170,11 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     let filename = format!("issue_{}_{}_{}.md", source, today, seq);
     let id_str = format!("ISSUE-I{:03}", next_id);
 
+    let desc_formatted = format_multiline_field(&desc, "  - description：");
+    let reproduce_formatted = format_multiline_field(&reproduce, "  - reproduce：");
     let content = format!(
-        "---\nsource: {}\nnums: 1\n---\n\n- [ ] {}：{}\n  - severity: {}\n  - location：{}\n  - description：{}\n  - reproduce：{}\n  - fix：\n",
-        source, id_str, title, severity, location, desc, reproduce
+        "---\nsource: {}\nnums: 1\n---\n\n- [ ] {}：{}\n  - severity: {}\n  - location：{}\n{}\n{}\n  - fix：\n",
+        source, id_str, title, severity, location, desc_formatted, reproduce_formatted
     );
 
     fs::write(issue_dir.join(&filename), &content)
@@ -257,15 +259,21 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
 }
 
 fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput, DowError> {
-    use std::io::IsTerminal;
-    if !std::io::stdin().is_terminal() {
-        let mut buf = String::new();
-        if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
-            let trimmed = buf.trim();
-            if trimmed.starts_with('{') {
-                let input: IssueUpdateInput = serde_json::from_str(trimmed)
-                    .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
-                return Ok(input);
+    let has_flags = args.title.is_some() || args.severity.is_some() || args.location.is_some()
+        || args.desc.is_some() || args.reproduce.is_some() || args.fix.is_some()
+        || args.files_modify.is_some() || args.files_create.is_some();
+
+    if !has_flags {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() {
+            let mut buf = String::new();
+            if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
+                let trimmed = buf.trim();
+                if trimmed.starts_with('{') {
+                    let input: IssueUpdateInput = serde_json::from_str(trimmed)
+                        .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
+                    return Ok(input);
+                }
             }
         }
     }
@@ -293,6 +301,24 @@ fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
         || input.files_create.is_some()
 }
 
+/// 多行字段格式化：第一行紧跟 prefix，后续行用 4 空格缩进续行
+fn format_multiline_field(value: &str, prefix: &str) -> String {
+    let lines: Vec<&str> = value.lines().collect();
+    if lines.len() <= 1 {
+        return format!("{}{}", prefix, value);
+    }
+    let mut result = format!("{}{}", prefix, lines[0]);
+    for line in &lines[1..] {
+        result.push('\n');
+        if line.is_empty() {
+            result.push_str("    ");
+        } else {
+            result.push_str(&format!("    {}", line));
+        }
+    }
+    result
+}
+
 fn replace_issue_entry_in_content(
     content: &str,
     target_id: &str,
@@ -317,20 +343,19 @@ fn replace_issue_entry_in_content(
             result.push(format!("{} {}：{}", checkbox, target_id, title));
             result.push(format!("  - severity: {}", severity));
             result.push(format!("  - location：{}", location));
-            result.push(format!("  - description：{}", desc));
-            result.push(format!("  - reproduce：{}", reproduce));
-            result.push(format!("  - fix：{}", fix));
+            result.push(format_multiline_field(desc, "  - description："));
+            result.push(format_multiline_field(reproduce, "  - reproduce："));
+            result.push(format_multiline_field(fix, "  - fix："));
             if !files_modify.is_empty() || !files_create.is_empty() {
                 let modify_str = if files_modify.is_empty() { "[]".to_string() } else { format!("[{}]", files_modify.join(", ")) };
                 let create_str = if files_create.is_empty() { "[]".to_string() } else { format!("[{}]", files_create.join(", ")) };
                 result.push(format!("  - files_modify: {}", modify_str));
                 result.push(format!("  - files_create: {}", create_str));
             }
-            // Skip old sub-fields
+            // Skip all old content until next issue entry or EOF
             i += 1;
             while i < lines.len() {
-                let sub = lines[i].trim();
-                if sub.starts_with("- [ ]") || sub.starts_with("- [x]") || sub.is_empty() {
+                if lines[i].starts_with("- [ ]") || lines[i].starts_with("- [x]") {
                     break;
                 }
                 i += 1;
@@ -1003,15 +1028,16 @@ fn find_issue_by_id(
         let mut files_modify: Vec<String> = Vec::new();
         let mut files_create: Vec<String> = Vec::new();
         let mut in_target = false;
+        let mut last_field = "";
 
         for line in content.lines() {
             if (line.starts_with("- [ ]") || line.starts_with("- [x]")) && line.contains(&normalized_id) {
                 found_line = Some(line.to_string());
                 in_target = true;
+                last_field = "";
             } else if in_target
                 && (line.starts_with("- [ ]") || line.starts_with("- [x]"))
             {
-                // Next item, stop collecting fields
                 break;
             } else if in_target {
                 let trimmed = line.trim();
@@ -1022,8 +1048,8 @@ fn find_issue_by_id(
                         .unwrap_or("")
                         .trim()
                         .to_string();
+                    last_field = "severity";
                 } else if trimmed.starts_with("- location") {
-                    // Handle both ：and :
                     let val = trimmed
                         .splitn(2, |c| c == '：' || c == ':')
                         .nth(1)
@@ -1031,6 +1057,7 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     location = val;
+                    last_field = "location";
                 } else if trimmed.starts_with("- description") {
                     let val = trimmed
                         .splitn(2, |c| c == '：' || c == ':')
@@ -1039,6 +1066,7 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     description = val;
+                    last_field = "description";
                 } else if trimmed.starts_with("- reproduce") {
                     let val = trimmed
                         .splitn(2, |c| c == '：' || c == ':')
@@ -1047,6 +1075,7 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     reproduce = val;
+                    last_field = "reproduce";
                 } else if trimmed.starts_with("- fix") {
                     let val = trimmed
                         .splitn(2, |c| c == '：' || c == ':')
@@ -1055,10 +1084,31 @@ fn find_issue_by_id(
                         .trim()
                         .to_string();
                     fix = val;
+                    last_field = "fix";
                 } else if trimmed.starts_with("- files_modify:") {
                     files_modify = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
+                    last_field = "";
                 } else if trimmed.starts_with("- files_create:") {
                     files_create = parse_inline_list(trimmed.splitn(2, ':').nth(1).unwrap_or(""));
+                    last_field = "";
+                } else if !last_field.is_empty() {
+                    // 续行：非已知字段头的行属于上一个字段
+                    let continuation = if line.starts_with("    ") { &line[4..] } else { trimmed };
+                    match last_field {
+                        "description" => {
+                            description.push('\n');
+                            description.push_str(continuation);
+                        }
+                        "reproduce" => {
+                            reproduce.push('\n');
+                            reproduce.push_str(continuation);
+                        }
+                        "fix" => {
+                            fix.push('\n');
+                            fix.push_str(continuation);
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -1185,15 +1235,19 @@ fn generate_iro_token(id: &str) -> String {
 
 /// Read stdin if available (non-blocking check), parse as JSON; otherwise use CLI flags
 fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<IssueCreateInput, DowError> {
-    // Try reading stdin (non-terminal)
-    use std::io::IsTerminal;
-    if !std::io::stdin().is_terminal() {
-        let mut buf = String::new();
-        if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
-            let input: IssueCreateInput = serde_json::from_str(&buf).map_err(|e| {
-                DowError::new(format!("Invalid stdin JSON: {}", e), 2)
-            })?;
-            return Ok(input);
+    let has_flags = args.title.is_some() || args.severity.is_some() || args.location.is_some()
+        || args.desc.is_some() || args.source.is_some() || args.reproduce.is_some();
+
+    if !has_flags {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() {
+            let mut buf = String::new();
+            if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
+                let input: IssueCreateInput = serde_json::from_str(&buf).map_err(|e| {
+                    DowError::new(format!("Invalid stdin JSON: {}", e), 2)
+                })?;
+                return Ok(input);
+            }
         }
     }
 

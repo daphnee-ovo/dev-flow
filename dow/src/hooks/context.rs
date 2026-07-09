@@ -167,7 +167,9 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         mode,
         phase,
         exec_mode,
-        doc_root: doc_root_path.to_string_lossy().to_string(),
+        doc_root: doc_root_path.strip_prefix(doc_root::project_root())
+            .unwrap_or(&doc_root_path)
+            .to_string_lossy().to_string(),
         tasks: task_stats,
         issues: open_issues,
         goals_minor,

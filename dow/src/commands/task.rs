@@ -200,7 +200,7 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
 
 fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError> {
     // Check stdin for JSON
-    if let Some(stdin_data) = read_stdin_if_available() {
+    if let Some(stdin_data) = read_stdin_if_available(false) {
         let trimmed = stdin_data.trim();
         if trimmed.starts_with('[') {
             let tasks: Vec<TaskInput> = serde_json::from_str(trimmed)
@@ -254,7 +254,10 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
     Ok(vec![task])
 }
 
-fn read_stdin_if_available() -> Option<String> {
+fn read_stdin_if_available(skip: bool) -> Option<String> {
+    if skip {
+        return None;
+    }
     use std::io::IsTerminal;
 
     // If stdin is a terminal (interactive), no piped data
@@ -559,8 +562,12 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
 }
 
 fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowError> {
+    let has_flags = args.title.is_some() || args.task_type.is_some() || args.priority.is_some()
+        || args.refs.is_some() || args.files_modify.is_some() || args.files_create.is_some()
+        || args.files_test.is_some() || args.depends_on.is_some() || args.parallel.is_some()
+        || args.complexity.is_some() || args.done_when.is_some();
     // Check stdin JSON
-    if let Some(stdin_data) = read_stdin_if_available() {
+    if let Some(stdin_data) = read_stdin_if_available(has_flags) {
         let trimmed = stdin_data.trim();
         if trimmed.starts_with('{') {
             let input: TaskUpdateInput = serde_json::from_str(trimmed)

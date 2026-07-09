@@ -335,7 +335,7 @@ function renderIssues(data) {
       <div class="meta">
         <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
       </div>
-      ${i.description ? `<p style="font-size:13px;margin-top:8px;color:var(--color-text);">${esc(i.description)}</p>` : ''}
+      ${i.description ? `<div class="docs-content" style="font-size:13px;margin-top:8px;color:var(--color-text);">${marked.parse(i.description)}</div>` : ''}
       ${renderIssueFiles(i)}
     </div>
   `).join('');

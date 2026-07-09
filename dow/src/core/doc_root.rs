@@ -12,8 +12,14 @@ use std::process::Command;
 /// Resolve actual doc_root path
 /// Enforce .dev-doc/<branch>/ format (including main/master)
 /// Automatically create directory and STATUS.yaml for new branches
+/// If base is relative, anchors it to project_root() (git toplevel)
 pub fn resolve(base: &str) -> PathBuf {
-    let base_path = Path::new(base);
+    let raw = Path::new(base);
+    let base_path = if raw.is_relative() {
+        project_root().join(raw)
+    } else {
+        raw.to_path_buf()
+    };
 
     if let Some(branch) = current_branch() {
         let branch_path = base_path.join(&branch);
@@ -25,7 +31,7 @@ pub fn resolve(base: &str) -> PathBuf {
             if let Ok(()) = fs::create_dir_all(&branch_path) {
                 let status_content = format!(
                     "name: {}\nphase: PRD\nmode: fast\nupdated: {}\nstarted: {}\n",
-                    read_project_name(base_path).unwrap_or_else(|| "project".to_string()),
+                    read_project_name(&base_path).unwrap_or_else(|| "project".to_string()),
                     now_str(),
                     now_str(),
                 );
@@ -39,7 +45,7 @@ pub fn resolve(base: &str) -> PathBuf {
 
     // Fallback: search subdirectories (when no branch info available)
     if base_path.is_dir() {
-        if let Ok(entries) = fs::read_dir(base_path) {
+        if let Ok(entries) = fs::read_dir(&base_path) {
             let mut found: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok())
                 .filter(|e| e.path().is_dir())
