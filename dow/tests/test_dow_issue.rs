@@ -45,8 +45,11 @@ fn test_issue_create_with_flags() {
         .unwrap();
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    // Silent on success
-    assert!(output.stdout.is_empty(), "stdout should be empty on success");
+    // Successful creation returns the generated issue ID.
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "ISSUE-I001"
+    );
 
     // Verify file was created
     let issue_dir = doc.join("issue");
@@ -87,7 +90,10 @@ fn test_issue_create_with_stdin_json() {
     let output = child.wait_with_output().unwrap();
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "ISSUE-I001"
+    );
 }
 
 #[test]

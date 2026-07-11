@@ -58,8 +58,11 @@ pub enum Commands {
     /// Initialize dev-flow workflow management
     Init(InitArgs),
 
-    /// Lint .dev-doc (structure + spec + consistency check)
-    Lint(LintArgs),
+    /// Diagnose .dev-doc structure, spec, and consistency
+    Doctor(DoctorArgs),
+
+    /// Compatibility alias for `dow doctor --fix`
+    Fix,
 
     /// Iteration delivery
     Iterate(IterateArgs),
@@ -472,10 +475,10 @@ pub struct StatusSetArgs {
     pub goals_major: Option<String>,
 }
 
-// ─── Lint ────────────────────────────────────────────────────────────────────
+// ─── Doctor ──────────────────────────────────────────────────────────────────
 
 #[derive(clap::Args)]
-pub struct LintArgs {
+pub struct DoctorArgs {
     /// Auto-fix fixable issues
     #[arg(long)]
     pub fix: bool,

@@ -41,7 +41,8 @@ else
 fi
 
 # Verify .dev-doc structure (uses current git branch)
-DOC_ROOT=$(dow status 2>&1 | grep -oP '(?<="doc_root": ")[^"]+')
+STATUS_JSON=$(dow status)
+DOC_ROOT=$(printf '%s' "$STATUS_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["doc_root"])')
 if [[ -d "$DOC_ROOT" ]]; then
   echo "✓ .dev-doc structure created at $DOC_ROOT"
 else
@@ -50,7 +51,7 @@ else
 fi
 
 # Check STATUS.yaml
-PHASE=$(dow status 2>&1 | grep -oP '(?<="phase": ")[^"]+')
+PHASE=$(printf '%s' "$STATUS_JSON" | python3 -c 'import json, sys; print(json.load(sys.stdin)["phase"])')
 if [[ "$PHASE" == "BRAINSTORM" ]]; then
   echo "✓ Initial phase is BRAINSTORM"
 else

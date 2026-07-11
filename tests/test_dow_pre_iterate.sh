@@ -177,6 +177,30 @@ else
 fi
 
 echo ""
+echo "[6] 归档后被删除的 --files 路径不触发 git add 失败"
+setup_project "archived-file"
+branch="$(git branch --show-current)"
+task_file="$(find ".dev-doc/$branch/task" -name 'task_*.md' | head -1)"
+git add .
+git commit -m "test: baseline archived file" -q
+before="$(git rev-parse HEAD)"
+preview="$("$DOW" iterate --topic archived-file --type feat --files "$task_file" 2>/dev/null)"
+token="$(echo "$preview" | python3 -c "import json,sys; s=sys.stdin.read(); s=s[s.find('{'):]; print(json.loads(s).get('token',''))")"
+run_out="$TEST_DIR/archived_file.out"
+if "$DOW" iterate --topic archived-file --type feat --files "$task_file" --confirm "$token" >"$run_out" 2>&1; then
+  after="$(git rev-parse HEAD)"
+  if [ "$before" != "$after" ] \
+    && [ ! -e "$task_file" ] \
+    && git show --name-status --format= HEAD | grep -q "D.*$task_file"; then
+    pass "归档删除的 --files 路径被 git add -u 正确提交"
+  else
+    fail "归档删除的 --files 路径未正确提交"
+  fi
+else
+  fail "归档后 git add 删除路径仍失败"
+fi
+
+echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="
 
 if [ "$FAIL" -gt 0 ]; then

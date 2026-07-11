@@ -740,6 +740,12 @@ fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
 
 fn resolve_targets(file: &str) -> Vec<String> {
     if !file.is_empty() {
+        // Some integrations pass the Bash command as the positional guard
+        // argument instead of using hook JSON on stdin. Classify it before
+        // treating path-looking metadata values as a write target.
+        if is_trusted_flow_command(file) {
+            return vec![];
+        }
         if let Ok(content) = std::fs::read_to_string(file) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                 return extract_targets_from_json(&json);
@@ -787,7 +793,7 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
-            extract_write_targets_from_command(&command)
+            extract_command_targets(&command)
         }
         _ => {
             if let Some(path) = tool_input
@@ -797,12 +803,223 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
             {
                 vec![path.to_string()]
             } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
-                extract_write_targets_from_command(cmd)
+                extract_command_targets(cmd)
             } else {
                 vec![]
             }
         }
     }
+}
+
+/// Extract actual write targets from a Bash hook command while keeping dev-flow
+/// metadata arguments out of the path scanner.
+fn extract_command_targets(cmd: &str) -> Vec<String> {
+    let write_targets = extract_write_targets_from_command(cmd);
+
+    // A trusted flow-management command may contain values such as
+    // `src/example.rs` in --files-modify, --files-create, refs, or stdin JSON.
+    // Those values describe the task; they are not writes performed by Bash.
+    // Check for shell writes first so `dow task create ... > output` is still
+    // guarded.
+    if write_targets.is_empty() && is_trusted_flow_command(cmd) {
+        return vec![];
+    }
+
+    write_targets
+}
+
+/// Return true only for the trusted `dow` executable and known metadata
+/// subcommands. A pipeline is accepted only when its input is produced by
+/// `echo` or `printf` and the final command is trusted `dow`.
+fn is_trusted_flow_command(cmd: &str) -> bool {
+    let segments = match split_shell_pipeline(cmd) {
+        Some(segments) if !segments.is_empty() => segments,
+        _ => return false,
+    };
+
+    if segments.len() == 1 {
+        return is_trusted_dow_invocation(&segments[0]);
+    }
+
+    if segments.len() != 2 {
+        return false;
+    }
+
+    let input_tokens = shell_words(&segments[0]);
+    let input_command = input_tokens.first().map(String::as_str);
+    if !matches!(input_command, Some("echo") | Some("printf")) {
+        return false;
+    }
+
+    is_trusted_dow_invocation(&segments[1])
+}
+
+fn is_trusted_dow_invocation(segment: &str) -> bool {
+    let tokens = shell_words(segment);
+    let Some(executable) = tokens.first() else {
+        return false;
+    };
+    if !is_trusted_dow_executable(executable) {
+        return false;
+    }
+
+    let args: Vec<&str> = tokens
+        .iter()
+        .skip(1)
+        .map(String::as_str)
+        .filter(|token| *token != "-H" && *token != "--human")
+        .collect();
+
+    match args.as_slice() {
+        ["status", ..] | ["claim", ..] | ["init", ..] | ["version", ..] => true,
+        ["task", subcommand, ..] => matches!(
+            *subcommand,
+            "create" | "update" | "done" | "remove" | "reopen" | "list" | "show" | "schema"
+        ),
+        ["issue", subcommand, ..] => matches!(
+            *subcommand,
+            "create" | "update" | "close" | "remove" | "reopen" | "list" | "show" | "schema"
+        ),
+        ["changelog", subcommand, ..] => matches!(*subcommand, "add" | "list"),
+        _ => false,
+    }
+}
+
+fn is_trusted_dow_executable(executable: &str) -> bool {
+    if executable == "dow" {
+        return true;
+    }
+
+    let current_executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(_) => return false,
+    };
+    let command_path = Path::new(executable);
+    let command_path = if command_path.is_absolute() {
+        command_path.to_path_buf()
+    } else {
+        match std::env::current_dir() {
+            Ok(current_dir) => current_dir.join(command_path),
+            Err(_) => return false,
+        }
+    };
+
+    match (
+        std::fs::canonicalize(command_path),
+        std::fs::canonicalize(current_executable),
+    ) {
+        (Ok(command_path), Ok(current_executable)) => command_path == current_executable,
+        _ => false,
+    }
+}
+
+/// Split a command on a single, unquoted pipe. Other shell operators make the
+/// command ineligible for the exemption and remain handled by the write scan.
+fn split_shell_pipeline(cmd: &str) -> Option<Vec<String>> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    let chars: Vec<char> = cmd.chars().collect();
+    let mut index = 0;
+    while index < chars.len() {
+        let ch = chars[index];
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if ch == '\\' && quote != Some('\'') {
+            current.push(ch);
+            escaped = true;
+            index += 1;
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            current.push(ch);
+            if ch == active_quote {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            current.push(ch);
+            index += 1;
+            continue;
+        }
+        if ch == '|' {
+            if chars.get(index + 1) == Some(&'|') {
+                return None;
+            }
+            segments.push(current.trim().to_string());
+            current.clear();
+            index += 1;
+            continue;
+        }
+        if matches!(ch, ';' | '&' | '<' | '>' | '`')
+            || (ch == '$' && chars.get(index + 1) == Some(&'('))
+        {
+            return None;
+        }
+        current.push(ch);
+        index += 1;
+    }
+
+    if quote.is_some() || escaped {
+        return None;
+    }
+    segments.push(current.trim().to_string());
+    if segments.iter().any(String::is_empty) {
+        return None;
+    }
+    Some(segments)
+}
+
+fn shell_words(segment: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for ch in segment.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' && quote != Some('\'') {
+            escaped = true;
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+        } else if ch.is_whitespace() {
+            if !current.is_empty() {
+                words.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(ch);
+        }
+    }
+    if escaped || quote.is_some() {
+        return vec![];
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    words
 }
 
 fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
@@ -830,31 +1047,32 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         let after = part.trim_start_matches('>').trim();
         if let Some(path) = after.split_whitespace().next() {
             let clean = path.trim_matches('"').trim_matches('\'');
-            if clean == "/dev/null" {
+            if matches!(clean, "/dev/null" | "&1" | "&2" | "&&" | "||") {
                 continue;
             }
-            if looks_like_path(clean) {
-                targets.push(clean.to_string());
-            }
+            // A redirect target does not need a slash or extension to be a
+            // real write target (for example, `> output`).
+            targets.push(clean.to_string());
         }
     }
 
-    // tee write
-    if cmd.contains("tee") {
-        let segments: Vec<&str> = cmd.split("tee").collect();
-        for segment in segments.iter().skip(1) {
-            let after = segment.trim_start();
-            let skip_flags: &[&str] = &["-a", "--append"];
-            let mut tokens = after.split_whitespace();
-            while let Some(token) = tokens.next() {
-                if skip_flags.contains(&token) {
-                    continue;
-                }
-                let clean = token.trim_matches('"').trim_matches('\'');
-                if looks_like_path(clean) {
-                    targets.push(clean.to_string());
-                    break;
-                }
+    // tee write: match the executable token exactly so metadata such as
+    // `steer` in --refs cannot be split into a false `tee` command.
+    let tokens = shell_words(cmd);
+    for (index, token) in tokens.iter().enumerate() {
+        if token != "tee" && !token.ends_with("/tee") {
+            continue;
+        }
+        for target in tokens.iter().skip(index + 1) {
+            if matches!(target.as_str(), "|" | ";" | "&&" | "||" | ">" | ">>") {
+                break;
+            }
+            if target == "-a" || target == "--append" || target.starts_with('-') {
+                continue;
+            }
+            if target != "/dev/null" && !target.is_empty() {
+                targets.push(target.clone());
+                break;
             }
         }
     }
@@ -874,7 +1092,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
                 .collect();
             if let Some(dest) = tokens.last() {
                 let clean = dest.trim_matches('"').trim_matches('\'');
-                if looks_like_path(clean) {
+                if !clean.is_empty() && clean != "/dev/null" && !clean.starts_with('-') {
                     targets.push(clean.to_string());
                 }
             }
@@ -909,7 +1127,7 @@ fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
         for token in cmd.split_whitespace() {
             if let Some(stripped) = token.strip_prefix("of=") {
                 let clean = stripped.trim_matches('"').trim_matches('\'');
-                if looks_like_path(clean) {
+                if !clean.is_empty() && clean != "/dev/null" {
                     targets.push(clean.to_string());
                 }
             }

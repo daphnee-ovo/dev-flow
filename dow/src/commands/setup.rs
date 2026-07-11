@@ -38,7 +38,15 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
             Err(e) => eprintln!(" Failed to inject global instructions: {}", e),
         }
 
-        register_with_agent(agent_name);
+        register_with_agent(agent_name).map_err(|e| {
+            DowError::new(
+                &format!(
+                    "{} registration failed: {}",
+                    agent_display_name(agent_name), e
+                ),
+                1,
+            )
+        })?;
 
         config.add_agent(agent_name);
         eprintln!("[dow] ✓ {} registration completed", agent_display_name(agent_name));
@@ -107,7 +115,7 @@ fn interactive_select() -> Result<Vec<String>, DowError> {
         .collect())
 }
 
-fn register_with_agent(agent: &str) {
+fn register_with_agent(agent: &str) -> Result<(), String> {
     match agent {
         "claude" => {
             if let Some(plugin_dir) = platform::agent_plugin_dir("claude") {
@@ -135,22 +143,15 @@ fn register_with_agent(agent: &str) {
                         .output();
                 }
             }
+            Ok(())
         }
-        "codex" => {
-            if let Some(plugin_dir) = platform::agent_plugin_dir("codex") {
-                if let Err(e) = register_codex_plugin(&plugin_dir) {
-                    eprintln!("Codex plugin registration failed: {}", e);
-                }
-            }
-        }
-        "kiro" => {
-            if let Some(plugin_dir) = platform::agent_plugin_dir("kiro") {
-                if let Err(e) = register_kiro_plugin(&plugin_dir) {
-                    eprintln!("Kiro plugin registration failed: {}", e);
-                }
-            }
-        }
-        _ => {}
+        "codex" => platform::agent_plugin_dir("codex")
+            .map(|plugin_dir| register_codex_plugin(&plugin_dir))
+            .unwrap_or_else(|| Err("Cannot determine Codex plugin directory".to_string())),
+        "kiro" => platform::agent_plugin_dir("kiro")
+            .map(|plugin_dir| register_kiro_plugin(&plugin_dir))
+            .unwrap_or_else(|| Err("Cannot determine Kiro plugin directory".to_string())),
+        _ => Ok(()),
     }
 }
 
@@ -227,6 +228,9 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
 }
 
 fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
+    let codex_bin = resolve_codex_binary()?;
+    eprintln!("[dow] Using Codex runtime: {}", codex_bin.display());
+
     cleanup_legacy_codex_paths()?;
     install_codex_marketplace_manifest(plugin_dir)?;
     let stage_root = install_codex_personal_marketplace(plugin_dir)?;
@@ -234,7 +238,7 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
     set_codex_feature_enabled("plugin_hooks", true)?;
     set_codex_root_bool("suppress_unstable_features_warning", true)?;
 
-    let add = std::process::Command::new("codex")
+    let add = std::process::Command::new(&codex_bin)
         .args([
             "plugin",
             "marketplace",
@@ -247,17 +251,20 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Codex marketplace registration command failed: {}", stderr.trim());
+            return Err(format!(
+                "Codex marketplace registration command failed: {}",
+                stderr.trim()
+            ));
         }
-        Err(e) => eprintln!("Codex CLI not available, only wrote to local marketplace: {}", e),
+        Err(e) => return Err(format!("Codex runtime invocation failed: {}", e)),
     }
 
     // Remove first then add to ensure Codex reinstalls plugin to correct cache structure
-    let _ = std::process::Command::new("codex")
+    let _ = std::process::Command::new(&codex_bin)
         .args(["plugin", "remove", "dev-flow@dev-flow-local"])
         .output();
 
-    let install = std::process::Command::new("codex")
+    let install = std::process::Command::new(&codex_bin)
         .args(["plugin", "add", "dev-flow@dev-flow-local"])
         .output();
 
@@ -265,9 +272,9 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Codex plugin install failed: {}", stderr.trim());
+            return Err(format!("Codex plugin install failed: {}", stderr.trim()));
         }
-        Err(e) => eprintln!("Codex plugin install unavailable: {}", e),
+        Err(e) => return Err(format!("Codex plugin install invocation failed: {}", e)),
     }
 
     remove_codex_config_section("[marketplaces.dev-flow]")?;
@@ -277,12 +284,89 @@ fn register_codex_plugin(plugin_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn resolve_codex_binary() -> Result<PathBuf, String> {
+    if let Ok(explicit) = env::var("CODEX_BIN") {
+        let explicit = explicit.trim();
+        if !explicit.is_empty() {
+            let path = PathBuf::from(explicit);
+            if is_executable_file(&path) {
+                return Ok(path);
+            }
+            return Err(format!(
+                "CODEX_BIN does not point to an executable file: {}",
+                path.display()
+            ));
+        }
+    }
+
+    // Prefer the runtime bundled with Codex/ChatGPT App. The app may be the
+    // only installed Codex surface and does not have to expose `codex` in PATH.
+    if let Some(path) = platform::codex_cli_candidates()
+        .into_iter()
+        .find(|path| is_executable_file(path))
+    {
+        return Ok(path);
+    }
+
+    // Fall back to a standalone CLI or a user-provided PATH entry.
+    if let Some(path) = executable_on_path("codex") {
+        return Ok(path);
+    }
+
+    Err(
+        "Codex runtime not found. Set CODEX_BIN or install Codex/ChatGPT App with its bundled runtime."
+            .to_string(),
+    )
+}
+
+fn executable_on_path(name: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    for directory in env::split_paths(&path_var) {
+        let candidate = directory.join(name);
+        if is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+
+        #[cfg(windows)]
+        {
+            let candidate = directory.join(format!("{}.exe", name));
+            if is_executable_file(&candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return fs::metadata(path)
+            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 fn cleanup_legacy_codex_paths() -> Result<(), String> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
         .map_err(|_| "Cannot determine user HOME directory".to_string())?;
     let home = Path::new(&home);
-    let legacy_plugin = home.join(".codex").join("plugins").join(CODEX_PLUGIN_NAME);
+    let legacy_plugin = home
+        .join(".codex")
+        .join("plugins")
+        .join("plugins")
+        .join(CODEX_PLUGIN_NAME);
     if legacy_plugin.exists() {
         fs::remove_dir_all(&legacy_plugin)
             .map_err(|e| format!("Failed to clean up old Codex plugin directory: {}", e))?;
@@ -311,6 +395,13 @@ fn install_codex_personal_skill(plugin_dir: &Path) -> Result<(), String> {
 
     if target.exists() {
         fs::remove_dir_all(&target).map_err(|e| format!("Failed to clean up Codex skill: {}", e))?;
+    }
+
+    // New Codex bundles expose command skills directly and do not include the
+    // old aggregate skills/dev-flow skill. Keep that bundle layout valid while
+    // still supporting older bundles that provide the aggregate skill.
+    if !source.is_dir() {
+        return Ok(());
     }
 
     copy_dir_recursive(&source, &target).map_err(|e| format!("Failed to install Codex skill: {}", e))
