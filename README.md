@@ -217,12 +217,13 @@ No manual operations needed:
 
 ### Document-Driven Development
 
-The plugin maintains a `.dev-doc/` directory in your project:
+The plugin maintains a `.dev-doc/` directory in your project, organized by branch:
 
 ```
 .dev-doc/
 ├── archive.db             # SQLite archive queried by `dow archive ...`
-└── main/                  # Current branch workflow documents
+├── preIterate.ci          # Pre-iteration CI steps (optional)
+└── <branch>/              # Current branch workflow documents (main/beta/...)
     ├── STATUS.yaml        # Project status
     ├── CHANGELOG.md       # Session changelog (append-only)
     ├── BRAINSTORM.md      # Brainstorming notes
@@ -240,13 +241,53 @@ The plugin maintains a `.dev-doc/` directory in your project:
 If `.dev-doc/preIterate.ci` exists, `dow iterate --confirm` runs its steps before archive, commit, tag, and bump. A failing step stops the whole iteration. Supported steps are `sync-version: <path>` for explicit Cargo/npm/uv project manifests and `run: <command>` for project-local checks, lockfile updates, or generators.
 
 ```text
+run: bash tests/test_all.sh
 sync-version: dow/Cargo.toml
 sync-version: npm/dev-flow/package.json
 run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
-run: npm run build
 ```
 
 `dow rollback --version <v>` is the inverse of iterate — it restores archived tasks, issues, and documents from the database, handles file sequence conflicts, and marks the iteration as rolled back. Use `dow rollback --list` to see rollback-able versions.
+
+### Web Dashboard & Dependency Graph
+
+`dow dashboard` launches a local web dashboard with:
+
+- **Kanban board** — tasks and issues grouped by status (Open, In Progress, Pending, Closed, Done)
+- **Dependency graph** — visualizes explicit and implicit task/issue dependencies using D3 + dagre. Implicit edges are inferred from file intersections between tasks. In-progress nodes blink.
+- **Document viewer** — browse PRD, SPEC, TEST docs inline
+- **Filtering** — filter by priority (P0/P1/P2) and status
+- **Status overview** — current phase, mode, and iteration state
+
+### Claim System
+
+`dow claim` lets agents claim a task or issue before working on it:
+
+- **Dependency check** — blocks claiming if upstream dependencies are unresolved
+- **File scope enforcement** — guard hook warns when writing outside declared files
+- **Claim lock** — stored in `.dev-doc/<branch>/claim.lock`, prevents concurrent claims
+- **In Progress visibility** — claimed items appear in the dashboard's In Progress column
+
+### Issue Tracking
+
+Issues support a full lifecycle beyond tasks:
+
+- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity
+- **Multi-line values**: description/reproduce/fix support YAML indented continuation format
+- **Close enforcement**: closing requires a non-empty fix field
+- **Incremental array updates**: `--files +src/foo.rs -src/bar.rs` to add/remove specific items
+- **Fix workflow**: `/fix` reads open issues and resolves them systematically
+
+### Multi-Branch VERSION
+
+The `VERSION` file supports independent version tracking per branch:
+
+```
+(main)0.2.4
+(beta)0.3.5
+```
+
+`build.rs` detects the current branch via `git rev-parse` and selects the correct version line at compile time. Both `dow version` and the built binary report the branch-specific version.
 
 ---
 
@@ -257,7 +298,7 @@ dev-flow supports both **Claude Code** and **OpenAI Codex CLI** through a shared
 | Component | Claude Code | Codex CLI |
 |-----------|-------------|-----------|
 | Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` |
-| Hooks config | `hooks/hooks.json` | `hooks.json` (root) |
+| Hooks config | `targets/claude/hooks.json` | `targets/codex/hooks.json` |
 | Project instructions | `CLAUDE.md` | `AGENTS.md` |
 | Sub-agent API | `Agent({...})` | `spawn_agent` |
 
@@ -272,12 +313,24 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow setup [--agent claude\|codex\|all]` | Register plugin with agents (interactive TUI) |
 | `dow update` | Self-update binary + plugins |
 | `dow self-check` | Show install status and health |
+| `dow doctor [--fix]` | Diagnose .dev-doc structure, spec, and consistency |
 | `dow status` | Read/write STATUS.yaml |
-| `dow iterate` | Delivery: archive + commit + tag + bump |
+| `dow claim <TASK-ID\|ISSUE-ID>` | Claim a task or issue (with dependency check) |
+| `dow task create/update/show/list` | Task lifecycle management |
+| `dow issue create/update/close/show/list` | Issue lifecycle management |
+| `dow fix` | Compatibility alias for `dow doctor --fix` |
+| `dow devtest [--task <id>]` | Task-level verification |
+| `dow test [--file <x>]` | Full project-level test suite |
+| `dow check` | Check if dev work is synced with .dev-doc |
+| `dow scan` | Project structure scan |
+| `dow version [--set X.Y.Z] [--bump patch]` | Read/write multi-branch VERSION |
+| `dow iterate [--confirm]` | Delivery: archive + commit + tag + bump |
 | `dow rollback --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
 | `dow doc <type>` | Generate/query document templates |
-| `dow dashboard [--port PORT]` | Launch local web dashboard (dependency graph, status, docs) |
+| `dow dashboard [--port PORT]` | Launch local web dashboard (dependency graph, kanban, docs) |
+| `dow mod` | Set development mode |
 | `dow hooks ...` | Hook dispatch (context, guard, post-write) |
+| `dow archive list/show/tasks/issues/doc` | Query historical iterations from archive.db |
 
 ---
 
@@ -321,41 +374,69 @@ The dashboard displays your project's task/issue dependency graph, kanban board,
 
 ```
 dev-flow/
-├── dow/                        # Rust CLI source (the dow binary)
+├── dow/                           # Rust CLI source (the dow binary)
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
-│   │   ├── commands/           # Subcommand implementations
-│   │   │   ├── setup.rs        # dow setup
-│   │   │   ├── update.rs       # dow update
-│   │   │   └── self_check.rs   # dow self-check
-│   │   ├── hooks/              # Hook implementations
-│   │   └── core/               # Shared libraries
-│   │       ├── config.rs       # ~/.config/dow/config.toml
-│   │       ├── platform.rs     # XDG paths, platform detection
-│   │       ├── github.rs       # Release API, self-update
+│   │   ├── commands/              # 26 subcommand implementations
+│   │   │   ├── setup.rs          # dow setup
+│   │   │   ├── doctor.rs         # dow doctor
+│   │   │   ├── claim.rs          # dow claim
+│   │   │   ├── dashboard.rs      # dow dashboard
+│   │   │   ├── issue.rs          # dow issue
+│   │   │   ├── task.rs           # dow task
+│   │   │   ├── iterate.rs        # dow iterate
+│   │   │   ├── rollback.rs       # dow rollback
+│   │   │   ├── version.rs        # dow version
+│   │   │   └── ...
+│   │   ├── hooks/                # Hook implementations
+│   │   │   ├── context.rs
+│   │   │   ├── guard.rs
+│   │   │   ├── post_write.rs
+│   │   │   ├── post_bash.rs
+│   │   │   └── save_changelog.rs
+│   │   └── core/                 # Shared libraries
+│   │       ├── config.rs         # ~/.config/dow/config.toml
+│   │       ├── platform.rs       # XDG paths, platform detection
+│   │       ├── github.rs         # Release API, self-update
+│   │       ├── archive_db.rs     # SQLite archive queries
+│   │       ├── doc_validator.rs  # Document format validation
+│   │       ├── doc_root.rs       # .dev-doc root resolution
+│   │       ├── task_store.rs     # Task file I/O
+│   │       ├── version.rs        # Multi-branch VERSION
+│   │       ├── claim.rs          # Claim lock management
+│   │       ├── yaml.rs           # YAML frontmatter utilities
 │   │       └── agent_registry.rs # Plugin deployment
+│   ├── dashboard-frontend/       # Web dashboard (graph, kanban, viewer)
+│   │   ├── graph.js
+│   │   ├── views.js
+│   │   ├── style.css
+│   │   └── vendor/
+│   ├── references/               # Inject prompts & document specs
 │   └── Cargo.toml
-├── plugin/                     # Shared plugin content (agent-agnostic)
-│   ├── skills/
-│   ├── commands/
-│   └── agents/
-├── targets/                    # Per-agent adapter layer
+├── plugin/                       # Shared plugin content (agent-agnostic)
+│   ├── commands/                 # Slash command markdown files
+│   └── agents/                   # Sub-agent prompt definitions
+├── targets/                      # Per-agent adapter layer
 │   ├── claude/
 │   │   ├── plugin.json
 │   │   └── hooks.json
 │   └── codex/
 │       ├── plugin.json
 │       └── hooks.json
-├── install/                    # One-line install scripts
-│   ├── install.sh              # curl | bash
-│   └── install.ps1             # irm | iex
-├── examples/                   # Quickstart and workflow walkthroughs
-├── devtools/                   # Development helpers
-│   ├── assemble.sh             # Assemble dist/<agent>/
-│   └── deploy-local.sh         # Build + deploy locally
+├── npm/dev-flow/                 # npm package (@xin_yue/dev-flow)
+├── install/                      # One-line install scripts
+│   ├── install.sh                # curl | bash
+│   └── install.ps1               # irm | iex
+├── examples/                     # Quickstart and workflow walkthroughs
+├── devtools/                     # Development helpers
+│   ├── assemble.sh               # Assemble dist/<agent>/
+│   └── deploy-local.sh           # Build + deploy locally
+├── scripts/                      # Utility shell scripts
 ├── .github/workflows/
-│   └── release.yml             # CI: tag → build → GitHub Release
+│   ├── release.yml               # CI: tag → build → GitHub Release
+│   ├── build-dow.yml             # Build verification
+│   └── test.yml                  # Test suite
 ├── VERSION
 ├── CLAUDE.md
 ├── AGENTS.md

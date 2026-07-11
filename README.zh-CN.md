@@ -217,12 +217,13 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 ### 文档驱动开发
 
-插件在项目中维护 `.dev-doc/` 目录：
+插件在项目中维护 `.dev-doc/` 目录，按分支组织：
 
 ```
 .dev-doc/
 ├── archive.db             # SQLite 归档，通过 `dow archive ...` 查询
-└── main/                  # 当前分支流程文档
+├── preIterate.ci          # 可选的迭代前 CI 步骤
+└── <分支名>/              # 当前分支流程文档（main/beta/...）
     ├── STATUS.yaml        # 项目状态
     ├── CHANGELOG.md       # 会话变更日志（追加式）
     ├── BRAINSTORM.md      # 头脑风暴
@@ -240,11 +241,51 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 如果存在 `.dev-doc/preIterate.ci`，`dow iterate --confirm` 会先执行其中的 steps，再归档、commit、tag、bump。任一步失败都会阻断整个 iterate。支持 `sync-version: <path>` 同步显式声明的 Cargo/npm/uv 清单版本，也支持 `run: <command>` 执行项目内检查、lockfile 更新或生成命令。
 
 ```text
+run: bash tests/test_all.sh
 sync-version: dow/Cargo.toml
 sync-version: npm/dev-flow/package.json
 run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
-run: npm run build
 ```
+
+### Web 看板与依赖图
+
+`dow dashboard` 启动本地 web 看板，包含：
+
+- **看板视图** — 按状态（Open、In Progress、Pending、Closed、Done）分组的任务和 issue
+- **依赖图** — 使用 D3 + dagre 可视化显式和隐式任务/issue 依赖。隐式依赖基于任务间文件交集推断。进行中的节点闪烁。
+- **文档查看器** — 内联浏览 PRD、SPEC、TEST 文档
+- **筛选** — 按优先级（P0/P1/P2）和状态过滤
+- **状态概览** — 当前阶段、模式和迭代状态
+
+### Claim 认领系统
+
+`dow claim` 让 agent 在开始工作前认领 task 或 issue：
+
+- **依赖检查** — 上游依赖未解决时阻止认领
+- **文件范围保护** — guard hook 在写入声明文件之外时发出警告
+- **认领锁** — 存储在 `.dev-doc/<分支>/claim.lock`，防止并发认领
+- **In Progress 可见性** — 已认领在看板的 In Progress 列显示
+
+### Issue 跟踪
+
+Issue 支持完整的生命周期：
+
+- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity
+- **多行值**：description/reproduce/fix 支持 YAML 缩进续行格式
+- **关闭强制**：关闭时必须填写非空 fix 字段
+- **增量数组更新**：`--files +src/foo.rs -src/bar.rs` 增减特定项
+- **修复流程**：`/fix` 读取未关闭 issue 并系统化修复
+
+### 多分支 VERSION
+
+`VERSION` 文件支持各分支独立版本管理：
+
+```
+(main)0.2.4
+(beta)0.3.5
+```
+
+`build.rs` 通过 `git rev-parse` 检测当前分支，编译时选择对应的版本行。`dow version` 和编译后的二进制都返回分支特有版本。
 
 ---
 
@@ -255,7 +296,7 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | 组件 | Claude Code | Codex CLI |
 |------|-------------|-----------|
 | 插件 manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` |
-| Hooks 配置 | `hooks/hooks.json` | `hooks.json`（根目录） |
+| Hooks 配置 | `targets/claude/hooks.json` | `targets/codex/hooks.json` |
 | 项目指令 | `CLAUDE.md` | `AGENTS.md` |
 | 子代理 API | `Agent({...})` | `spawn_agent` |
 
@@ -270,11 +311,24 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
 | `dow self-check` | 查看安装状态 |
+| `dow doctor [--fix]` | 诊断 .dev-doc 结构和规范一致性 |
 | `dow status` | 读写 STATUS.yaml |
-| `dow iterate` | 交付：归档 + commit + tag + bump |
+| `dow claim <TASK-ID\|ISSUE-ID>` | 认领 task 或 issue（含依赖检查） |
+| `dow task create/update/show/list` | Task 全生命周期管理 |
+| `dow issue create/update/close/show/list` | Issue 全生命周期管理 |
+| `dow fix` | `dow doctor --fix` 的兼容别名 |
+| `dow devtest [--task <id>]` | 任务级验证 |
+| `dow test [--file <x>]` | 项目级全量测试 |
+| `dow check` | 检查开发工作是否同步到 .dev-doc |
+| `dow scan` | 项目结构扫描 |
+| `dow version [--set X.Y.Z] [--bump patch]` | 读写多分支 VERSION |
+| `dow iterate [--confirm]` | 交付：归档 + commit + tag + bump |
+| `dow rollback --version <v>` | 回滚迭代：从归档恢复任务/issue/文档 |
 | `dow doc <type>` | 生成/查询文档模板 |
-| `dow dashboard [--port PORT]` | 启动本地 web 可视化面板（依赖图 + 状态 + 文档） |
+| `dow dashboard [--port PORT]` | 启动本地 web 看板（依赖图 + 看板 + 文档） |
+| `dow mod` | 设置开发模式 |
 | `dow hooks ...` | Hook 调度（context, guard, post-write） |
+| `dow archive list/show/tasks/issues/doc` | 从 archive.db 查询历史迭代 |
 
 ---
 
@@ -318,41 +372,69 @@ Dashboard 展示项目的任务/Issue 依赖图、看板、文档查看器和状
 
 ```
 dev-flow/
-├── dow/                        # Rust CLI 源码（dow 二进制）
+├── dow/                           # Rust CLI 源码（dow 二进制）
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
-│   │   ├── commands/           # 子命令实现
-│   │   │   ├── setup.rs        # dow setup
-│   │   │   ├── update.rs       # dow update
-│   │   │   └── self_check.rs   # dow self-check
-│   │   ├── hooks/              # Hook 实现
-│   │   └── core/               # 公共库
-│   │       ├── config.rs       # ~/.config/dow/config.toml
-│   │       ├── platform.rs     # XDG 路径、平台检测
-│   │       ├── github.rs       # Release API、自更新
+│   │   ├── commands/              # 26 个子命令实现
+│   │   │   ├── setup.rs          # dow setup
+│   │   │   ├── doctor.rs         # dow doctor
+│   │   │   ├── claim.rs          # dow claim
+│   │   │   ├── dashboard.rs      # dow dashboard
+│   │   │   ├── issue.rs          # dow issue
+│   │   │   ├── task.rs           # dow task
+│   │   │   ├── iterate.rs        # dow iterate
+│   │   │   ├── rollback.rs       # dow rollback
+│   │   │   ├── version.rs        # dow version
+│   │   │   └── ...
+│   │   ├── hooks/                # Hook 实现
+│   │   │   ├── context.rs
+│   │   │   ├── guard.rs
+│   │   │   ├── post_write.rs
+│   │   │   ├── post_bash.rs
+│   │   │   └── save_changelog.rs
+│   │   └── core/                 # 公共库
+│   │       ├── config.rs         # ~/.config/dow/config.toml
+│   │       ├── platform.rs       # XDG 路径、平台检测
+│   │       ├── github.rs         # Release API、自更新
+│   │       ├── archive_db.rs     # SQLite 归档查询
+│   │       ├── doc_validator.rs  # 文档格式校验
+│   │       ├── doc_root.rs       # .dev-doc 根目录定位
+│   │       ├── task_store.rs     # 任务文件读写
+│   │       ├── version.rs        # 多分支 VERSION
+│   │       ├── claim.rs          # Claim 锁管理
+│   │       ├── yaml.rs           # YAML frontmatter 工具
 │   │       └── agent_registry.rs # 插件部署
+│   ├── dashboard-frontend/       # Web 看板前端（图、看板、查看器）
+│   │   ├── graph.js
+│   │   ├── views.js
+│   │   ├── style.css
+│   │   └── vendor/
+│   ├── references/               # 注入提示词与文档规范
 │   └── Cargo.toml
-├── plugin/                     # 共享插件内容（agent 无关）
-│   ├── skills/
-│   ├── commands/
-│   └── agents/
-├── targets/                    # 各 agent 适配层
+├── plugin/                       # 共享插件内容（agent 无关）
+│   ├── commands/                 # Slash command markdown 文件
+│   └── agents/                   # Sub-agent prompt 定义
+├── targets/                      # 各 agent 适配层
 │   ├── claude/
 │   │   ├── plugin.json
 │   │   └── hooks.json
 │   └── codex/
 │       ├── plugin.json
 │       └── hooks.json
-├── install/                    # 一条命令安装脚本
-│   ├── install.sh              # curl | bash
-│   └── install.ps1             # irm | iex
-├── examples/                   # 快速开始和流程示例
-├── devtools/                   # 开发辅助
-│   ├── assemble.sh             # 组装 dist/<agent>/
-│   └── deploy-local.sh         # 编译 + 本地部署
+├── npm/dev-flow/                 # npm 包（@xin_yue/dev-flow）
+├── install/                      # 一条命令安装脚本
+│   ├── install.sh                # curl | bash
+│   └── install.ps1               # irm | iex
+├── examples/                     # 快速开始和流程示例
+├── devtools/                     # 开发辅助
+│   ├── assemble.sh               # 组装 dist/<agent>/
+│   └── deploy-local.sh           # 编译 + 本地部署
+├── scripts/                      # 工具脚本
 ├── .github/workflows/
-│   └── release.yml             # CI：tag → 构建 → GitHub Release
+│   ├── release.yml               # CI：tag → 构建 → GitHub Release
+│   ├── build-dow.yml             # 构建验证
+│   └── test.yml                  # 测试套件
 ├── VERSION
 ├── CLAUDE.md
 ├── AGENTS.md
