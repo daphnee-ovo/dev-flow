@@ -367,7 +367,7 @@ fn test_context_blocks_when_no_task_files() {
 }
 
 #[test]
-fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
+fn test_context_codex_hook_injects_context_without_blocking() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
 
@@ -379,7 +379,8 @@ fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
 
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(json["decision"], "block");
+    assert!(json.get("decision").is_none());
+    assert!(json.get("reason").is_none());
     assert_eq!(
         json["hookSpecificOutput"]["hookEventName"],
         "UserPromptSubmit"
@@ -390,6 +391,7 @@ fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
         .unwrap();
     let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
     assert_eq!(context["blocked"], true);
+    assert!(context["guard_notice"].as_str().is_some());
     assert!(context["reason"].as_str().unwrap().contains("dow task create"));
 }
 
