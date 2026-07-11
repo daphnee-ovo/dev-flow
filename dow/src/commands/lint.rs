@@ -1,7 +1,7 @@
 // dow/src/commands/
-// ├── lint.rs  -- dow lint (merged check + validate + fix)
+// ├── lint.rs  -- dow doctor (merged check + validate + fix)
 //
-// Unified linting command that merges logic from:
+// Unified doctor command that merges logic from:
 // - check.rs: changelog, task completion, issue status, time sync, phase files, spec AC, task nums
 // - validate.rs: directory structure, file naming, gitignore
 // - doc_validator::validate_all(): frontmatter, field validation, sequence checks
@@ -11,7 +11,7 @@
 // - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
 // - [TASK Specification](../../../references/.dev-doc/TASK-FILE.md)
 
-use crate::cli::LintArgs;
+use crate::cli::DoctorArgs;
 use crate::core::{doc_root, doc_validator, yaml};
 use crate::error::DowError;
 use crate::output;
@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Serialize)]
-struct LintOutput {
+struct DoctorOutput {
     pass: bool,
     errors: Vec<String>,
     warnings: Vec<String>,
@@ -31,7 +31,7 @@ struct LintOutput {
     fixed: Vec<String>,
 }
 
-pub fn run(args: LintArgs, human: bool) -> Result<i32, DowError> {
+pub fn run(args: DoctorArgs, human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let status_file = doc_root_path.join("STATUS.yaml");
 
@@ -123,7 +123,7 @@ pub fn run(args: LintArgs, human: bool) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    let result = LintOutput { pass, errors, warnings, ok, fixed };
+    let result = DoctorOutput { pass, errors, warnings, ok, fixed };
 
     if human {
         print_human(&result, &phase);
@@ -608,7 +608,7 @@ fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
 
     if needs_write {
         if let Err(e) = fs::write(path, &new_content) {
-            eprintln!("[dow lint] warning: failed to write {}: {}", filename, e);
+            eprintln!("[dow doctor] warning: failed to write {}: {}", filename, e);
             unfixable.push(format!("{}: write failed - {}", filename, e));
         }
     }
@@ -664,7 +664,7 @@ fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
 
     if needs_write {
         if let Err(e) = fs::write(path, &new_content) {
-            eprintln!("[dow lint] warning: failed to write {}: {}", filename, e);
+            eprintln!("[dow doctor] warning: failed to write {}: {}", filename, e);
             unfixable.push(format!("{}: write failed - {}", filename, e));
         }
     }
@@ -720,7 +720,7 @@ fn fix_issue_filename_source(issue_dir: &Path, fixed: &mut Vec<String>) {
             continue;
         }
         if let Err(e) = fs::rename(entry.path(), &new_path) {
-            eprintln!("[dow lint] warning: failed to rename {} -> {}: {}", name, new_name, e);
+            eprintln!("[dow doctor] warning: failed to rename {} -> {}: {}", name, new_name, e);
         } else {
             fixed.push(format!("{}: renamed to {} (added source)", name, new_name));
         }
@@ -774,7 +774,7 @@ fn fix_issue_rename(issue_dir: &Path, fixed: &mut Vec<String>) {
             if !new_path.exists() {
                 if let Err(e) = fs::rename(entry.path(), &new_path) {
                     eprintln!(
-                        "[dow lint] warning: failed to rename {} -> {}: {}",
+                        "[dow doctor] warning: failed to rename {} -> {}: {}",
                         name, new_name, e
                     );
                 } else {
@@ -811,7 +811,7 @@ fn fix_task_rename(task_dir: &Path, fixed: &mut Vec<String>) {
             if !new_path.exists() {
                 if let Err(e) = fs::rename(entry.path(), &new_path) {
                     eprintln!(
-                        "[dow lint] warning: failed to rename {} -> {}: {}",
+                        "[dow doctor] warning: failed to rename {} -> {}: {}",
                         name, new_name, e
                     );
                 } else {
@@ -945,7 +945,7 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
         };
         if let Err(e) = fs::write(file_path, &final_content) {
             eprintln!(
-                "[dow lint] warning: failed to write {}: {}",
+                "[dow doctor] warning: failed to write {}: {}",
                 file_path.display(),
                 e
             );
@@ -1040,8 +1040,8 @@ fn extract_issue_num(title: &str) -> Option<u32> {
 // Human output
 // ══════════════════════════════════════════════════════════════════════════════
 
-fn print_human(result: &LintOutput, phase: &str) {
-    println!("[dow lint] .dev-doc lint report");
+fn print_human(result: &DoctorOutput, phase: &str) {
+    println!("[dow doctor] .dev-doc diagnostic report");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
     println!("Phase: {}", phase);
     println!();

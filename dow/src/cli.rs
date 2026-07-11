@@ -58,8 +58,11 @@ pub enum Commands {
     /// Initialize dev-flow workflow management
     Init(InitArgs),
 
-    /// Lint .dev-doc (structure + spec + consistency check)
-    Lint(LintArgs),
+    /// Diagnose .dev-doc structure, spec, and consistency
+    Doctor(DoctorArgs),
+
+    /// Compatibility alias for `dow doctor --fix`
+    Fix,
 
     /// Iteration delivery
     Iterate(IterateArgs),
@@ -225,19 +228,19 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// Files to modify (comma-separated)
+    /// Files to modify (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_modify: Option<String>,
 
-    /// Files to create (comma-separated)
+    /// Files to create (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_create: Option<String>,
 
-    /// Test files (comma-separated)
+    /// Test files (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_test: Option<String>,
 
-    /// Dependencies (comma-separated task IDs)
+    /// Dependencies (comma-separated task IDs; +item to append, -item to remove)
     #[arg(long)]
     pub depends_on: Option<String>,
 
@@ -249,7 +252,7 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub complexity: Option<String>,
 
-    /// Done-when criteria (comma-separated)
+    /// Done-when criteria (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub done_when: Option<String>,
 }
@@ -359,11 +362,11 @@ pub struct IssueUpdateArgs {
     #[arg(long)]
     pub fix: Option<String>,
 
-    /// Files to modify (comma-separated, supports brace expansion)
+    /// Files to modify (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_modify: Option<String>,
 
-    /// Files to create (comma-separated, supports brace expansion)
+    /// Files to create (comma-separated; +item to append, -item to remove)
     #[arg(long)]
     pub files_create: Option<String>,
 }
@@ -472,10 +475,10 @@ pub struct StatusSetArgs {
     pub goals_major: Option<String>,
 }
 
-// ─── Lint ────────────────────────────────────────────────────────────────────
+// ─── Doctor ──────────────────────────────────────────────────────────────────
 
 #[derive(clap::Args)]
-pub struct LintArgs {
+pub struct DoctorArgs {
     /// Auto-fix fixable issues
     #[arg(long)]
     pub fix: bool,

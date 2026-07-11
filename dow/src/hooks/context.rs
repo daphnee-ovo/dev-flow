@@ -167,7 +167,9 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         mode,
         phase,
         exec_mode,
-        doc_root: doc_root_path.to_string_lossy().to_string(),
+        doc_root: doc_root_path.strip_prefix(doc_root::project_root())
+            .unwrap_or(&doc_root_path)
+            .to_string_lossy().to_string(),
         tasks: task_stats,
         issues: open_issues,
         goals_minor,
@@ -483,18 +485,12 @@ fn read_version_info() -> (String, String) {
 }
 
 fn print_codex_context(data: &ContextOutput) -> Result<(), DowError> {
-    let (decision, reason) = if data.guard_notice.is_some() {
-        (Some("block"), data.guard_notice.clone())
-    } else {
-        (None, None)
-    };
-
     let context_json = serde_json::to_string(data)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     let output = CodexUserPromptSubmitOutput {
-        decision,
-        reason,
+        decision: None,
+        reason: None,
         hook_specific_output: CodexUserPromptSubmitHookSpecificOutput {
             hook_event_name: "UserPromptSubmit",
             additional_context: context_json,

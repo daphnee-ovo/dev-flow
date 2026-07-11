@@ -1,6 +1,13 @@
+// ─── Util ───
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ─── Home View ───
 let homeInitialized = false;
 let selectedItemId = null;
+const graphFilters = { status: 'active', priority: 'all' };
 
 // Called by graph.js when a node is clicked
 function selectItemFromGraph(taskId) {
@@ -18,7 +25,10 @@ function renderHome(data) {
           <div class="panel" id="status-panel"></div>
           <div class="panel" id="items-panel"></div>
         </div>
-        <div class="graph-container" id="graph-panel"></div>
+        <div class="graph-area">
+          <div class="filter-bar graph-filter-bar" id="graph-filters"></div>
+          <div class="graph-container" id="graph-panel"></div>
+        </div>
       </div>
     `;
     homeInitialized = true;
@@ -46,7 +56,7 @@ function renderHome(data) {
   // Always render the list
   const itemsHtml = items.map(item => {
     const color = item.kind === 'task' ? (colorMap[item.priority] || '#D4C4BE') : (colorMap[item.severity] || '#D4C4BE');
-    return `<li data-item-id="${item.id}"><span class="dot" style="background:${color}"></span><span class="id">${item.id}</span>${item.title}</li>`;
+    return `<li data-item-id="${item.id}"><span class="dot" style="background:${color}"></span><span class="id">${item.id}</span>${esc(item.title)}</li>`;
   }).join('');
 
   panel.innerHTML = `<h3>Tasks</h3><ul class="item-list">${itemsHtml || '<li style="color:var(--color-text-muted)">All clear</li>'}</ul>`;
@@ -59,16 +69,16 @@ function renderHome(data) {
       overlay.className = 'item-detail-overlay';
       overlay.innerHTML = `
         <button class="back-btn" id="back-to-list">← Back</button>
-        <h4>${item.title}</h4>
+        <h4>${esc(item.title)}</h4>
         <div class="meta-row">
           <span class="badge badge-${(item.priority||'P1').toLowerCase()}">${item.priority}</span>
           <span class="badge" style="background:var(--color-surface-alt)">${item.complexity || 'S'}</span>
           <span class="badge" style="background:var(--color-surface-alt)">${item.status}</span>
         </div>
-        ${item.refs ? `<div class="refs">refs: ${item.refs}</div>` : ''}
-        ${(item.depends_on||[]).length ? `<div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">Depends: ${item.depends_on.join(', ')}</div>` : ''}
+        ${item.refs ? `<div class="refs">refs: ${esc(item.refs)}</div>` : ''}
+        ${(item.depends_on||[]).length ? `<div style="font-size:12px;color:var(--color-text-muted);margin:8px 0;">Depends: ${item.depends_on.map(esc).join(', ')}</div>` : ''}
         ${renderFilesSection(item)}
-        ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
+        ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${esc(d)}</li>`).join('') + '</ul>' : ''}
       `;
       panel.appendChild(overlay);
       overlay.querySelector('#back-to-list').addEventListener('click', () => {
@@ -88,8 +98,46 @@ function renderHome(data) {
     });
   });
 
+  // Graph filters
+  const gfEl = document.getElementById('graph-filters');
+  gfEl.innerHTML = `
+    <div class="filter-group">
+      <span class="filter-label">Status</span>
+      <button class="filter-btn ${graphFilters.status === 'all' ? 'active' : ''}" data-gf="status" data-value="all">All</button>
+      <button class="filter-btn ${graphFilters.status === 'active' ? 'active' : ''}" data-gf="status" data-value="active">Active</button>
+      <button class="filter-btn ${graphFilters.status === 'closed' ? 'active' : ''}" data-gf="status" data-value="closed">Closed</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Priority</span>
+      <button class="filter-btn ${graphFilters.priority === 'all' ? 'active' : ''}" data-gf="priority" data-value="all">All</button>
+      <button class="filter-btn ${graphFilters.priority === 'P0' ? 'active' : ''}" data-gf="priority" data-value="P0">P0</button>
+      <button class="filter-btn ${graphFilters.priority === 'P1' ? 'active' : ''}" data-gf="priority" data-value="P1">P1</button>
+      <button class="filter-btn ${graphFilters.priority === 'P2' ? 'active' : ''}" data-gf="priority" data-value="P2">P2</button>
+    </div>
+  `;
+  gfEl.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      graphFilters[btn.dataset.gf] = btn.dataset.value;
+      renderHome(data);
+    });
+  });
+
+  // Filter graph data
+  const filteredTasks = data.tasks.filter(t => {
+    if (graphFilters.status === 'active' && t.status === 'done') return false;
+    if (graphFilters.status === 'closed' && t.status !== 'done') return false;
+    if (graphFilters.priority !== 'all' && t.priority !== graphFilters.priority) return false;
+    return true;
+  });
+  const filteredIssues = data.issues.filter(i => {
+    if (graphFilters.status === 'active' && i.status === 'closed') return false;
+    if (graphFilters.status === 'closed' && i.status !== 'closed') return false;
+    if (graphFilters.priority !== 'all' && i.severity !== graphFilters.priority) return false;
+    return true;
+  });
+
   // Graph
-  renderGraph(document.getElementById('graph-panel'), data.tasks, data.issues);
+  renderGraph(document.getElementById('graph-panel'), filteredTasks, filteredIssues);
 }
 
 // ─── Docs View ───
@@ -173,6 +221,7 @@ function renderTasks(data) {
       <div class="filter-group">
         <span class="filter-label">Status</span>
         <button class="filter-btn ${taskFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${taskFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">In Progress</button>
         <button class="filter-btn ${taskFilters.status === 'pending' ? 'active' : ''}" data-filter="status" data-value="pending">Pending</button>
         <button class="filter-btn ${taskFilters.status === 'done' ? 'active' : ''}" data-filter="status" data-value="done">Done</button>
       </div>
@@ -190,16 +239,16 @@ function renderTasks(data) {
   const sortedTasks = [...tasks].sort(sortById);
   const detailHtml = sortedTasks.map(t => `
     <div class="detail-item ${t.status === 'done' ? 'status-done' : ''}" id="detail-${t.id}">
-      <h4><span class="task-id">${t.id}</span>${t.title}</h4>
+      <h4><span class="task-id">${t.id}</span>${esc(t.title)}</h4>
       <div class="meta">
         <span class="badge badge-${(t.priority||'P1').toLowerCase()}">${t.priority}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.complexity || 'S'}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.type || 'feat'}</span>
       </div>
-      ${t.refs ? `<div class="refs">refs: ${t.refs}</div>` : ''}
-      ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.join(', ')}</div>` : ''}
+      ${t.refs ? `<div class="refs">refs: ${esc(t.refs)}</div>` : ''}
+      ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.map(esc).join(', ')}</div>` : ''}
       ${renderFilesSection(t)}
-      ${(t.done_when||[]).length ? '<ul class="done-when">' + t.done_when.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
+      ${(t.done_when||[]).length ? '<ul class="done-when">' + t.done_when.map(d => `<li>${esc(d)}</li>`).join('') + '</ul>' : ''}
     </div>
   `).join('');
 
@@ -237,13 +286,18 @@ function renderIssues(data) {
   const el = document.getElementById('view-issues');
   const issues = data.issues.filter(i => {
     if (issueFilters.severity !== 'all' && i.severity !== issueFilters.severity) return false;
-    if (issueFilters.status !== 'all' && i.status !== issueFilters.status) return false;
+    if (issueFilters.status !== 'all') {
+      if (issueFilters.status === 'open' && i.status !== 'open' && i.status !== 'in_progress') return false;
+      if (issueFilters.status === 'in_progress' && i.status !== 'in_progress') return false;
+      if (issueFilters.status === 'closed' && i.status !== 'closed') return false;
+    }
     return true;
   });
 
-  const groups = { open: [], closed: [] };
+  const groups = { in_progress: [], open: [], closed: [] };
   issues.forEach(i => { (groups[i.status] || groups.open).push(i); });
   const sortById = (a, b) => a.id.localeCompare(b.id);
+  groups.in_progress.sort(sortById);
   groups.open.sort(sortById);
   groups.closed.sort(sortById);
 
@@ -259,6 +313,7 @@ function renderIssues(data) {
       <div class="filter-group">
         <span class="filter-label">Status</span>
         <button class="filter-btn ${issueFilters.status === 'all' ? 'active' : ''}" data-filter="status" data-value="all">All</button>
+        <button class="filter-btn ${issueFilters.status === 'in_progress' ? 'active' : ''}" data-filter="status" data-value="in_progress">In Progress</button>
         <button class="filter-btn ${issueFilters.status === 'open' ? 'active' : ''}" data-filter="status" data-value="open">Open</button>
         <button class="filter-btn ${issueFilters.status === 'closed' ? 'active' : ''}" data-filter="status" data-value="closed">Closed</button>
       </div>
@@ -267,6 +322,7 @@ function renderIssues(data) {
 
   const kanbanHtml = `
     <div class="kanban">
+      ${renderIssueKanbanCol('In Progress', groups.in_progress)}
       ${renderIssueKanbanCol('Open', groups.open)}
       ${renderIssueKanbanCol('Closed', groups.closed)}
     </div>
@@ -275,11 +331,11 @@ function renderIssues(data) {
   const sortedIssues = [...issues].sort(sortById);
   const detailHtml = sortedIssues.map(i => `
     <div class="detail-item ${i.status === 'closed' ? 'status-done' : ''}" id="detail-${i.id}">
-      <h4><span class="task-id">${i.id}</span>${i.title}</h4>
+      <h4><span class="task-id">${i.id}</span>${esc(i.title)}</h4>
       <div class="meta">
         <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
       </div>
-      ${i.description ? `<p style="font-size:13px;margin-top:8px;color:var(--color-text);">${i.description}</p>` : ''}
+      ${i.description ? `<div class="docs-content" style="font-size:13px;margin-top:8px;color:var(--color-text);">${marked.parse(i.description)}</div>` : ''}
       ${renderIssueFiles(i)}
     </div>
   `).join('');
@@ -322,7 +378,7 @@ function renderKanbanCol(title, tasks) {
     const hidden = i >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
     return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${t.id}">
       <div class="card-id">${t.id} · ${t.complexity || 'S'}</div>
-      <div class="card-title">${t.title}</div>
+      <div class="card-title">${esc(t.title)}</div>
     </div>`;
   }).join('');
   const empty = tasks.length === 0 ? '<div class="kanban-empty">No items</div>' : '';
@@ -340,7 +396,7 @@ function renderIssueKanbanCol(title, issues) {
     const hidden = idx >= KANBAN_FOLD_LIMIT ? ' kanban-card-hidden' : '';
     return `<div class="kanban-card${hidden}" style="border-color:${color};background:${bg}" data-id="${i.id}">
       <div class="card-id">${i.id}</div>
-      <div class="card-title">${i.title}</div>
+      <div class="card-title">${esc(i.title)}</div>
     </div>`;
   }).join('');
   const empty = issues.length === 0 ? '<div class="kanban-empty">No items</div>' : '';

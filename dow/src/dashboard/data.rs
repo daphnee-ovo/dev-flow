@@ -62,10 +62,27 @@ pub struct DocEntry {
 }
 
 pub fn collect_project_data(doc_root: &Path) -> ProjectData {
+    let active_claims = crate::core::claim::get_active_claims(doc_root);
+    let mut tasks = read_tasks(doc_root);
+    let mut issues = read_issues(doc_root);
+
+    for t in &mut tasks {
+        let short = t.id.strip_prefix("TASK-").unwrap_or(&t.id);
+        if t.status == "pending" && active_claims.contains(&short.to_string()) {
+            t.status = "in_progress".to_string();
+        }
+    }
+    for i in &mut issues {
+        let short = i.id.strip_prefix("ISSUE-").unwrap_or(&i.id);
+        if i.status == "open" && active_claims.contains(&short.to_string()) {
+            i.status = "in_progress".to_string();
+        }
+    }
+
     ProjectData {
         status: read_status(doc_root),
-        tasks: read_tasks(doc_root),
-        issues: read_issues(doc_root),
+        tasks,
+        issues,
         docs: read_docs(doc_root),
     }
 }
@@ -299,6 +316,7 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
         let mut description = String::new();
         let mut files_modify = Vec::new();
         let mut files_create = Vec::new();
+        let mut last_field = "";
 
         for j in (i + 1)..lines.len() {
             let sub = lines[j].trim();
@@ -307,14 +325,29 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
             }
             if sub.starts_with("- severity:") {
                 severity = sub.strip_prefix("- severity:").unwrap().trim().to_string();
+                last_field = "severity";
             } else if sub.starts_with("- description:") {
                 description = sub.strip_prefix("- description:").unwrap().trim().to_string();
+                last_field = "description";
             } else if sub.starts_with("- description：") {
                 description = sub.strip_prefix("- description：").unwrap().trim().to_string();
+                last_field = "description";
+            } else if sub.starts_with("- location") || sub.starts_with("- reproduce")
+                || sub.starts_with("- fix") {
+                last_field = "";
             } else if sub.starts_with("- files_modify:") {
                 files_modify = parse_inline_list(sub.strip_prefix("- files_modify:").unwrap());
+                last_field = "";
             } else if sub.starts_with("- files_create:") {
                 files_create = parse_inline_list(sub.strip_prefix("- files_create:").unwrap());
+                last_field = "";
+            } else if last_field == "description" {
+                let raw = lines[j];
+                let continuation = if raw.starts_with("    ") { &raw[4..] } else { sub };
+                description.push('\n');
+                description.push_str(continuation);
+            } else {
+                last_field = "";
             }
         }
 

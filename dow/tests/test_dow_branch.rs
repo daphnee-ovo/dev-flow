@@ -367,7 +367,7 @@ fn test_context_blocks_when_no_task_files() {
 }
 
 #[test]
-fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
+fn test_context_codex_hook_injects_context_without_blocking() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
 
@@ -379,7 +379,8 @@ fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
 
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(json["decision"], "block");
+    assert!(json.get("decision").is_none());
+    assert!(json.get("reason").is_none());
     assert_eq!(
         json["hookSpecificOutput"]["hookEventName"],
         "UserPromptSubmit"
@@ -390,6 +391,7 @@ fn test_context_codex_hook_blocks_with_user_prompt_submit_schema() {
         .unwrap();
     let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
     assert_eq!(context["blocked"], true);
+    assert!(context["guard_notice"].as_str().is_some());
     assert!(context["reason"].as_str().unwrap().contains("dow task create"));
 }
 
@@ -460,6 +462,165 @@ fn test_guard_blocks_code_write_when_all_done() {
     );
     assert!(stdout.contains("deny"), "should deny code write");
     assert!(stdout.contains("dow task create"), "should suggest dow task create");
+}
+
+#[test]
+fn test_guard_allows_task_create_metadata_paths_without_claim() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --title 'fix example' --files-modify src/example.rs --files-create src/generated.rs"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "metadata paths must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_task_create_refs_containing_tee_word() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --title 'fix example' --priority P0 --refs 'User-defined send steer queue interaction-group semantics' --files-modify 'crates/rozsa-app/src/agent_session.rs,crates/rozsa-gui/src/commands.rs' --files-test 'crates/rozsa-gui/tests/turn_diff_test.rs' --complexity L --done-when 'Interaction summary works'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "refs containing `steer` must not create a fake tee target: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_stdin_json_task_create_metadata_paths_without_claim() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let command = "printf '%s' '{\"title\":\"fix example\",\"files_modify\":[\"src/example.rs\"],\"files_create\":[],\"files_test\":[]}' | dow task create";
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {"command": command}
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "stdin metadata paths must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_positional_trusted_flow_command() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "hooks",
+            "guard",
+            "dow task create --files-modify src/example.rs",
+        ])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty(), "got: {}", String::from_utf8_lossy(&output.stdout));
+}
+
+#[test]
+fn test_guard_allows_absolute_current_dow_metadata_command() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+    let command = format!(
+        "{} task create --files-modify src/example.rs",
+        env!("CARGO_BIN_EXE_dow")
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", &command])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty(), "got: {}", String::from_utf8_lossy(&output.stdout));
+}
+
+#[test]
+fn test_guard_does_not_exempt_flow_command_with_redirect() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --files-modify src/example.rs > output"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "got: {}", stdout);
+}
+
+#[test]
+fn test_guard_does_not_exempt_flow_command_with_tee() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --files-modify src/example.rs | tee output"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "got: {}", stdout);
 }
 
 #[test]

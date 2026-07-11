@@ -70,8 +70,11 @@ fn test_task_create_with_flags() {
         .unwrap();
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    // Silent on success
-    assert!(output.stdout.is_empty(), "stdout should be empty on success");
+    // Successful creation returns the generated task ID.
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "TASK-T001"
+    );
 
     // Verify file was created
     let branch = default_branch(&dir);

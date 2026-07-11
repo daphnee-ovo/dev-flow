@@ -67,6 +67,7 @@ fn test_setup_codex_injects_hook_discipline_without_touching_claude() {
         .args(["setup", "--agent", "codex"])
         .env("HOME", &home)
         .env("XDG_DATA_HOME", &data)
+        .env("CODEX_BIN", bin.join("codex"))
         .env("PATH", format!("{}:{}", bin.display(), old_path))
         .output()
         .unwrap();
@@ -84,4 +85,80 @@ fn test_setup_codex_injects_hook_discipline_without_touching_claude() {
 
     let claude_content = fs::read_to_string(&claude_agents).unwrap();
     assert!(!claude_content.contains(CODEX_HOOK_DISCIPLINE_MARKER));
+
+    let plugin_dir = home.join(".codex").join("plugins").join("dev-flow");
+    assert!(plugin_dir.is_dir());
+    assert!(!home
+        .join(".codex")
+        .join("plugins")
+        .join("plugins")
+        .join("dev-flow")
+        .exists());
+}
+
+#[test]
+fn test_setup_codex_returns_failure_when_registration_command_fails() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = temp.path().join("data");
+    let bin = temp.path().join("bin");
+
+    write_fake_codex(&bin);
+    let codex_path = bin.join("codex");
+    fs::write(&codex_path, "#!/usr/bin/env sh\necho registration failed >&2\nexit 7\n").unwrap();
+    #[cfg(unix)]
+    {
+        let mut permissions = fs::metadata(&codex_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&codex_path, permissions).unwrap();
+    }
+    write_minimal_codex_bundle(&data);
+
+    let old_path = env::var("PATH").unwrap_or_default();
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["setup", "--agent", "codex"])
+        .env("HOME", &home)
+        .env("XDG_DATA_HOME", &data)
+        .env("CODEX_BIN", &codex_path)
+        .env("PATH", format!("{}:{}", bin.display(), old_path))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Codex marketplace registration command failed"));
+    assert!(!stderr.contains("[dow] Done!"));
+}
+
+#[test]
+fn test_setup_codex_uses_explicit_runtime_when_not_on_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = temp.path().join("data");
+    let app_runtime_dir = temp
+        .path()
+        .join("ChatGPT.app")
+        .join("Contents")
+        .join("Resources");
+
+    write_fake_codex(&app_runtime_dir);
+    write_minimal_codex_bundle(&data);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["setup", "--agent", "codex"])
+        .env("HOME", &home)
+        .env("XDG_DATA_HOME", &data)
+        .env("CODEX_BIN", app_runtime_dir.join("codex"))
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Using Codex runtime")
+    );
 }

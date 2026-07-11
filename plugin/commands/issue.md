@@ -60,6 +60,14 @@ If appending to existing file:
 3. Append checkbox item to file end
 4. Update `nums` in frontmatter
 
+## Updating Issues
+
+Array fields (`files_modify`, `files_create`) support incremental syntax:
+```bash
+dow issue update I001 --files-modify "+new.rs,-old.rs"
+```
+Without `+`/`-` prefix = full replacement.
+
 ## Notes
 
 - Main agent executes directly, doesn't launch subagent

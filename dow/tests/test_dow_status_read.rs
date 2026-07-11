@@ -41,9 +41,16 @@ fn test_status_json_output() {
     assert_eq!(json["mode"], "quick");
     assert_eq!(json["version"], "2.8.0");
     assert_eq!(json["version_tag"], "no-tag");
-    // doc_root 应为 .dev-doc/<branch> 格式
+    // doc_root is anchored to the git root and includes the current branch.
     let doc_root = json["doc_root"].as_str().unwrap();
-    assert!(doc_root.starts_with(".dev-doc/"), "doc_root should be branch-specific: {}", doc_root);
+    let doc_root_path = Path::new(doc_root);
+    let branch = common::default_branch(dir.path());
+    assert!(doc_root_path.is_absolute(), "doc_root should be absolute: {}", doc_root);
+    assert!(
+        doc_root_path.ends_with(Path::new(".dev-doc").join(branch)),
+        "doc_root should include the current branch: {}",
+        doc_root
+    );
 }
 
 #[test]

@@ -19,7 +19,7 @@ pub struct ValidationError {
     pub file: String,
     pub kind: ErrorKind,
     pub message: String,
-    /// Whether it can be auto-fixed by dow fix
+    /// Whether it can be auto-fixed by `dow doctor --fix`
     pub fixable: bool,
 }
 
@@ -1041,7 +1041,7 @@ pub fn format_errors_human(errors: &[ValidationError]) -> String {
         let fixable_hint = if e.fixable { " [fixable]" } else { "" };
         out.push_str(&format!("  - {}：{}{}\n", e.file, e.message, fixable_hint));
     }
-    out.push_str("\nHint: run `dow fix` to auto-fix fixable issues.\n");
+    out.push_str("\nHint: run `dow doctor --fix` to auto-fix fixable issues.\n");
     out
 }
 

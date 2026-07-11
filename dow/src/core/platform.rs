@@ -70,10 +70,37 @@ pub fn agent_plugin_dir(agent: &str) -> Option<PathBuf> {
 
     match agent {
         "claude" => Some(home.join(".claude").join("plugins").join("dev-flow")),
-        "codex" => Some(home.join(".codex").join("plugins").join("plugins").join("dev-flow")),
+        "codex" => Some(home.join(".codex").join("plugins").join("dev-flow")),
         "kiro" => Some(home.join(".kiro").join("skills")),
         _ => None,
     }
+}
+
+/// Candidate Codex binaries shipped inside the macOS Codex/ChatGPT apps.
+///
+/// The standalone CLI and the app-integrated runtime expose the same plugin
+/// subcommands, but the latter is not necessarily added to the user's PATH.
+pub fn codex_cli_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut app_roots = vec![PathBuf::from("/Applications")];
+        if let Ok(home) = env::var("HOME") {
+            app_roots.push(PathBuf::from(home).join("Applications"));
+        }
+
+        for root in app_roots {
+            for app in ["ChatGPT.app", "Codex.app"] {
+                let app_root = root.join(app);
+                candidates.push(app_root.join("Contents").join("Resources").join("codex"));
+                candidates.push(app_root.join("Contents").join("MacOS").join("codex"));
+                candidates.push(app_root.join("Contents").join("MacOS").join("Codex"));
+            }
+        }
+    }
+
+    candidates
 }
 
 pub fn codex_personal_marketplace_dir() -> Option<PathBuf> {
@@ -134,5 +161,13 @@ mod tests {
         assert!(agent_plugin_dir("claude").is_some());
         assert!(agent_plugin_dir("codex").is_some());
         assert!(agent_plugin_dir("unknown").is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_codex_cli_candidates_include_chatgpt_app_runtime() {
+        assert!(codex_cli_candidates().iter().any(|path| {
+            path.ends_with(PathBuf::from("ChatGPT.app/Contents/Resources/codex"))
+        }));
     }
 }

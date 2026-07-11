@@ -68,7 +68,7 @@
 | `dow status` | 读取 STATUS.yaml |
 | `dow status set --phase/--mode/--exec-mode/--name/--goals-minor/--goals-major` | 写入 STATUS.yaml |
 | `dow init --name <n> --mode <m>` | 初始化 dev-flow 工作流管理 |
-| `dow lint [--fix]` | 检查 .dev-doc 结构 + 规范 + 一致性（合并原 check/validate/fix） |
+| `dow doctor [--fix]` | 检查 .dev-doc 结构 + 规范 + 一致性（合并原 check/validate/fix）；`dow fix` 保留为 `dow doctor --fix` 兼容入口 |
 | `dow test [--task <ID>] [--file <x>]` | 运行测试（全量 / 任务级） |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--confirm ITR-xxx]` | 迭代交付 |
 | `dow rollback --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |

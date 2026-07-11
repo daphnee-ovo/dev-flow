@@ -82,7 +82,7 @@ Output scan summary, ask for confirmation:
 Run migration detection script:
 
 ```bash
-dow lint
+dow doctor
 ```
 
 Script auto-detects and migrates:
@@ -99,7 +99,7 @@ Skip if output shows `status: no_migration_needed`.
 Run validation script:
 
 ```bash
-dow lint
+dow doctor
 ```
 
 Script auto-completes:

@@ -48,6 +48,9 @@ echo "[deploy] ✓ bundle → $BUNDLE_DIR"
 
 # 5. 调用 dow setup 完成正式注册
 echo "[deploy] 运行 dow setup..."
-"$BIN_DIR/dow" setup --agent "$1"
+if ! "$BIN_DIR/dow" setup --agent "$1"; then
+  echo "[deploy] ✗ dow setup failed; deployment did not complete" >&2
+  exit 1
+fi
 
 echo "[deploy] 完成！"

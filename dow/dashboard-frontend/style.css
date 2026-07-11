@@ -330,7 +330,14 @@ body {
 .back-btn:hover { opacity: 0.7; }
 
 /* ─── Graph Container ─── */
+.graph-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.graph-filter-bar { padding: 8px 0; flex-shrink: 0; }
 .graph-container {
+  flex: 1;
   background: var(--color-surface);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
@@ -791,6 +798,31 @@ body {
   .view { padding: 12px; }
   .kanban { flex-direction: column; }
   .docs-content { padding: 16px 20px; }
+}
+
+.graph-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  font-size: 11px;
+  background: var(--color-surface-solid);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+.graph-reset-btn:hover { opacity: 1; }
+
+/* In-progress node pulse animation */
+@keyframes node-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.node-pulse .shape {
+  animation: node-pulse 1.8s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
