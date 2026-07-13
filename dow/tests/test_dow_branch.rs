@@ -491,6 +491,56 @@ fn test_guard_allows_task_create_metadata_paths_without_claim() {
 }
 
 #[test]
+fn test_guard_apply_patch_reads_only_file_markers() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+
+    let patch = "*** Begin Patch\n*** Update File: tmp/update.md\n@@\n- sidebar WebView -> MainSidebar\n+ sidebar WebView -> MainSidebar\n*** Add File: tmp/add.md\n+new content\n*** Delete File: tmp/delete.md\n*** End Patch";
+    let tool_input = serde_json::json!({
+        "tool_name": "apply_patch",
+        "tool_input": {"patch": patch}
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "patch body text must not become a Bash redirect target: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_apply_patch_command_field_does_not_use_bash_parser() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+
+    let patch = "*** Begin Patch\n*** Update File: tmp/patch.md\n@@\n sidebar WebView -> MainSidebar\n*** End Patch";
+    let tool_input = serde_json::json!({
+        "tool_name": "apply_patch",
+        "tool_input": {"command": patch}
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "apply_patch command text must not be parsed as Bash: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
 fn test_guard_allows_task_create_refs_containing_tee_word() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);

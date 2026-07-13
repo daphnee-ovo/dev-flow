@@ -795,6 +795,9 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
                 .to_string();
             extract_command_targets(&command)
         }
+        _ if tool_name.eq_ignore_ascii_case("apply_patch") => {
+            extract_apply_patch_targets(tool_input)
+        }
         _ => {
             if let Some(path) = tool_input
                 .get("file_path")
@@ -809,6 +812,31 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
             }
         }
     }
+}
+
+/// Extract file targets from an apply_patch payload without interpreting patch
+/// body text as shell syntax. Only the patch format's file marker lines are
+/// write targets.
+fn extract_apply_patch_targets(tool_input: &serde_json::Value) -> Vec<String> {
+    let patch = tool_input
+        .as_str()
+        .or_else(|| tool_input.get("patch").and_then(|v| v.as_str()))
+        .or_else(|| tool_input.get("input").and_then(|v| v.as_str()))
+        .or_else(|| tool_input.get("command").and_then(|v| v.as_str()))
+        .unwrap_or_default();
+    let markers = ["*** Update File:", "*** Add File:", "*** Delete File:"];
+
+    patch
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            markers
+                .iter()
+                .find_map(|marker| line.strip_prefix(marker).map(str::trim))
+        })
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Extract actual write targets from a Bash hook command while keeping dev-flow
