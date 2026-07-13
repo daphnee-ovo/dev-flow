@@ -90,8 +90,14 @@ Without `+`/`-` prefix = full replacement. Applies to: `files_modify`, `files_cr
 2. Update STATUS.yaml: current phase → TASK
 3. Prompt user: after confirming task list, STATUS will switch to DEV, start development
 
+When a Task is completed during DEV, dow task done TASK-ID first runs
+dow test TASK-ID. A failed test or failed prerequisite leaves the Task
+checkbox and filename unchanged. An empty files.test list passes. For
+multiple IDs, processing is sequential; earlier successful IDs remain done if
+a later ID fails.
+
 ## Notes
 
 - Main agent executes directly for low complexity (no subagent needed)
 - High complexity uses adversarial subagents for quality assurance
-- Task decomposition does not need audit step (SPEC audit already covered design quality; devtest/test verify execution)
+- Task decomposition does not need audit step (SPEC audit already covered design quality; Task close tests and full test verify execution)

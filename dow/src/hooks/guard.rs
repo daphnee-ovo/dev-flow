@@ -199,12 +199,21 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
         // 1. Project boundary check
         if !path.is_under(&ctx.root) {
             if is_dangerous_system_path(&path) {
-                return deny(&format!("[dev-flow] BLOCKED: writing to system-sensitive path is prohibited: {}", raw_target), kiro_hook);
+                return deny(
+                    &format!(
+                        "[dev-flow] BLOCKED: writing to system-sensitive path is prohibited: {}",
+                        raw_target
+                    ),
+                    kiro_hook,
+                );
             }
-            return ask(&format!(
+            return ask(
+                &format!(
                 "[dev-flow] Write target is outside project: {}. Please confirm if allowed.",
                 raw_target
-            ), kiro_hook);
+                ),
+                kiro_hook,
+            );
         }
 
         // 2. VERSION protection
@@ -401,7 +410,8 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         if is_code_file(path) {
             return Some(PhaseDecision::Ask(format!(
                 "[dev-flow] Current phase is {}, writing code file under AI config: {}. Confirm?",
-                phase, path.display()
+                phase,
+                path.display()
             )));
         }
         return None;
@@ -421,7 +431,11 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
     // Whitelist 4: .dev-doc workflow files
     if path.is_under(&ctx.devdoc_dir) {
         // STATUS.yaml can only be modified via dow status command
-        if path.file_name().map(|f| f == "STATUS.yaml").unwrap_or(false) {
+        if path
+            .file_name()
+            .map(|f| f == "STATUS.yaml")
+            .unwrap_or(false)
+        {
             return Some(PhaseDecision::Deny(format!(
                 "[dev-flow] BLOCKED: STATUS.yaml cannot be manually edited, please use `dow status` command."
             )));
@@ -539,7 +553,11 @@ fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
     }
 }
 
-fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath) -> Option<String> {
+fn check_claim_file_scope(
+    doc_root: &Path,
+    project_root: &Path,
+    path: &GuardPath,
+) -> Option<String> {
     let claimed_ids = crate::core::claim::get_active_claims(doc_root);
     if claimed_ids.is_empty() {
         return None;
@@ -552,7 +570,13 @@ fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath
         if cid.starts_with("T") {
             let full_id = format!("TASK-{}", cid);
             if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
-                for f in task.files.create.iter().chain(task.files.modify.iter()).chain(task.files.test.iter()) {
+                for f in task
+                    .files
+                    .create
+                    .iter()
+                    .chain(task.files.modify.iter())
+                    .chain(task.files.test.iter())
+                {
                     if !f.is_empty() {
                         allowed_files.push(f.clone());
                     }
@@ -574,9 +598,9 @@ fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath
     let rel_path = path.relative_to(project_root)?;
     let rel_str = rel_path.to_string_lossy();
 
-    let in_scope = allowed_files.iter().any(|f| {
-        rel_str.ends_with(f.as_str()) || *rel_str == *f
-    });
+    let in_scope = allowed_files
+        .iter()
+        .any(|f| rel_str.ends_with(f.as_str()) || *rel_str == *f);
 
     if in_scope {
         None
@@ -584,7 +608,8 @@ fn check_claim_file_scope(doc_root: &Path, project_root: &Path, path: &GuardPath
         Some(format!(
             "[dev-flow] WARNING: writing to {} which is outside claimed task's declared files.\n\
             → Consider `dow task update <ID> --files-modify \"{}\"` to declare this file.",
-            path.display(), rel_str
+            path.display(),
+            rel_str
         ))
     }
 }
@@ -734,7 +759,6 @@ fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
 
     false
 }
-
 
 // ─── Input parsing (unchanged) ────────────────────────────────────────────────────────
 

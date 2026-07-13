@@ -55,7 +55,8 @@ pub fn deploy_plugin(agent: &str, bundle_dir: &Path) -> Result<(), String> {
         platform::agent_plugin_dir(agent).ok_or_else(|| format!("Unsupported agent: {}", agent))?;
 
     if target.exists() {
-        fs::remove_dir_all(&target).map_err(|e| format!("Failed to clean old plugin directory: {}", e))?;
+        fs::remove_dir_all(&target)
+            .map_err(|e| format!("Failed to clean old plugin directory: {}", e))?;
     }
 
     copy_dir_recursive(&source, &target)?;
@@ -125,7 +126,6 @@ fn replace_or_append_block(content: &str, block: &str) -> String {
     }
 }
 
-
 pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     let target =
         platform::agent_plugin_dir(agent).ok_or_else(|| format!("Unsupported agent: {}", agent))?;
@@ -133,7 +133,10 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     let mut issues = Vec::new();
 
     if !target.exists() {
-        issues.push(format!("Plugin directory does not exist: {}", target.display()));
+        issues.push(format!(
+            "Plugin directory does not exist: {}",
+            target.display()
+        ));
         return Ok(issues);
     }
 
@@ -185,9 +188,11 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
 }
 
 pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
 
-    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
+    for entry in fs::read_dir(src)
+        .map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
     {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();

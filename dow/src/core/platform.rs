@@ -9,15 +9,13 @@ use std::path::PathBuf;
 
 pub fn config_dir() -> PathBuf {
     if cfg!(target_os = "windows") {
-        let base = env::var("APPDATA")
-            .unwrap_or_else(|_| {
+        let base = env::var("APPDATA").unwrap_or_else(|_| {
                 let home = env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
                 format!("{}\\AppData\\Roaming", home)
             });
         PathBuf::from(base).join("dow")
     } else {
-        let base = env::var("XDG_CONFIG_HOME")
-            .unwrap_or_else(|_| {
+        let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
                 let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
                 format!("{}/.config", home)
             });
@@ -27,15 +25,13 @@ pub fn config_dir() -> PathBuf {
 
 pub fn data_dir() -> PathBuf {
     if cfg!(target_os = "windows") {
-        let base = env::var("LOCALAPPDATA")
-            .unwrap_or_else(|_| {
+        let base = env::var("LOCALAPPDATA").unwrap_or_else(|_| {
                 let home = env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
                 format!("{}\\AppData\\Local", home)
             });
         PathBuf::from(base).join("dow")
     } else {
-        let base = env::var("XDG_DATA_HOME")
-            .unwrap_or_else(|_| {
+        let base = env::var("XDG_DATA_HOME").unwrap_or_else(|_| {
                 let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
                 format!("{}/.local/share", home)
             });
@@ -107,7 +103,13 @@ pub fn codex_personal_marketplace_dir() -> Option<PathBuf> {
     let home = env::var("HOME")
         .or_else(|_| env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
-    Some(PathBuf::from(home).join(".codex").join("plugins").join(".agents").join("plugins"))
+    Some(
+        PathBuf::from(home)
+            .join(".codex")
+            .join("plugins")
+            .join(".agents")
+            .join("plugins"),
+    )
 }
 
 pub fn agent_global_instructions(agent: &str) -> Option<PathBuf> {
@@ -166,8 +168,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn test_codex_cli_candidates_include_chatgpt_app_runtime() {
-        assert!(codex_cli_candidates().iter().any(|path| {
-            path.ends_with(PathBuf::from("ChatGPT.app/Contents/Resources/codex"))
-        }));
+        assert!(codex_cli_candidates()
+            .iter()
+            .any(|path| { path.ends_with(PathBuf::from("ChatGPT.app/Contents/Resources/codex")) }));
     }
 }

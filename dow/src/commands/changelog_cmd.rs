@@ -43,7 +43,10 @@ fn list(human: bool) -> Result<i32, DowError> {
         .map(|line| {
             let text = line.strip_prefix("- ").unwrap_or(line).trim();
             // Try to split "YYYY-MM-DD rest..." into date + message
-            if text.len() >= 10 && text.chars().nth(4) == Some('-') && text.chars().nth(7) == Some('-') {
+            if text.len() >= 10
+                && text.chars().nth(4) == Some('-')
+                && text.chars().nth(7) == Some('-')
+            {
                 let (date_part, rest) = text.split_at(10);
                 let message = rest.trim();
                 json!({ "date": date_part, "text": message })
@@ -179,7 +182,8 @@ fn parse_spec_to_json(doc_type: &str, content: &str) -> serde_json::Value {
     }
 
     result["create_command"] = json!("dow changelog add --text \"...\"");
-    result["create_hint"] = json!("Use 'dow changelog add' to append entries, 'dow changelog list' to read");
+    result["create_hint"] =
+        json!("Use 'dow changelog add' to append entries, 'dow changelog list' to read");
 
     result
 }

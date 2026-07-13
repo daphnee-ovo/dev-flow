@@ -37,8 +37,12 @@ pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
         return run_list(human);
     }
 
-    let target_version = args.version
-        .ok_or_else(|| DowError::new("Must specify --version <version> (use --list to see available versions)", 1))?;
+    let target_version = args.version.ok_or_else(|| {
+        DowError::new(
+            "Must specify --version <version> (use --list to see available versions)",
+            1,
+        )
+    })?;
 
     let archive_base = archive_db::archive_base();
     let conn = archive_db::open_or_create(&archive_base)?;
@@ -64,8 +68,9 @@ pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
     for doc_type in &["PRD", "SPEC", "TEST", "BRAINSTORM"] {
         if let Ok(Some(content)) = archive_db::get_doc(&conn, &target_version, doc_type) {
             let path = doc_root_path.join(format!("{}.md", doc_type));
-            fs::write(&path, &content)
-                .map_err(|e| DowError::new(format!("Failed to restore {}.md: {}", doc_type, e), 1))?;
+            fs::write(&path, &content).map_err(|e| {
+                DowError::new(format!("Failed to restore {}.md: {}", doc_type, e), 1)
+            })?;
             restored_docs.push(format!("{}.md", doc_type));
         }
     }
@@ -87,10 +92,8 @@ pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
     let status_file = doc_root_path.join("STATUS.yaml");
     let phase = "DEV";
     if status_file.exists() {
-        yaml::set(&status_file, "phase", phase)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
-        yaml::touch_updated(&status_file)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(&status_file, "phase", phase).map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::touch_updated(&status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // 7. Mark iteration as revoked
@@ -116,9 +119,13 @@ pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
         println!("Phase reset: {}", phase);
         println!("Archive marked: rolled back");
         println!();
-        println!("Note: Git history unchanged, only workflow state and documents have been restored.");
-        println!("Tip: Use `dow iterate` to re-deliver, version number {} can be reused.",
-            target_version);
+        println!(
+            "Note: Git history unchanged, only workflow state and documents have been restored."
+        );
+        println!(
+            "Tip: Use `dow iterate` to re-deliver, version number {} can be reused.",
+            target_version
+        );
     } else {
         output::print_json(&result);
     }
@@ -132,9 +139,14 @@ fn run_list(human: bool) -> Result<i32, DowError> {
     let iterations = archive_db::list_iterations(&conn, None)?;
 
     // Only show versions with active (not revoked) records
-    let active: Vec<_> = iterations.into_iter().filter(|i| {
-        archive_db::find_active_iteration(&conn, &i.version).unwrap_or(None).is_some()
-    }).collect();
+    let active: Vec<_> = iterations
+        .into_iter()
+        .filter(|i| {
+            archive_db::find_active_iteration(&conn, &i.version)
+                .unwrap_or(None)
+                .is_some()
+        })
+        .collect();
 
     if active.is_empty() {
         if human {
@@ -167,7 +179,10 @@ fn run_list(human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-fn restore_tasks(doc_root: &std::path::Path, tasks: &[archive_db::TaskRecord]) -> Result<u32, DowError> {
+fn restore_tasks(
+    doc_root: &std::path::Path,
+    tasks: &[archive_db::TaskRecord],
+) -> Result<u32, DowError> {
     if tasks.is_empty() {
         return Ok(0);
     }
@@ -177,18 +192,25 @@ fn restore_tasks(doc_root: &std::path::Path, tasks: &[archive_db::TaskRecord]) -
         .map_err(|e| DowError::new(format!("Failed to create task directory: {}", e), 1))?;
 
     // Group by source_file
-    let mut groups: std::collections::HashMap<String, Vec<&archive_db::TaskRecord>> = std::collections::HashMap::new();
+    let mut groups: std::collections::HashMap<String, Vec<&archive_db::TaskRecord>> =
+        std::collections::HashMap::new();
     for task in tasks {
-        groups.entry(task.source_file.clone()).or_default().push(task);
+        groups
+            .entry(task.source_file.clone())
+            .or_default()
+            .push(task);
     }
 
     // Restore files keeping done_task_ prefix (they are completed tasks)
     // Need to arrange seq numbers: first make room, then write
-    let revoke_files: Vec<(String, String)> = groups.iter().map(|(filename, group_tasks)| {
+    let revoke_files: Vec<(String, String)> = groups
+        .iter()
+        .map(|(filename, group_tasks)| {
         let content = rebuild_task_file(filename, group_tasks);
         // Keep original filename (already done_task_ or task_)
         (filename.clone(), content)
-    }).collect();
+        })
+        .collect();
 
     // Calculate how many seq slots needed
     let slots_needed = revoke_files.len() as u32;
@@ -211,7 +233,10 @@ fn restore_tasks(doc_root: &std::path::Path, tasks: &[archive_db::TaskRecord]) -
     Ok(count)
 }
 
-fn restore_issues(doc_root: &std::path::Path, issues: &[archive_db::IssueRecord]) -> Result<u32, DowError> {
+fn restore_issues(
+    doc_root: &std::path::Path,
+    issues: &[archive_db::IssueRecord],
+) -> Result<u32, DowError> {
     if issues.is_empty() {
         return Ok(0);
     }
@@ -220,15 +245,22 @@ fn restore_issues(doc_root: &std::path::Path, issues: &[archive_db::IssueRecord]
     fs::create_dir_all(&issue_dir)
         .map_err(|e| DowError::new(format!("Failed to create issue directory: {}", e), 1))?;
 
-    let mut groups: std::collections::HashMap<String, Vec<&archive_db::IssueRecord>> = std::collections::HashMap::new();
+    let mut groups: std::collections::HashMap<String, Vec<&archive_db::IssueRecord>> =
+        std::collections::HashMap::new();
     for issue in issues {
-        groups.entry(issue.source_file.clone()).or_default().push(issue);
+        groups
+            .entry(issue.source_file.clone())
+            .or_default()
+            .push(issue);
     }
 
-    let revoke_files: Vec<(String, String)> = groups.iter().map(|(filename, group_issues)| {
+    let revoke_files: Vec<(String, String)> = groups
+        .iter()
+        .map(|(filename, group_issues)| {
         let content = rebuild_issue_file(filename, group_issues);
         (filename.clone(), content)
-    }).collect();
+        })
+        .collect();
 
     let slots_needed = revoke_files.len() as u32;
     shift_files_in_dir(&issue_dir, slots_needed)?;
@@ -239,7 +271,8 @@ fn restore_issues(doc_root: &std::path::Path, issues: &[archive_db::IssueRecord]
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let seq = i as u32 + 1;
         // Extract source from the group's first issue record
-        let source = group_keys.get(i)
+        let source = group_keys
+            .get(i)
             .and_then(|k| groups.get(*k))
             .and_then(|g| g.first())
             .and_then(|r| r.source_type.as_deref())
@@ -287,8 +320,9 @@ fn shift_files_in_dir(dir: &std::path::Path, slots_needed: u32) -> Result<(), Do
         let new_name = replace_file_seq(&name, *seq, new_seq);
         let old_path = dir.join(name);
         let new_path = dir.join(&new_name);
-        fs::rename(&old_path, &new_path)
-            .map_err(|e| DowError::new(format!("Failed to shift {} → {}: {}", name, new_name, e), 1))?;
+        fs::rename(&old_path, &new_path).map_err(|e| {
+            DowError::new(format!("Failed to shift {} → {}: {}", name, new_name, e), 1)
+        })?;
     }
 
     Ok(())
@@ -313,7 +347,8 @@ fn replace_file_seq(name: &str, old_seq: u32, new_seq: u32) -> String {
 }
 
 fn rebuild_task_file(filename: &str, tasks: &[&archive_db::TaskRecord]) -> String {
-    let title = tasks.first()
+    let title = tasks
+        .first()
         .and_then(|t| t.file_title.as_deref())
         .unwrap_or("TASK - (rolled back)");
 
@@ -334,10 +369,22 @@ fn rebuild_task_file(filename: &str, tasks: &[&archive_db::TaskRecord]) -> Strin
             out.push_str(&format!("  - refs: {}\n", r));
         }
         out.push_str("  - files:\n");
-        out.push_str(&format!("      create: {}\n", task.files_create.as_deref().unwrap_or("[]")));
-        out.push_str(&format!("      modify: {}\n", task.files_modify.as_deref().unwrap_or("[]")));
-        out.push_str(&format!("      test: {}\n", task.files_test.as_deref().unwrap_or("[]")));
-        out.push_str(&format!("  - depends_on: {}\n", task.depends_on.as_deref().unwrap_or("[]")));
+        out.push_str(&format!(
+            "      create: {}\n",
+            task.files_create.as_deref().unwrap_or("[]")
+        ));
+        out.push_str(&format!(
+            "      modify: {}\n",
+            task.files_modify.as_deref().unwrap_or("[]")
+        ));
+        out.push_str(&format!(
+            "      test: {}\n",
+            task.files_test.as_deref().unwrap_or("[]")
+        ));
+        out.push_str(&format!(
+            "  - depends_on: {}\n",
+            task.depends_on.as_deref().unwrap_or("[]")
+        ));
         if let Some(ref c) = task.complexity {
             out.push_str(&format!("  - complexity: {}\n", c));
         }
@@ -351,7 +398,8 @@ fn rebuild_task_file(filename: &str, tasks: &[&archive_db::TaskRecord]) -> Strin
 }
 
 fn rebuild_issue_file(_filename: &str, issues: &[&archive_db::IssueRecord]) -> String {
-    let source_type = issues.first()
+    let source_type = issues
+        .first()
         .and_then(|i| i.source_type.as_deref())
         .unwrap_or("rollback");
 
@@ -363,7 +411,10 @@ fn rebuild_issue_file(_filename: &str, issues: &[&archive_db::IssueRecord]) -> S
 
     for issue in issues {
         let check = if issue.resolved { "[x]" } else { "[ ]" };
-        out.push_str(&format!("- {} {}: {}\n", check, issue.issue_id, issue.title));
+        out.push_str(&format!(
+            "- {} {}: {}\n",
+            check, issue.issue_id, issue.title
+        ));
 
         if let Some(ref s) = issue.severity {
             out.push_str(&format!("  - severity: {}\n", s));

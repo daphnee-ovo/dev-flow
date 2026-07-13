@@ -72,6 +72,8 @@ fn fix_alias_matches_doctor_fix() {
             .join(branch)
             .join("issue/issue_other_2026-05-26_1.md");
         assert!(issue.exists());
-        assert!(fs::read_to_string(issue).unwrap().starts_with("---\nsource: other\n"));
+        assert!(fs::read_to_string(issue)
+            .unwrap()
+            .starts_with("---\nsource: other\n"));
     }
 }

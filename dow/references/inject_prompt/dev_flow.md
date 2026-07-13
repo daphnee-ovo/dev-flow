@@ -14,8 +14,7 @@
 | `/spec` | SPEC | Technical design |
 | `/task` | TASK | Decompose into tasks |
 | `/fix` | DEV | Fix open issues |
-| `/devtest` | DEV | Task-level test loop |
-| `/test` | TEST | Full test suite |
+| `/test` | TEST | Full project test; Task tests use dow test TASK-ID |
 | `/iterate` | ITERATE | Archive + commit + tag + bump |
 
 ## Discipline
@@ -36,7 +35,7 @@
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - **Completion sequence (MUST execute immediately, no delay):**
-  - Task done: `dow task done <ID>` → `dow claim --revoke` → then `/devtest`
+  - Task done: `dow task done <ID>` runs `dow test <ID>` before changing the Task; then `dow claim --revoke`
   - Issue fixed: `dow issue close <ID>` → `dow claim --revoke`
   - Do NOT defer these commands. Execute them as soon as the work is verified complete — before moving to the next task, before responding to the user, before any other action.
 - After all tasks complete, auto-enter `/test`.
@@ -95,13 +94,13 @@ If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing
 #### task create — all fields required
 
 ```json
-{"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files_modify":[], "files_create":[], "files_test":[], "depends_on":[], "parallel":false, "complexity":"S|M|L|XL", "done_when":["criterion"]}
+{"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files_modify":[], "files_create":[], "files_test":[], "depends_on":[], "parallel":false, "complexity":"S|M|L", "done_when":["criterion"]}
 ```
 
 #### issue create — all fields required (except fix)
 
 ```json
-{"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|devtest|audit|other"}
+{"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|audit|other", "files_modify":[], "files_create":[]}
 ```
 
 ### Role isolation

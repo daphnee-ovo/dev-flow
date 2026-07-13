@@ -28,9 +28,17 @@ fn create_test_dir() -> PathBuf {
 }
 
 fn setup_env(dir: &Path, phase: &str, mode: &str) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     fs::write(dir.join("dummy.txt"), "init").unwrap();
-    Command::new("git").args(["add", "."]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     Command::new("git")
         .args(["commit", "-m", "init"])
         .current_dir(dir)
@@ -82,11 +90,19 @@ fn assert_allow(stdout: &str) {
 }
 
 fn assert_deny(stdout: &str) {
-    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "expected deny, got: {}", stdout);
+    assert!(
+        stdout.contains("\"permissionDecision\":\"deny\""),
+        "expected deny, got: {}",
+        stdout
+    );
 }
 
 fn assert_ask(stdout: &str) {
-    assert!(stdout.contains("\"permissionDecision\":\"ask\""), "expected ask, got: {}", stdout);
+    assert!(
+        stdout.contains("\"permissionDecision\":\"ask\""),
+        "expected ask, got: {}",
+        stdout
+    );
 }
 
 // ─── 非 DEV 阶段：tmp/ 写入 ────────────────────────────────────────────────
@@ -250,7 +266,11 @@ fn test_dev_no_claim_denied_with_hint() {
     // 有未完成 task 但没 claim → 应提示 claim
     let (stdout, _) = run_guard(&dir, "src/main.rs");
     assert_deny(&stdout);
-    assert!(stdout.contains("none claimed"), "should hint about claim, got: {}", stdout);
+    assert!(
+        stdout.contains("none claimed"),
+        "should hint about claim, got: {}",
+        stdout
+    );
 }
 
 // ─── DEV 阶段：无活跃工作 ──────────────────────────────────────────────────
@@ -261,7 +281,10 @@ fn test_dev_no_active_work_denied() {
     setup_env(&dir, "DEV", "quick");
     // 把 task 标记为已完成
     let branch = default_branch(&dir);
-    let task_file = dir.join(".dev-doc").join(&branch).join("task/task_2026-05-31_1.md");
+    let task_file = dir
+        .join(".dev-doc")
+        .join(&branch)
+        .join("task/task_2026-05-31_1.md");
     fs::write(&task_file, "- [x] TASK-T001: done\n  - priority: P1\n").unwrap();
 
     let (stdout, _) = run_guard(&dir, "src/main.rs");
@@ -274,7 +297,10 @@ fn test_dev_no_active_work_tmp_still_allowed() {
     let dir = create_test_dir();
     setup_env(&dir, "DEV", "quick");
     let branch = default_branch(&dir);
-    let task_file = dir.join(".dev-doc").join(&branch).join("task/task_2026-05-31_1.md");
+    let task_file = dir
+        .join(".dev-doc")
+        .join(&branch)
+        .join("task/task_2026-05-31_1.md");
     fs::write(&task_file, "- [x] TASK-T001: done\n  - priority: P1\n").unwrap();
 
     // tmp/ 在 DEV 白名单中，即使无活跃工作也放行

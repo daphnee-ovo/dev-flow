@@ -64,8 +64,12 @@ fn test_fix_renames_fully_checked_issue_to_closed_prefix() {
 
     let result = run_fix(dir.path());
     let fixed = result["fixed"].as_array().unwrap();
-    assert!(fixed.iter().any(|item| item.as_str().unwrap().contains("closed_")));
-    assert!(doc.join("issue/closed_issue_other_2026-06-20_1.md").exists());
+    assert!(fixed
+        .iter()
+        .any(|item| item.as_str().unwrap().contains("closed_")));
+    assert!(doc
+        .join("issue/closed_issue_other_2026-06-20_1.md")
+        .exists());
     assert!(!doc.join("issue/issue_other_2026-06-20_1.md").exists());
 }
 
@@ -94,10 +98,8 @@ fn test_fix_renumbers_duplicate_issue_ids_across_closed_files() {
         .iter()
         .any(|item| item.as_str().unwrap().contains("renumbering")));
 
-    let first = fs::read_to_string(doc.join("issue/closed_issue_other_2026-06-17_1.md"))
-        .unwrap();
-    let second = fs::read_to_string(doc.join("issue/closed_issue_other_2026-06-18_1.md"))
-        .unwrap();
+    let first = fs::read_to_string(doc.join("issue/closed_issue_other_2026-06-17_1.md")).unwrap();
+    let second = fs::read_to_string(doc.join("issue/closed_issue_other_2026-06-18_1.md")).unwrap();
     assert!(first.contains("ISSUE-I001"));
     assert!(second.contains("ISSUE-I002"));
 }

@@ -10,7 +10,11 @@ use std::process::Command;
 use common::{default_branch, read_status_field as read_field};
 
 fn setup_test_env(dir: &Path, phase: &str, mode: &str) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     common::setup_dev_doc(dir, phase, mode);
     let branch = default_branch(dir);
     let doc = dir.join(".dev-doc").join(&branch);
@@ -129,5 +133,9 @@ fn test_write_updates_timestamp() {
     // 时间戳应该被更新（不再是初始值）
     assert_ne!(updated, "2026-05-26 10:00");
     // 应该是合法的日期时间格式
-    assert!(updated.len() >= 10, "updated should be datetime: {}", updated);
+    assert!(
+        updated.len() >= 10,
+        "updated should be datetime: {}",
+        updated
+    );
 }

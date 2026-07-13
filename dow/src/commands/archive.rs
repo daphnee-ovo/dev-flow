@@ -13,8 +13,12 @@ pub fn run(cmd: ArchiveCommands, human: bool) -> Result<i32, DowError> {
     match cmd {
         ArchiveCommands::List { branch } => run_list(branch.as_deref(), human),
         ArchiveCommands::Show { version } => run_show(&version, human),
-        ArchiveCommands::Tasks { version, priority } => run_tasks(version.as_deref(), priority.as_deref(), human),
-        ArchiveCommands::Issues { version, severity } => run_issues(version.as_deref(), severity.as_deref(), human),
+        ArchiveCommands::Tasks { version, priority } => {
+            run_tasks(version.as_deref(), priority.as_deref(), human)
+        }
+        ArchiveCommands::Issues { version, severity } => {
+            run_issues(version.as_deref(), severity.as_deref(), human)
+        }
         ArchiveCommands::Doc { version, doc_type } => run_doc(&version, &doc_type, human),
         ArchiveCommands::Migrate { delete_originals } => run_migrate(delete_originals, human),
         ArchiveCommands::Stats => run_stats(human),
@@ -121,7 +125,13 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
     if human {
         println!("[archive] v{} — {}", version, topic);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("Documents: PRD={} SPEC={} TEST={} BRAINSTORM={}", yn(has_prd), yn(has_spec), yn(has_test), yn(has_brainstorm));
+        println!(
+            "Documents: PRD={} SPEC={} TEST={} BRAINSTORM={}",
+            yn(has_prd),
+            yn(has_spec),
+            yn(has_test),
+            yn(has_brainstorm)
+        );
         if !tasks.is_empty() {
             println!("\nTasks ({}):", tasks.len());
             for t in &tasks {
@@ -142,18 +152,24 @@ fn run_show(version: &str, human: bool) -> Result<i32, DowError> {
         let out = ShowOutput {
             version: version.to_string(),
             topic,
-            tasks: tasks.iter().map(|t| TaskBrief {
+            tasks: tasks
+                .iter()
+                .map(|t| TaskBrief {
                 task_id: t.task_id.clone(),
                 title: t.title.clone(),
                 priority: t.priority.clone(),
                 completed: t.completed,
-            }).collect(),
-            issues: issues.iter().map(|i| IssueBrief {
+                })
+                .collect(),
+            issues: issues
+                .iter()
+                .map(|i| IssueBrief {
                 issue_id: i.issue_id.clone(),
                 title: i.title.clone(),
                 severity: i.severity.clone(),
                 resolved: i.resolved,
-            }).collect(),
+                })
+                .collect(),
             has_prd,
             has_spec,
             has_test,
@@ -179,12 +195,15 @@ fn run_tasks(version: Option<&str>, priority: Option<&str>, human: bool) -> Resu
             println!("  [{}] {} {} ({})", mark, t.task_id, t.title, p);
         }
     } else {
-        let briefs: Vec<TaskBrief> = tasks.iter().map(|t| TaskBrief {
+        let briefs: Vec<TaskBrief> = tasks
+            .iter()
+            .map(|t| TaskBrief {
             task_id: t.task_id.clone(),
             title: t.title.clone(),
             priority: t.priority.clone(),
             completed: t.completed,
-        }).collect();
+            })
+            .collect();
         output::print_json(&briefs);
     }
     Ok(0)
@@ -205,12 +224,15 @@ fn run_issues(version: Option<&str>, severity: Option<&str>, human: bool) -> Res
             println!("  [{}] {} {} ({})", mark, iss.issue_id, iss.title, s);
         }
     } else {
-        let briefs: Vec<IssueBrief> = issues.iter().map(|i| IssueBrief {
+        let briefs: Vec<IssueBrief> = issues
+            .iter()
+            .map(|i| IssueBrief {
             issue_id: i.issue_id.clone(),
             title: i.title.clone(),
             severity: i.severity.clone(),
             resolved: i.resolved,
-        }).collect();
+            })
+            .collect();
         output::print_json(&briefs);
     }
     Ok(0)
@@ -253,7 +275,13 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
     // Scan .dev-doc/archive/v*-*/
     let top_archive = doc_root_path.join("archive");
     if top_archive.is_dir() {
-        migrate_dir_entries(&conn, &top_archive, "main", &mut versions, &mut total_records)?;
+        migrate_dir_entries(
+            &conn,
+            &top_archive,
+            "main",
+            &mut versions,
+            &mut total_records,
+        )?;
     }
 
     // Scan .dev-doc/*/archive/v*-*/ (branch-specific)
@@ -263,7 +291,13 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
             if entry.path().is_dir() && name != "archive" {
                 let branch_archive = entry.path().join("archive");
                 if branch_archive.is_dir() {
-                    migrate_dir_entries(&conn, &branch_archive, &name, &mut versions, &mut total_records)?;
+                    migrate_dir_entries(
+                        &conn,
+                        &branch_archive,
+                        &name,
+                        &mut versions,
+                        &mut total_records,
+                    )?;
                 }
             }
         }
@@ -273,7 +307,11 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
         // Delete top-level archive directory
         if top_archive.is_dir() {
             if let Err(e) = fs::remove_dir_all(&top_archive) {
-                eprintln!("[dow] Warning: Failed to delete archive directory ({}): {}", top_archive.display(), e);
+                eprintln!(
+                    "[dow] Warning: Failed to delete archive directory ({}): {}",
+                    top_archive.display(),
+                    e
+                );
             }
         }
         // Delete branch-specific archive directories
@@ -284,7 +322,11 @@ fn run_migrate(delete_originals: bool, human: bool) -> Result<i32, DowError> {
                     let branch_archive = entry.path().join("archive");
                     if branch_archive.is_dir() {
                         if let Err(e) = fs::remove_dir_all(&branch_archive) {
-                            eprintln!("[dow] Warning: Failed to delete branch archive directory ({}): {}", branch_archive.display(), e);
+                            eprintln!(
+                                "[dow] Warning: Failed to delete branch archive directory ({}): {}",
+                                branch_archive.display(),
+                                e
+                            );
                         }
                     }
                 }
@@ -334,7 +376,8 @@ fn migrate_dir_entries(
                 if existing.iter().any(|i| i.version == version) {
                     continue;
                 }
-                let count = archive_db::migrate_archive_dir(conn, &entry.path(), &version, &topic, branch)?;
+                let count =
+                    archive_db::migrate_archive_dir(conn, &entry.path(), &version, &topic, branch)?;
                 versions.push(version);
                 *total_records += count;
             }
@@ -363,5 +406,9 @@ fn run_stats(human: bool) -> Result<i32, DowError> {
 }
 
 fn yn(b: bool) -> &'static str {
-    if b { "✓" } else { "✗" }
+    if b {
+        "✓"
+    } else {
+        "✗"
+    }
 }

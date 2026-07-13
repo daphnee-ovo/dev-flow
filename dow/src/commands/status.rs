@@ -6,8 +6,8 @@
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::{StatusArgs, StatusCommands, StatusSetArgs};
-use crate::error::DowError;
 use crate::core::{doc_root, doc_validator, yaml};
+use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -67,7 +67,11 @@ fn validate_phase_transition(current: &str, target: &str, mode: &str) -> Result<
             }
         }
         (None, Some(_)) => Ok(()), // Current phase not in chain, allow transition
-        (_, None) => Err(format!("Invalid phase: {} (valid values: {})", target, chain.join("/"))),
+        (_, None) => Err(format!(
+            "Invalid phase: {} (valid values: {})",
+            target,
+            chain.join("/")
+        )),
     }
 }
 
@@ -132,8 +136,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusSetArgs) -> Result<i32, DowE
             }
         }
 
-        yaml::set(status_file, "phase", &target)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(status_file, "phase", &target).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Set mode (reject audit + coordinate with phase)
@@ -152,8 +155,7 @@ fn handle_write(status_file: &PathBuf, args: &StatusSetArgs) -> Result<i32, DowE
             ));
         }
 
-        yaml::set(status_file, "mode", new_mode)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(status_file, "mode", new_mode).map_err(|e| DowError::new(e.to_string(), 1))?;
 
         // Mode switching does not coordinate with phase — phase is managed by explicit --phase or /iterate
         // Only validate whether current phase is legal under new mode, warn but don't modify if illegal
@@ -175,7 +177,10 @@ fn handle_write(status_file: &PathBuf, args: &StatusSetArgs) -> Result<i32, DowE
         let valid = ["step", "continuous"];
         if !valid.contains(&exec_mode.as_str()) {
             return Err(DowError::new(
-                format!("Invalid exec_mode: {} (options: step/continuous)", exec_mode),
+                format!(
+                    "Invalid exec_mode: {} (options: step/continuous)",
+                    exec_mode
+                ),
                 1,
             ));
         }
@@ -188,23 +193,19 @@ fn handle_write(status_file: &PathBuf, args: &StatusSetArgs) -> Result<i32, DowE
         if name.trim().is_empty() {
             return Err(DowError::new("name cannot be empty", 1));
         }
-        yaml::set(status_file, "name", name)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(status_file, "name", name).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Set version goals
     if let Some(ref goal) = args.goals_minor {
-        yaml::set(status_file, "goals_minor", goal)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(status_file, "goals_minor", goal).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
     if let Some(ref goal) = args.goals_major {
-        yaml::set(status_file, "goals_major", goal)
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        yaml::set(status_file, "goals_major", goal).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Auto-update updated timestamp
-    yaml::touch_updated(status_file)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    yaml::touch_updated(status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     Ok(0)
 }
@@ -221,8 +222,8 @@ fn handle_read(
     if let Some(ref key) = field {
         // Special handling for array fields
         if key == "docs" {
-            let items = yaml::get_list(status_file, key)
-                .map_err(|e| DowError::new(e.to_string(), 1))?;
+            let items =
+                yaml::get_list(status_file, key).map_err(|e| DowError::new(e.to_string(), 1))?;
             if human {
                 for item in &items {
                     println!("{}", item);
@@ -246,7 +247,10 @@ fn handle_read(
         name: map.get("name").cloned().unwrap_or_default(),
         phase: map.get("phase").cloned().unwrap_or_default(),
         mode: map.get("mode").cloned().unwrap_or_default(),
-        exec_mode: map.get("exec_mode").cloned().unwrap_or_else(|| "step".to_string()),
+        exec_mode: map
+            .get("exec_mode")
+            .cloned()
+            .unwrap_or_else(|| "step".to_string()),
         doc_root: doc_root_path.to_string_lossy().to_string(),
         goals_minor: map.get("goals_minor").cloned().filter(|s| !s.is_empty()),
         goals_major: map.get("goals_major").cloned().filter(|s| !s.is_empty()),
@@ -285,8 +289,7 @@ fn read_version_info() -> (String, String) {
 }
 
 fn print_human(status: &StatusOutput) {
-    let branch = crate::core::doc_root::current_branch()
-        .unwrap_or_else(|| "main".to_string());
+    let branch = crate::core::doc_root::current_branch().unwrap_or_else(|| "main".to_string());
     println!("[dev-flow] Project Status Report");
     println!("━━━━━━━━━━━━━━━━━━━━━━");
     println!("Project Name: {}", status.name);
@@ -294,7 +297,10 @@ fn print_human(status: &StatusOutput) {
     println!("Current Phase: {}", status.phase);
     println!("Development Mode: {}", status.mode);
     println!("Execution Mode: {}", status.exec_mode);
-    println!("Current Version: ({})v{} ({})", branch, status.version, status.version_tag);
+    println!(
+        "Current Version: ({})v{} ({})",
+        branch, status.version, status.version_tag
+    );
     if let Some(ref g) = status.goals_minor {
         println!("Goal (minor): {}", g);
     }

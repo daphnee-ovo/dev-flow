@@ -36,7 +36,10 @@ pub fn run(args: DoctorArgs, human: bool) -> Result<i32, DowError> {
     let status_file = doc_root_path.join("STATUS.yaml");
 
     if !status_file.exists() {
-        return Err(DowError::new("STATUS.yaml not found — run `dow init` first", 1));
+        return Err(DowError::new(
+            "STATUS.yaml not found — run `dow init` first",
+            1,
+        ));
     }
 
     let map = yaml::read(&status_file).map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -53,7 +56,8 @@ pub fn run(args: DoctorArgs, human: bool) -> Result<i32, DowError> {
     // ══════════════════════════════════════════════════════════════════════
 
     check_changelog(&doc_root_path, &mut warnings, &mut ok);
-    let (total_tasks, done_tasks) = check_tasks(&doc_root_path, &phase, &mut errors, &mut warnings, &mut ok);
+    let (total_tasks, done_tasks) =
+        check_tasks(&doc_root_path, &phase, &mut errors, &mut warnings, &mut ok);
     check_issues(&doc_root_path, &phase, &mut errors, &mut warnings, &mut ok);
     check_time_sync(&map, &mut warnings, &mut ok);
     check_phase_files(&doc_root_path, &phase, &mut warnings);
@@ -123,7 +127,13 @@ pub fn run(args: DoctorArgs, human: bool) -> Result<i32, DowError> {
         return Ok(0);
     }
 
-    let result = DoctorOutput { pass, errors, warnings, ok, fixed };
+    let result = DoctorOutput {
+        pass,
+        errors,
+        warnings,
+        ok,
+        fixed,
+    };
 
     if human {
         print_human(&result, &phase);
@@ -141,7 +151,10 @@ pub fn run(args: DoctorArgs, human: bool) -> Result<i32, DowError> {
 fn check_changelog(doc_root: &Path, warnings: &mut Vec<String>, ok: &mut Vec<String>) {
     let changelog = doc_root.join("CHANGELOG.md");
     if changelog.exists() {
-        if fs::metadata(&changelog).map(|m| m.len() > 0).unwrap_or(false) {
+        if fs::metadata(&changelog)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false)
+        {
             ok.push("CHANGELOG.md exists and is not empty".to_string());
         } else {
             warnings.push("CHANGELOG.md is empty".to_string());
@@ -164,7 +177,10 @@ fn check_tasks(
 
     if !task_dir.is_dir() {
         if matches!(phase, "DEV" | "TEST" | "DONE") {
-            warnings.push(format!("Phase is {} but task/ directory has no tasks", phase));
+            warnings.push(format!(
+                "Phase is {} but task/ directory has no tasks",
+                phase
+            ));
         }
         return (0, 0);
     }
@@ -189,7 +205,8 @@ fn check_tasks(
         warnings.push("Phase is DEV but task/ directory has no task files".to_string());
     }
     if total > 0 && done == total && phase == "DEV" {
-        warnings.push("All tasks completed but phase is still DEV, consider running /test".to_string());
+        warnings
+            .push("All tasks completed but phase is still DEV, consider running /test".to_string());
     }
 
     let _ = errors; // nums check in separate function
@@ -269,10 +286,16 @@ fn check_issues(
     }
 
     if open_p0 > 0 {
-        errors.push(format!("open_p0_issue: {} unclosed P0 issues found", open_p0));
+        errors.push(format!(
+            "open_p0_issue: {} unclosed P0 issues found",
+            open_p0
+        ));
     }
     if open_issues > 0 && phase == "DONE" {
-        warnings.push(format!("Phase is DONE but {} unclosed issues remain", open_issues));
+        warnings.push(format!(
+            "Phase is DONE but {} unclosed issues remain",
+            open_issues
+        ));
     }
     if open_issues == 0 && issue_dir.exists() {
         ok.push("All issues are closed".to_string());
@@ -307,7 +330,8 @@ fn check_time_sync(
         });
 
     if let Some(commit_date) = commit_date {
-        if !commit_date.is_empty() && !status_date.is_empty() && commit_date.as_str() > status_date {
+        if !commit_date.is_empty() && !status_date.is_empty() && commit_date.as_str() > status_date
+        {
             warnings.push(format!(
                 "Latest code commit ({}) is later than STATUS update ({}), documentation may be out of sync",
                 commit_date, status_date
@@ -326,7 +350,12 @@ fn check_phase_files(doc_root: &Path, phase: &str, warnings: &mut Vec<String>) {
     }
 }
 
-fn check_spec_ac(doc_root: &Path, mode: &str, errors: &mut Vec<String>, warnings: &mut Vec<String>) {
+fn check_spec_ac(
+    doc_root: &Path,
+    mode: &str,
+    errors: &mut Vec<String>,
+    warnings: &mut Vec<String>,
+) {
     let spec_file = doc_root.join("SPEC.md");
     if !spec_file.exists() {
         return;
@@ -562,7 +591,11 @@ fn run_auto_fix(doc_root: &Path) -> (Vec<String>, Vec<String>) {
 fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
-    let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let filename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
@@ -620,7 +653,11 @@ fn fix_issue_file(path: &Path) -> (Vec<String>, Vec<String>) {
 fn fix_task_file(path: &Path) -> (Vec<String>, Vec<String>) {
     let mut fixed = Vec::new();
     let mut unfixable = Vec::new();
-    let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let filename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
@@ -687,7 +724,10 @@ fn fix_issue_filename_source(issue_dir: &Path, fixed: &mut Vec<String>) {
             continue;
         }
         let (prefix, rest) = if name.starts_with("closed_issue_") {
-            ("closed_issue_", &name["closed_issue_".len()..name.len() - 3])
+            (
+                "closed_issue_",
+                &name["closed_issue_".len()..name.len() - 3],
+            )
         } else if name.starts_with("issue_") {
             ("issue_", &name["issue_".len()..name.len() - 3])
         } else {
@@ -711,7 +751,13 @@ fn fix_issue_filename_source(issue_dir: &Path, fixed: &mut Vec<String>) {
         };
         let source_owned = extract_source_from_frontmatter(&content);
         let source = source_owned.as_deref().unwrap_or("other");
-        let new_name = format!("{}{}_{}_{}.md", prefix, source, parts[0], parts.get(1).unwrap_or(&"1"));
+        let new_name = format!(
+            "{}{}_{}_{}.md",
+            prefix,
+            source,
+            parts[0],
+            parts.get(1).unwrap_or(&"1")
+        );
         if new_name == name {
             continue;
         }
@@ -720,7 +766,10 @@ fn fix_issue_filename_source(issue_dir: &Path, fixed: &mut Vec<String>) {
             continue;
         }
         if let Err(e) = fs::rename(entry.path(), &new_path) {
-            eprintln!("[dow doctor] warning: failed to rename {} -> {}: {}", name, new_name, e);
+            eprintln!(
+                "[dow doctor] warning: failed to rename {} -> {}: {}",
+                name, new_name, e
+            );
         } else {
             fixed.push(format!("{}: renamed to {} (added source)", name, new_name));
         }
@@ -888,7 +937,10 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
         if !items.is_empty() {
             let mut nums: Vec<u32> = items.iter().map(|i| i.current_num).collect();
             nums.sort();
-            let is_sequential = nums.iter().enumerate().all(|(idx, &n)| n == (idx as u32 + 1));
+            let is_sequential = nums
+                .iter()
+                .enumerate()
+                .all(|(idx, &n)| n == (idx as u32 + 1));
             if is_sequential {
                 return;
             }
@@ -911,10 +963,11 @@ fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
     for (new_idx, item) in items.iter().enumerate() {
         let new_num = (new_idx + 1) as u32;
         if new_num != item.current_num {
-            renames
-                .entry(item.file_path.clone())
-                .or_default()
-                .push((item.line_idx, item.current_num, new_num));
+            renames.entry(item.file_path.clone()).or_default().push((
+                item.line_idx,
+                item.current_num,
+                new_num,
+            ));
         }
     }
 

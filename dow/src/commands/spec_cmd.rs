@@ -56,7 +56,10 @@ fn get_current_mode() -> String {
     if !status_file.exists() {
         return "full".to_string();
     }
-    let mode = yaml::get(&status_file, "mode").ok().flatten().unwrap_or_default();
+    let mode = yaml::get(&status_file, "mode")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
     if let Some(orig) = mode.strip_prefix("audit/") {
         orig.to_string()
     } else if mode.is_empty() {

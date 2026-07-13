@@ -68,7 +68,6 @@ pub fn write_branch(branch: &str, version: &str) -> Result<(), DowError> {
     write_at(&doc_root::project_root(), branch, version)
 }
 
-
 /// Initialize version for new branch (inherit from main).
 pub fn init_branch(branch: &str) -> Result<String, DowError> {
     init_at(&doc_root::project_root(), branch)
@@ -172,7 +171,10 @@ fn parse_file(project_root: &Path) -> Result<Vec<VersionEntry>, DowError> {
     }
 
     if entries.is_empty() {
-        return Err(DowError::new("VERSION file is empty or format cannot be parsed", 1));
+        return Err(DowError::new(
+            "VERSION file is empty or format cannot be parsed",
+            1,
+        ));
     }
 
     Ok(entries)
@@ -210,18 +212,23 @@ fn write_file(project_root: &Path, entries: &[VersionEntry]) -> Result<(), DowEr
         .join("\n")
         + "\n";
 
-    fs::write(version_file_path(project_root), content)
-        .map_err(|e| DowError::new(e.to_string(), 1))
+    fs::write(version_file_path(project_root), content).map_err(|e| DowError::new(e.to_string(), 1))
 }
 
 fn validate_semver(version: &str) -> Result<(), DowError> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 3 {
-        return Err(DowError::new(format!("Invalid version format (need X.Y.Z): {}", version), 1));
+        return Err(DowError::new(
+            format!("Invalid version format (need X.Y.Z): {}", version),
+            1,
+        ));
     }
     for part in &parts {
         if part.parse::<u32>().is_err() {
-            return Err(DowError::new(format!("Invalid version format (non-numeric): {}", version), 1));
+            return Err(DowError::new(
+                format!("Invalid version format (non-numeric): {}", version),
+                1,
+            ));
         }
     }
     Ok(())
@@ -234,7 +241,10 @@ fn bump_version(version: &str, bump_type: &str) -> Result<String, DowError> {
         .collect();
 
     if parts.len() != 3 {
-        return Err(DowError::new(format!("Invalid version format: {}", version), 1));
+        return Err(DowError::new(
+            format!("Invalid version format: {}", version),
+            1,
+        ));
     }
 
     let (major, minor, patch) = (parts[0], parts[1], parts[2]);
@@ -242,6 +252,9 @@ fn bump_version(version: &str, bump_type: &str) -> Result<String, DowError> {
         "major" => Ok(format!("{}.0.0", major + 1)),
         "minor" => Ok(format!("{}.{}.0", major, minor + 1)),
         "patch" => Ok(format!("{}.{}.{}", major, minor, patch + 1)),
-        _ => Err(DowError::new(format!("Unknown bump type: {}", bump_type), 1)),
+        _ => Err(DowError::new(
+            format!("Unknown bump type: {}", bump_type),
+            1,
+        )),
     }
 }

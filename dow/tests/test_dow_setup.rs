@@ -38,7 +38,11 @@ fn write_minimal_codex_bundle(data_dir: &Path) -> PathBuf {
         "{\"plugins\":[]}\n",
     )
     .unwrap();
-    fs::write(codex_bundle.join("skills/dev-flow/SKILL.md"), "# dev-flow\n").unwrap();
+    fs::write(
+        codex_bundle.join("skills/dev-flow/SKILL.md"),
+        "# dev-flow\n",
+    )
+    .unwrap();
     fs::write(codex_bundle.join(".app.json"), "{}\n").unwrap();
     fs::write(codex_bundle.join(".codex-plugin/plugin.json"), "{}\n").unwrap();
 
@@ -60,7 +64,11 @@ fn test_setup_codex_injects_hook_discipline_without_touching_claude() {
     fs::create_dir_all(codex_agents.parent().unwrap()).unwrap();
     fs::create_dir_all(claude_agents.parent().unwrap()).unwrap();
     fs::write(&codex_agents, format!("{}\n## Dev Flow\n", DEV_FLOW_MARKER)).unwrap();
-    fs::write(&claude_agents, format!("{}\n## Dev Flow\n", DEV_FLOW_MARKER)).unwrap();
+    fs::write(
+        &claude_agents,
+        format!("{}\n## Dev Flow\n", DEV_FLOW_MARKER),
+    )
+    .unwrap();
 
     let old_path = env::var("PATH").unwrap_or_default();
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -105,7 +113,11 @@ fn test_setup_codex_returns_failure_when_registration_command_fails() {
 
     write_fake_codex(&bin);
     let codex_path = bin.join("codex");
-    fs::write(&codex_path, "#!/usr/bin/env sh\necho registration failed >&2\nexit 7\n").unwrap();
+    fs::write(
+        &codex_path,
+        "#!/usr/bin/env sh\necho registration failed >&2\nexit 7\n",
+    )
+    .unwrap();
     #[cfg(unix)]
     {
         let mut permissions = fs::metadata(&codex_path).unwrap().permissions();
@@ -158,7 +170,5 @@ fn test_setup_codex_uses_explicit_runtime_when_not_on_path() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("Using Codex runtime")
-    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Using Codex runtime"));
 }

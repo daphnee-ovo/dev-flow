@@ -14,11 +14,14 @@ pub fn run(args: DashboardArgs, _human: bool) -> std::result::Result<i32, DowErr
 
     let port = args.port.unwrap_or_else(find_available_port);
 
-    let rt = tokio::runtime::Runtime::new().map_err(|e| {
-        DowError::new(format!("Failed to create async runtime: {}", e), 1)
-    })?;
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| DowError::new(format!("Failed to create async runtime: {}", e), 1))?;
 
-    rt.block_on(crate::dashboard::server::start(doc_root, port, args.no_open))
+    rt.block_on(crate::dashboard::server::start(
+        doc_root,
+        port,
+        args.no_open,
+    ))
 }
 
 fn find_available_port() -> u16 {

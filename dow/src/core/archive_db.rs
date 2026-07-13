@@ -166,16 +166,18 @@ fn create_tables(conn: &Connection) -> Result<(), DowError> {
     .map_err(|e| DowError::new(format!("Failed to create tables: {}", e), 1))?;
 
     // Backwards compatibility: ensure revoked column exists
-    conn.execute_batch(
-        "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
-    ).ok();
+    conn.execute_batch("ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;")
+        .ok();
 
     // Backwards compatibility: remove version UNIQUE constraint (allow multiple records per version)
-    let has_unique: bool = conn.query_row(
+    let has_unique: bool = conn
+        .query_row(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='iterations'",
         [],
         |row| row.get::<_, String>(0),
-    ).map(|sql| sql.contains("UNIQUE")).unwrap_or(false);
+        )
+        .map(|sql| sql.contains("UNIQUE"))
+        .unwrap_or(false);
 
     if has_unique {
         conn.execute_batch("
@@ -255,13 +257,23 @@ pub fn insert_iteration(conn: &Connection, rec: &IterationRecord) -> Result<(), 
     Ok(())
 }
 
-pub fn insert_doc(conn: &Connection, version: &str, doc_type: &str, content: &str) -> Result<(), DowError> {
+pub fn insert_doc(
+    conn: &Connection,
+    version: &str,
+    doc_type: &str,
+    content: &str,
+) -> Result<(), DowError> {
     let sql = match doc_type {
         "PRD" => "INSERT OR REPLACE INTO prd_docs (version, content) VALUES (?1, ?2)",
         "SPEC" => "INSERT OR REPLACE INTO spec_docs (version, content) VALUES (?1, ?2)",
         "TEST" => "INSERT OR REPLACE INTO test_docs (version, content) VALUES (?1, ?2)",
         "BRAINSTORM" => "INSERT OR REPLACE INTO brainstorm_docs (version, content) VALUES (?1, ?2)",
-        _ => return Err(DowError::new(format!("Unknown document type: {}", doc_type), 1)),
+        _ => {
+            return Err(DowError::new(
+                format!("Unknown document type: {}", doc_type),
+                1,
+            ))
+        }
     };
     conn.execute(sql, params![version, content])
         .map_err(|e| DowError::new(e.to_string(), 1))?;
@@ -319,7 +331,13 @@ pub fn insert_issue(conn: &Connection, version: &str, issue: &IssueRecord) -> Re
     Ok(())
 }
 
-pub fn insert_changelog(conn: &Connection, version: &str, date: Option<&str>, text: &str, order: i32) -> Result<(), DowError> {
+pub fn insert_changelog(
+    conn: &Connection,
+    version: &str,
+    date: Option<&str>,
+    text: &str,
+    order: i32,
+) -> Result<(), DowError> {
     conn.execute(
         "INSERT INTO changelog_entries (version, entry_date, entry_text, sort_order)
          VALUES (?1, ?2, ?3, ?4)",
@@ -342,12 +360,15 @@ pub struct IterationSummary {
     pub issue_count: i64,
 }
 
-pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<IterationSummary>, DowError> {
+pub fn list_iterations(
+    conn: &Connection,
+    branch: Option<&str>,
+) -> Result<Vec<IterationSummary>, DowError> {
     let mut sql = String::from(
         "SELECT i.version, i.topic, i.commit_type, i.branch, i.released_at, i.tag,
          (SELECT COUNT(*) FROM tasks t WHERE t.version = i.version) as task_count,
          (SELECT COUNT(*) FROM issues s WHERE s.version = i.version) as issue_count
-         FROM iterations i"
+         FROM iterations i",
     );
     let mut bind_values: Vec<String> = Vec::new();
     if let Some(b) = branch {
@@ -356,11 +377,16 @@ pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<It
     }
     sql.push_str(" ORDER BY i.id ASC");
 
-    let mut stmt = conn.prepare(&sql)
+    let mut stmt = conn
+        .prepare(&sql)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-    let rows = stmt.query_map(params_slice.as_slice(), |row| {
+    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values
+        .iter()
+        .map(|s| s as &dyn rusqlite::ToSql)
+        .collect();
+    let rows = stmt
+        .query_map(params_slice.as_slice(), |row| {
         Ok(IterationSummary {
             version: row.get(0)?,
             topic: row.get(1)?,
@@ -371,7 +397,8 @@ pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<It
             task_count: row.get(6)?,
             issue_count: row.get(7)?,
         })
-    }).map_err(|e| DowError::new(e.to_string(), 1))?;
+        })
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -380,13 +407,22 @@ pub fn list_iterations(conn: &Connection, branch: Option<&str>) -> Result<Vec<It
     Ok(results)
 }
 
-pub fn get_doc(conn: &Connection, version: &str, doc_type: &str) -> Result<Option<String>, DowError> {
+pub fn get_doc(
+    conn: &Connection,
+    version: &str,
+    doc_type: &str,
+) -> Result<Option<String>, DowError> {
     let sql = match doc_type {
         "PRD" => "SELECT content FROM prd_docs WHERE version = ?1",
         "SPEC" => "SELECT content FROM spec_docs WHERE version = ?1",
         "TEST" => "SELECT content FROM test_docs WHERE version = ?1",
         "BRAINSTORM" => "SELECT content FROM brainstorm_docs WHERE version = ?1",
-        _ => return Err(DowError::new(format!("Unknown document type: {}", doc_type), 1)),
+        _ => {
+            return Err(DowError::new(
+                format!("Unknown document type: {}", doc_type),
+                1,
+            ))
+        }
     };
     let result = conn
         .query_row(sql, params![version], |row| row.get::<_, String>(0))
@@ -394,11 +430,15 @@ pub fn get_doc(conn: &Connection, version: &str, doc_type: &str) -> Result<Optio
     Ok(result)
 }
 
-pub fn query_tasks(conn: &Connection, version: Option<&str>, priority: Option<&str>) -> Result<Vec<TaskRecord>, DowError> {
+pub fn query_tasks(
+    conn: &Connection,
+    version: Option<&str>,
+    priority: Option<&str>,
+) -> Result<Vec<TaskRecord>, DowError> {
     let mut sql = String::from(
         "SELECT source_file, file_title, task_id, title, completed, priority, refs,
          files_create, files_modify, files_test, depends_on, complexity, done_when
-         FROM tasks WHERE 1=1"
+         FROM tasks WHERE 1=1",
     );
     let mut bind_values: Vec<String> = Vec::new();
     if let Some(v) = version {
@@ -411,11 +451,16 @@ pub fn query_tasks(conn: &Connection, version: Option<&str>, priority: Option<&s
     }
     sql.push_str(" ORDER BY id ASC");
 
-    let mut stmt = conn.prepare(&sql)
+    let mut stmt = conn
+        .prepare(&sql)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-    let rows = stmt.query_map(params_slice.as_slice(), |row| {
+    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values
+        .iter()
+        .map(|s| s as &dyn rusqlite::ToSql)
+        .collect();
+    let rows = stmt
+        .query_map(params_slice.as_slice(), |row| {
         Ok(TaskRecord {
             source_file: row.get(0)?,
             file_title: row.get(1)?,
@@ -431,7 +476,8 @@ pub fn query_tasks(conn: &Connection, version: Option<&str>, priority: Option<&s
             complexity: row.get(11)?,
             done_when: row.get(12)?,
         })
-    }).map_err(|e| DowError::new(e.to_string(), 1))?;
+        })
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -440,11 +486,15 @@ pub fn query_tasks(conn: &Connection, version: Option<&str>, priority: Option<&s
     Ok(results)
 }
 
-pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&str>) -> Result<Vec<IssueRecord>, DowError> {
+pub fn query_issues(
+    conn: &Connection,
+    version: Option<&str>,
+    severity: Option<&str>,
+) -> Result<Vec<IssueRecord>, DowError> {
     let mut sql = String::from(
         "SELECT source_file, source_type, issue_id, title, resolved, severity,
          location, description, expected, actual, reproduce, fix
-         FROM issues WHERE 1=1"
+         FROM issues WHERE 1=1",
     );
     let mut bind_values: Vec<String> = Vec::new();
     if let Some(v) = version {
@@ -457,11 +507,16 @@ pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&
     }
     sql.push_str(" ORDER BY id ASC");
 
-    let mut stmt = conn.prepare(&sql)
+    let mut stmt = conn
+        .prepare(&sql)
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-    let rows = stmt.query_map(params_slice.as_slice(), |row| {
+    let params_slice: Vec<&dyn rusqlite::ToSql> = bind_values
+        .iter()
+        .map(|s| s as &dyn rusqlite::ToSql)
+        .collect();
+    let rows = stmt
+        .query_map(params_slice.as_slice(), |row| {
         Ok(IssueRecord {
             source_file: row.get(0)?,
             source_type: row.get(1)?,
@@ -476,7 +531,8 @@ pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&
             reproduce: row.get(10)?,
             fix: row.get(11)?,
         })
-    }).map_err(|e| DowError::new(e.to_string(), 1))?;
+        })
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -485,14 +541,19 @@ pub fn query_issues(conn: &Connection, version: Option<&str>, severity: Option<&
     Ok(results)
 }
 
-pub fn query_changelog(conn: &Connection, version: &str) -> Result<Vec<(Option<String>, String)>, DowError> {
+pub fn query_changelog(
+    conn: &Connection,
+    version: &str,
+) -> Result<Vec<(Option<String>, String)>, DowError> {
     let mut stmt = conn.prepare(
         "SELECT entry_date, entry_text FROM changelog_entries WHERE version = ?1 ORDER BY sort_order ASC"
     ).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    let rows = stmt.query_map(params![version], |row| {
+    let rows = stmt
+        .query_map(params![version], |row| {
         Ok((row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?))
-    }).map_err(|e| DowError::new(e.to_string(), 1))?;
+        })
+        .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     let mut results = Vec::new();
     for row in rows {
@@ -517,23 +578,26 @@ pub fn find_active_iteration(conn: &Connection, version: &str) -> Result<Option<
 
 /// Mark specified iteration id as revoked
 pub fn mark_iteration_revoked(conn: &Connection, iteration_id: i64) -> Result<(), DowError> {
-    conn.execute_batch(
-        "ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;"
-    ).ok(); // Backwards compatibility
+    conn.execute_batch("ALTER TABLE iterations ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0;")
+        .ok(); // Backwards compatibility
 
     conn.execute(
         "UPDATE iterations SET revoked = 1 WHERE id = ?1",
         params![iteration_id],
-    ).map_err(|e| DowError::new(e.to_string(), 1))?;
+    )
+    .map_err(|e| DowError::new(e.to_string(), 1))?;
     Ok(())
 }
 
 pub fn get_stats(conn: &Connection) -> Result<serde_json::Value, DowError> {
-    let iter_count: i64 = conn.query_row("SELECT COUNT(*) FROM iterations", [], |r| r.get(0))
+    let iter_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM iterations", [], |r| r.get(0))
         .map_err(|e| DowError::new(e.to_string(), 1))?;
-    let task_count: i64 = conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+    let task_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
         .map_err(|e| DowError::new(e.to_string(), 1))?;
-    let issue_count: i64 = conn.query_row("SELECT COUNT(*) FROM issues", [], |r| r.get(0))
+    let issue_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM issues", [], |r| r.get(0))
         .map_err(|e| DowError::new(e.to_string(), 1))?;
 
     Ok(serde_json::json!({
@@ -560,11 +624,7 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
         if line.starts_with("- [") {
             task_seq += 1;
             let completed = line.starts_with("- [x]");
-            let after_bracket = if completed {
-                &line[6..]
-            } else {
-                &line[5..]
-            };
+            let after_bracket = if completed { &line[6..] } else { &line[5..] };
             let after_bracket = after_bracket.trim();
 
             // Parse task_id and title
@@ -614,7 +674,9 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                         continue;
                     } else if let Some(val) = strip_field(field, "depends_on:") {
                         depends_on = Some(normalize_array(&val));
-                    } else if strip_field(field, "depends on：").is_some() || strip_field(field, "depends on:").is_some() {
+                    } else if strip_field(field, "depends on：").is_some()
+                        || strip_field(field, "depends on:").is_some()
+                    {
                         let val = strip_field(field, "depends on：")
                             .or_else(|| strip_field(field, "depends on:"))
                             .unwrap_or_default();
@@ -623,7 +685,10 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                         } else {
                             Some(normalize_array(&val))
                         };
-                    } else if field.starts_with("done_when:") || field.starts_with("Done when：") || field.starts_with("Done when:") {
+                    } else if field.starts_with("done_when:")
+                        || field.starts_with("Done when：")
+                        || field.starts_with("Done when:")
+                    {
                         let val = strip_field(field, "done_when:")
                             .or_else(|| strip_field(field, "Done when："))
                             .or_else(|| strip_field(field, "Done when:"))
@@ -631,9 +696,12 @@ pub fn parse_task_file(filename: &str, content: &str) -> Vec<TaskRecord> {
                         done_when = Some(if val.is_empty() {
                             "[]".to_string()
                         } else {
-                            serde_json::to_string(&[&val]).unwrap_or_else(|_| format!("[\"{}\"]", val))
+                            serde_json::to_string(&[&val])
+                                .unwrap_or_else(|_| format!("[\"{}\"]", val))
                         });
-                    } else if strip_field(field, "details：").is_some() || strip_field(field, "details:").is_some() {
+                    } else if strip_field(field, "details：").is_some()
+                        || strip_field(field, "details:").is_some()
+                    {
                         // Old format details → ignore (cannot map to refs)
                     } else if strip_field(field, "parallel:").is_some() {
                         // Ignore parallel field
@@ -720,7 +788,10 @@ pub fn parse_issue_file(filename: &str, content: &str) -> Vec<IssueRecord> {
                     // Multi-line reproduce (starts with |)
                     let mut repro_lines = Vec::new();
                     i += 1;
-                    while i < lines.len() && !lines[i].trim().starts_with("- ") && !lines[i].starts_with("- [") {
+                    while i < lines.len()
+                        && !lines[i].trim().starts_with("- ")
+                        && !lines[i].starts_with("- [")
+                    {
                         repro_lines.push(lines[i].trim());
                         i += 1;
                     }
@@ -794,7 +865,9 @@ pub fn migrate_archive_dir(
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if (name.starts_with("done_task_") || name.starts_with("task_")) && name.ends_with(".md") {
+            if (name.starts_with("done_task_") || name.starts_with("task_"))
+                && name.ends_with(".md")
+            {
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     let tasks = parse_task_file(&name, &content);
                     for task in &tasks {
@@ -850,14 +923,17 @@ pub fn migrate_archive_dir(
 
     // Insert iteration record
     let released_at = extract_date_from_dir(dir);
-    insert_iteration(conn, &IterationRecord {
+    insert_iteration(
+        conn,
+        &IterationRecord {
         version: version.to_string(),
         topic: topic.to_string(),
         commit_type: None,
         branch: branch.to_string(),
         released_at,
         tag: format!("v{}", version),
-    })?;
+        },
+    )?;
 
     Ok(count)
 }
@@ -893,7 +969,10 @@ fn split_id_title(text: &str) -> (String, String) {
     if let Some(pos) = text.find(": ") {
         (text[..pos].to_string(), text[pos + 2..].to_string())
     } else if let Some(pos) = text.find("：") {
-        (text[..pos].to_string(), text[pos + "：".len()..].to_string())
+        (
+            text[..pos].to_string(),
+            text[pos + "：".len()..].to_string(),
+        )
     } else if let Some(pos) = text.find(':') {
         (text[..pos].to_string(), text[pos + 1..].trim().to_string())
     } else {
@@ -942,7 +1021,10 @@ fn extract_date_from_dir(dir: &Path) -> String {
             let stem = name.strip_suffix(".md").unwrap_or(&name);
             // Find segment matching date pattern (YYYY-MM-DD)
             for segment in stem.split('_') {
-                if segment.len() == 10 && segment.chars().nth(4) == Some('-') && segment.chars().nth(7) == Some('-') {
+                if segment.len() == 10
+                    && segment.chars().nth(4) == Some('-')
+                    && segment.chars().nth(7) == Some('-')
+                {
                     return segment.to_string();
                 }
             }

@@ -115,7 +115,6 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 | `/spec` | Slash command | Skill | Agent command |
 | `/task` | Slash command | Skill | Agent command |
 | `/issue` | Slash command | Skill | Agent command |
-| `/devtest` | Slash command | Skill | Agent command |
 | `/fix` | Slash command | Skill | Agent command |
 | `/test` | Slash command | Skill | Agent command |
 | `/status` | Slash command | Skill | Agent command |
@@ -168,9 +167,8 @@ Core principles:
 | `/spec` | Launch SPEC agent — produce SPEC.md |
 | `/task` | Launch TASK agent — produce task files |
 | `/issue` | Manually create issue files |
-| `/devtest` | Routine dev testing (task-level verification) |
+| `/test` | Run dow test for full project verification |
 | `/fix` | Auto-read open issues and fix them |
-| `/test` | Full TEST agent (project-level verification) |
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with .dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
@@ -210,7 +208,7 @@ Each phase is executed by an independent agent to avoid cognitive bias:
 No manual operations needed:
 
 - **Context injection** — injects current phase status and spec reminders on every message
-- **Auto devtest** — triggers routine testing when a task is marked complete
+- **Task close test gate** — dow task done TASK-ID runs dow test TASK-ID before changing the Task file
 - **Doc sync check** — reminds you to sync documentation when code changes
 - **Changelog save** — automatically saves changelog on conversation end
 - **System temp blocking** — prevents writing to system temp directories; project-local `tmp` and `temp` are allowed, and new projects default to `tmp`
@@ -272,7 +270,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issues support a full lifecycle beyond tasks:
 
-- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity
+- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity. Creation accepts one JSON object or a batch JSON array.
 - **Multi-line values**: description/reproduce/fix support YAML indented continuation format
 - **Close enforcement**: closing requires a non-empty fix field
 - **Incremental array updates**: `--files +src/foo.rs -src/bar.rs` to add/remove specific items
@@ -319,9 +317,8 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow task create/update/show/list` | Task lifecycle management |
 | `dow issue create/update/close/show/list` | Issue lifecycle management |
 | `dow fix` | Compatibility alias for `dow doctor --fix` |
-| `dow devtest [--task <id>]` | Task-level verification |
-| `dow test [--file <x>]` | Full project-level test suite |
-| `dow check` | Check if dev work is synced with .dev-doc |
+| `dow test` | Full project-level test suite |
+| `dow test <TASK-ID>` | Task-level test for the Task's files.test |
 | `dow scan` | Project structure scan |
 | `dow version [--set X.Y.Z] [--bump patch]` | Read/write multi-branch VERSION |
 | `dow iterate [--confirm]` | Delivery: archive + commit + tag + bump |

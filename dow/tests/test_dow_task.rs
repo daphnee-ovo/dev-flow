@@ -53,28 +53,40 @@ fn test_task_create_with_flags() {
 
     let output = Command::new(dow_cmd())
         .args([
-            "task", "create",
-            "--title", "Implement login flow",
-            "--task-type", "feat",
-            "--priority", "P0",
-            "--refs", "user-request",
-            "--files-modify", "",
-            "--files-create", "",
-            "--files-test", "",
-            "--depends-on", "",
-            "--complexity", "M",
-            "--done-when", "login works,tests pass",
+            "task",
+            "create",
+            "--title",
+            "Implement login flow",
+            "--task-type",
+            "feat",
+            "--priority",
+            "P0",
+            "--refs",
+            "user-request",
+            "--files-modify",
+            "",
+            "--files-create",
+            "",
+            "--files-test",
+            "",
+            "--depends-on",
+            "",
+            "--complexity",
+            "M",
+            "--done-when",
+            "login works,tests pass",
         ])
         .current_dir(&dir)
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    // Successful creation returns the generated task ID.
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "TASK-T001"
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
+    // Successful creation returns the generated task ID.
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "TASK-T001");
 
     // Verify file was created
     let branch = default_branch(&dir);
@@ -111,10 +123,19 @@ fn test_task_create_with_stdin_json_object() {
         .spawn()
         .unwrap();
 
-    child.stdin.as_mut().unwrap().write_all(json_input.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let branch = default_branch(&dir);
     let task_dir = dir.join(".dev-doc").join(&branch).join("task");
@@ -147,10 +168,19 @@ fn test_task_create_with_stdin_json_array() {
         .spawn()
         .unwrap();
 
-    child.stdin.as_mut().unwrap().write_all(json_input.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let branch = default_branch(&dir);
     let task_dir = dir.join(".dev-doc").join(&branch).join("task");
@@ -182,23 +212,38 @@ fn test_task_create_increments_id() {
 
     let output = Command::new(dow_cmd())
         .args([
-            "task", "create",
-            "--title", "New task",
-            "--task-type", "feat",
-            "--priority", "P1",
-            "--refs", "",
-            "--files-modify", "",
-            "--files-create", "",
-            "--files-test", "",
-            "--depends-on", "",
-            "--complexity", "S",
-            "--done-when", "done",
+            "task",
+            "create",
+            "--title",
+            "New task",
+            "--task-type",
+            "feat",
+            "--priority",
+            "P1",
+            "--refs",
+            "",
+            "--files-modify",
+            "",
+            "--files-create",
+            "",
+            "--files-test",
+            "",
+            "--depends-on",
+            "",
+            "--complexity",
+            "S",
+            "--done-when",
+            "done",
         ])
         .current_dir(&dir)
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Should create TASK-T003 in today's batch file
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -213,6 +258,49 @@ fn test_task_create_increments_id() {
     assert_eq!(files.len(), 1);
     let content = fs::read_to_string(files[0].path()).unwrap();
     assert!(content.contains("TASK-T003: New task"));
+}
+
+#[test]
+fn test_task_create_rejects_xl_complexity() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let output = Command::new(dow_cmd())
+        .args([
+            "task",
+            "create",
+            "--title",
+            "Oversized task",
+            "--task-type",
+            "feat",
+            "--priority",
+            "P1",
+            "--refs",
+            "user-request",
+            "--files-modify",
+            "",
+            "--files-create",
+            "",
+            "--files-test",
+            "",
+            "--depends-on",
+            "",
+            "--complexity",
+            "XL",
+            "--done-when",
+            "split into smaller tasks",
+        ])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("valid: S/M/L"));
+    assert!(stderr.contains("split oversized work into multiple Tasks"));
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    assert_eq!(fs::read_dir(task_dir).unwrap().count(), 0);
 }
 
 #[test]
@@ -353,7 +441,11 @@ nums: 1
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
@@ -449,6 +541,100 @@ fn test_task_done_renames_when_all_done() {
 }
 
 #[test]
+fn test_task_done_blocks_on_test_failure_and_creates_issue() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    fs::write(
+        dir.join("fail.sh"),
+        "#!/bin/sh\necho 'raw task test failure' >&2\nexit 1\n",
+    )
+    .unwrap();
+    let task_path = task_dir.join("task_2026-06-25_1.md");
+    let original = "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Failing task\n  - type: feat\n  - priority: P0\n  - files:\n      test: [\"fail.sh\"]\n";
+    fs::write(&task_path, original).unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args(["task", "done", "TASK-T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("raw task test failure"));
+    assert_eq!(fs::read_to_string(&task_path).unwrap(), original);
+    let issue_dir = dir.join(".dev-doc").join(&branch).join("issue");
+    let issue_files = fs::read_dir(issue_dir)
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("md"))
+        .collect::<Vec<_>>();
+    assert_eq!(issue_files.len(), 1);
+    let issue = fs::read_to_string(issue_files[0].path()).unwrap();
+    assert!(issue.contains("Test TASK-T001 fail:"));
+    assert!(issue.contains("raw task test failure"));
+}
+
+#[test]
+fn test_task_done_blocks_on_test_precondition_without_issue() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    let task_path = task_dir.join("task_2026-06-25_1.md");
+    let original = "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Unsupported test\n  - type: feat\n  - priority: P0\n  - files:\n      test: [\"unsupported.txt\"]\n";
+    fs::write(&task_path, original).unwrap();
+    fs::write(dir.join("unsupported.txt"), "not a test").unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args(["task", "done", "TASK-T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("No built-in test adapter"));
+    assert_eq!(fs::read_to_string(&task_path).unwrap(), original);
+    let issue_dir = dir.join(".dev-doc").join(&branch).join("issue");
+    assert_eq!(fs::read_dir(issue_dir).unwrap().count(), 0);
+}
+
+#[test]
+fn test_task_done_multi_ids_keeps_prior_success_when_later_test_fails() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    fs::write(
+        dir.join("fail.sh"),
+        "#!/bin/sh\necho 'second task failed' >&2\nexit 1\n",
+    )
+    .unwrap();
+    let task_path = task_dir.join("task_2026-06-25_1.md");
+    fs::write(
+        &task_path,
+        "---\ntitle: TASK - batch\nnums: 2\n---\n\n- [ ] TASK-T001: First task\n  - type: feat\n  - priority: P0\n- [ ] TASK-T002: Second task\n  - type: feat\n  - priority: P0\n  - files:\n      test: [\"fail.sh\"]\n",
+    )
+    .unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args(["task", "done", "TASK-T001", "TASK-T002"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let content = fs::read_to_string(&task_path).unwrap();
+    assert!(content.contains("- [x] TASK-T001:"));
+    assert!(content.contains("- [ ] TASK-T002:"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("second task failed"));
+}
+
+#[test]
 fn test_task_done_not_found() {
     let dir = create_test_dir();
     setup_env(&dir);
@@ -524,7 +710,11 @@ fn test_task_reopen_with_confirm() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(output.stdout.is_empty(), "silent on success");
 
     // File should be renamed back (done_ prefix removed)
@@ -578,5 +768,9 @@ fn test_task_schema_outputs_json() {
     assert!(json["fields"]["title"].is_object());
     assert!(json["fields"]["type"].is_object());
     assert!(json["fields"]["priority"].is_object());
+    assert_eq!(
+        json["fields"]["complexity"]["enum"],
+        serde_json::json!(["S", "M", "L"])
+    );
     assert!(json["file_format"]["name_pattern"].is_string());
 }

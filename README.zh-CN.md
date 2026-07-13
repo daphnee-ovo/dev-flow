@@ -115,7 +115,6 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 | `/spec` | Slash command | Skill | Agent command |
 | `/task` | Slash command | Skill | Agent command |
 | `/issue` | Slash command | Skill | Agent command |
-| `/devtest` | Slash command | Skill | Agent command |
 | `/fix` | Slash command | Skill | Agent command |
 | `/test` | Slash command | Skill | Agent command |
 | `/status` | Slash command | Skill | Agent command |
@@ -168,9 +167,8 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 | `/spec` | 启动 SPEC agent，产出 SPEC.md |
 | `/task` | 启动 TASK agent，产出任务文件 |
 | `/issue` | 手动创建 issue 文件 |
-| `/devtest` | 开发中例行测试（任务级验证） |
+| `/test` | 执行 dow test 全量测试 |
 | `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 完整 TEST agent（项目级全量验证） |
 | `/status` | 查看当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 .dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |
@@ -210,7 +208,7 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 无需手动操作：
 
 - **上下文注入** — 每次对话注入当前阶段状态和规范提醒
-- **自动 devtest** — 任务完成后自动触发例行测试
+- **Task 关闭测试门禁** — dow task done TASK-ID 在改写 Task 前先执行 dow test TASK-ID
 - **文档同步检查** — 代码变更时提醒同步文档
 - **变更日志** — 会话结束时自动保存 CHANGELOG
 - **系统临时目录拦截** — 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，新项目默认使用 `tmp`
@@ -270,7 +268,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issue 支持完整的生命周期：
 
-- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity
+- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity。创建支持单个 JSON 对象或批量 JSON 数组。
 - **多行值**：description/reproduce/fix 支持 YAML 缩进续行格式
 - **关闭强制**：关闭时必须填写非空 fix 字段
 - **增量数组更新**：`--files +src/foo.rs -src/bar.rs` 增减特定项
@@ -317,9 +315,8 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | `dow task create/update/show/list` | Task 全生命周期管理 |
 | `dow issue create/update/close/show/list` | Issue 全生命周期管理 |
 | `dow fix` | `dow doctor --fix` 的兼容别名 |
-| `dow devtest [--task <id>]` | 任务级验证 |
-| `dow test [--file <x>]` | 项目级全量测试 |
-| `dow check` | 检查开发工作是否同步到 .dev-doc |
+| `dow test` | 项目级全量测试 |
+| `dow test <TASK-ID>` | 执行 Task 的 files.test |
 | `dow scan` | 项目结构扫描 |
 | `dow version [--set X.Y.Z] [--bump patch]` | 读写多分支 VERSION |
 | `dow iterate [--confirm]` | 交付：归档 + commit + tag + bump |

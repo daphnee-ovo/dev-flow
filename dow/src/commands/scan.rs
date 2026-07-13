@@ -159,7 +159,11 @@ fn detect_commands() -> ScanCommands {
                 })
                 .map(|l| l.trim().trim_end_matches(',').to_string())
                 .collect();
-            if scripts.is_empty() { None } else { Some(scripts) }
+            if scripts.is_empty() {
+                None
+            } else {
+                Some(scripts)
+            }
         } else {
             None
         }
@@ -176,7 +180,11 @@ fn detect_commands() -> ScanCommands {
                 .filter_map(|l| l.split(':').next().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty() && !s.contains(' '))
                 .collect();
-            if targets.is_empty() { None } else { Some(targets) }
+            if targets.is_empty() {
+                None
+            } else {
+                Some(targets)
+            }
         } else {
             None
         }
@@ -249,14 +257,31 @@ fn detect_structure() -> Vec<String> {
 
 fn count_files() -> usize {
     let output = Command::new("find")
-        .args([".", "-type", "f",
-            "!", "-path", "./.git/*",
-            "!", "-path", "./node_modules/*",
-            "!", "-path", "./tmp/*",
-            "!", "-path", "./temp/*",
-            "!", "-path", "./.next/*",
-            "!", "-path", "./target/*",
-            "!", "-path", "./dow/target/*",
+        .args([
+            ".",
+            "-type",
+            "f",
+            "!",
+            "-path",
+            "./.git/*",
+            "!",
+            "-path",
+            "./node_modules/*",
+            "!",
+            "-path",
+            "./tmp/*",
+            "!",
+            "-path",
+            "./temp/*",
+            "!",
+            "-path",
+            "./.next/*",
+            "!",
+            "-path",
+            "./target/*",
+            "!",
+            "-path",
+            "./dow/target/*",
         ])
         .output();
 
@@ -266,9 +291,7 @@ fn count_files() -> usize {
 }
 
 fn read_readme_first() -> Option<String> {
-    fs::read_to_string("README.md")
-        .ok()
-        .and_then(|c| {
+    fs::read_to_string("README.md").ok().and_then(|c| {
             c.lines()
                 .find(|l| !l.trim().is_empty())
                 .map(|l| l.to_string())
@@ -304,7 +327,11 @@ fn detect_git() -> GitInfo {
         })
         .unwrap_or_default();
 
-    GitInfo { branch, commits, recent }
+    GitInfo {
+        branch,
+        commits,
+        recent,
+    }
 }
 
 fn detect_dev_doc() -> DevDocInfo {
@@ -433,7 +460,10 @@ fn print_human(scan: &ScanOutput) {
     if let Some(ref readme) = scan.readme_first_line {
         println!("readme: {}", readme);
     }
-    println!("git: branch={} commits={}", scan.git.branch, scan.git.commits);
+    println!(
+        "git: branch={} commits={}",
+        scan.git.branch, scan.git.commits
+    );
     println!("dev_doc: exists={}", scan.dev_doc.exists);
     println!("agent_files: {}", scan.agent_files.join(", "));
 }

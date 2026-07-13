@@ -63,13 +63,21 @@ fn parse_issue_spec() -> IssueSpec {
 
     // fallback
     if valid_sources.is_empty() {
-        valid_sources = vec!["test".into(), "devtest".into(), "other".into(), "audit".into()];
+        valid_sources = vec![
+            "test".into(),
+            "devtest".into(),
+            "other".into(),
+            "audit".into(),
+        ];
     }
     if valid_severities.is_empty() {
         valid_severities = vec!["P0".into(), "P1".into(), "P2".into()];
     }
 
-    IssueSpec { valid_sources, valid_severities }
+    IssueSpec {
+        valid_sources,
+        valid_severities,
+    }
 }
 
 /// Parse TASK-FILE.md specification
@@ -95,7 +103,8 @@ fn parse_task_spec() -> TaskSpec {
             valid_priorities = extract_enum_values(line);
         }
         // complexity enum
-        if line.contains("| complexity") || (line.contains("| `S`") && line.contains("small task")) {
+        if line.contains("| complexity") || (line.contains("| `S`") && line.contains("small task"))
+        {
             if valid_complexities.is_empty() {
                 valid_complexities = extract_complexity_values(REF_TASK);
             }
@@ -120,7 +129,11 @@ fn parse_task_spec() -> TaskSpec {
         required_fields = vec!["priority".into(), "done_when".into()];
     }
 
-    TaskSpec { valid_priorities, valid_complexities, required_fields }
+    TaskSpec {
+        valid_priorities,
+        valid_complexities,
+        required_fields,
+    }
 }
 
 /// Extract enum values in `value` / `value` format from md table row
@@ -171,7 +184,11 @@ fn extract_first_backtick_value(line: &str) -> Option<String> {
     let start = line.find('`')? + 1;
     let end = line[start..].find('`')? + start;
     let val = &line[start..end];
-    if val.is_empty() { None } else { Some(val.to_string()) }
+    if val.is_empty() {
+        None
+    } else {
+        Some(val.to_string())
+    }
 }
 
 // ==================== Validation Logic ====================
@@ -180,7 +197,11 @@ fn extract_first_backtick_value(line: &str) -> Option<String> {
 pub fn validate_issue_file(path: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let spec = parse_issue_spec();
-    let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let filename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     // 1. Filename validation
     if let Some(e) = validate_issue_filename(&filename, &spec) {
@@ -201,7 +222,11 @@ pub fn validate_issue_file(path: &Path) -> Vec<ValidationError> {
 pub fn validate_task_file(path: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let spec = parse_task_spec();
-    let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let filename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     // 1. Filename validation
     if let Some(e) = validate_task_filename(&filename) {
@@ -449,7 +474,12 @@ fn validate_issue_content(filename: &str, content: &str, spec: &IssueSpec) -> Ve
 }
 
 /// Validate task file content
-fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_root: Option<&Path>) -> Vec<ValidationError> {
+fn validate_task_content(
+    filename: &str,
+    content: &str,
+    spec: &TaskSpec,
+    doc_root: Option<&Path>,
+) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // Check YAML frontmatter
@@ -518,7 +548,9 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                         kind: ErrorKind::InvalidFieldValue,
                         message: format!(
                             "task '{}' priority '{}' is invalid, valid values: {}",
-                            item_title, val, spec.valid_priorities.join("/")
+                            item_title,
+                            val,
+                            spec.valid_priorities.join("/")
                         ),
                         fixable: false,
                     });
@@ -532,7 +564,9 @@ fn validate_task_content(filename: &str, content: &str, spec: &TaskSpec, doc_roo
                         kind: ErrorKind::InvalidFieldValue,
                         message: format!(
                             "task '{}' complexity '{}' is invalid, valid values: {}",
-                            item_title, val, spec.valid_complexities.join("/")
+                            item_title,
+                            val,
+                            spec.valid_complexities.join("/")
                         ),
                         fixable: false,
                     });
@@ -643,7 +677,9 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
                         "Duplicate issue sequence: ISSUE-I{:03} found in {} and {}",
-                        all_issue_ids[i].0, all_issue_ids[i - 1].1, all_issue_ids[i].1
+                        all_issue_ids[i].0,
+                        all_issue_ids[i - 1].1,
+                        all_issue_ids[i].1
                     ),
                     fixable: false,
                 });
@@ -724,7 +760,9 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
                     kind: ErrorKind::InvalidFieldValue,
                     message: format!(
                         "Duplicate task sequence: TASK-T{:03} found in {} and {}",
-                        all_task_ids[i].0, all_task_ids[i - 1].1, all_task_ids[i].1
+                        all_task_ids[i].0,
+                        all_task_ids[i - 1].1,
+                        all_task_ids[i].1
                     ),
                     fixable: false,
                 });
@@ -786,7 +824,10 @@ pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {
                 errors.push(ValidationError {
                     file: "SPEC.md".into(),
                     kind: ErrorKind::InvalidFieldValue,
-                    message: format!("SPEC-AC sequence format invalid: SPEC-AC-{}", rest.chars().take(10).collect::<String>()),
+                    message: format!(
+                        "SPEC-AC sequence format invalid: SPEC-AC-{}",
+                        rest.chars().take(10).collect::<String>()
+                    ),
                     fixable: false,
                 });
                 continue;
@@ -872,7 +913,11 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
             errors.push(ValidationError {
                 file: "STATUS.yaml".into(),
                 kind: ErrorKind::InvalidFieldValue,
-                message: format!("phase '{}' is invalid (valid values: {})", phase, valid.join("/")),
+                message: format!(
+                    "phase '{}' is invalid (valid values: {})",
+                    phase,
+                    valid.join("/")
+                ),
                 fixable: false,
             });
         }
@@ -888,7 +933,10 @@ fn validate_status_yaml(doc_root: &Path) -> Vec<ValidationError> {
             errors.push(ValidationError {
                 file: "STATUS.yaml".into(),
                 kind: ErrorKind::InvalidFieldValue,
-                message: format!("mode '{}' is invalid (valid values: full/quick/fast/mvp/audit/*)", mode),
+                message: format!(
+                    "mode '{}' is invalid (valid values: full/quick/fast/mvp/audit/*)",
+                    mode
+                ),
                 fixable: false,
             });
         }
@@ -944,7 +992,13 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     let valid_top_files = [
-        "PRD.md", "SPEC.md", "TEST.md", "BRAINSTORM.md", "CHANGELOG.md", "STATUS.yaml", "claim.lock",
+        "PRD.md",
+        "SPEC.md",
+        "TEST.md",
+        "BRAINSTORM.md",
+        "CHANGELOG.md",
+        "STATUS.yaml",
+        "claim.lock",
     ];
     let valid_subdirs = ["task", "issue"];
 
@@ -972,7 +1026,9 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     errors.push(ValidationError {
                         file: name,
                         kind: ErrorKind::BadFilename,
-                        message: "Non-workflow directory not allowed in .dev-doc (valid: task/, issue/)".into(),
+                        message:
+                            "Non-workflow directory not allowed in .dev-doc (valid: task/, issue/)"
+                                .into(),
                         fixable: false,
                     });
                 }
@@ -990,11 +1046,14 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     continue;
                 }
                 if entry.path().is_file() {
-                    if !((name.starts_with("task_") || name.starts_with("done_task_")) && name.ends_with(".md")) {
+                    if !((name.starts_with("task_") || name.starts_with("done_task_"))
+                        && name.ends_with(".md"))
+                    {
                         errors.push(ValidationError {
                             file: format!("task/{}", name),
                             kind: ErrorKind::BadFilename,
-                            message: "Only task_*.md or done_task_*.md files allowed in task/".into(),
+                            message: "Only task_*.md or done_task_*.md files allowed in task/"
+                                .into(),
                             fixable: false,
                         });
                     }
@@ -1013,11 +1072,14 @@ fn validate_no_illegal_files(doc_root: &Path) -> Vec<ValidationError> {
                     continue;
                 }
                 if entry.path().is_file() {
-                    if !((name.starts_with("issue_") || name.starts_with("closed_issue_")) && name.ends_with(".md")) {
+                    if !((name.starts_with("issue_") || name.starts_with("closed_issue_"))
+                        && name.ends_with(".md"))
+                    {
                         errors.push(ValidationError {
                             file: format!("issue/{}", name),
                             kind: ErrorKind::BadFilename,
-                            message: "Only issue_*.md or closed_issue_*.md files allowed in issue/".into(),
+                            message: "Only issue_*.md or closed_issue_*.md files allowed in issue/"
+                                .into(),
                             fixable: false,
                         });
                     }
@@ -1036,7 +1098,10 @@ pub fn format_errors_human(errors: &[ValidationError]) -> String {
     }
 
     let mut out = String::new();
-    out.push_str(&format!("[dev-flow] Document validation failed ({} errors):\n", errors.len()));
+    out.push_str(&format!(
+        "[dev-flow] Document validation failed ({} errors):\n",
+        errors.len()
+    ));
     for e in errors {
         let fixable_hint = if e.fixable { " [fixable]" } else { "" };
         out.push_str(&format!("  - {}：{}{}\n", e.file, e.message, fixable_hint));
@@ -1106,7 +1171,10 @@ fn validate_issue_item_seq(title: &str, _expected: u32, filename: &str) -> Optio
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
-            message: format!("Issue item sequence missing number: '{}'", title.chars().take(30).collect::<String>()),
+            message: format!(
+                "Issue item sequence missing number: '{}'",
+                title.chars().take(30).collect::<String>()
+            ),
             fixable: false,
         });
     }
@@ -1133,7 +1201,10 @@ fn validate_task_item_seq(title: &str, _expected: u32, filename: &str) -> Option
         return Some(ValidationError {
             file: filename.to_string(),
             kind: ErrorKind::InvalidFieldValue,
-            message: format!("Task item sequence missing number: '{}'", title.chars().take(30).collect::<String>()),
+            message: format!(
+                "Task item sequence missing number: '{}'",
+                title.chars().take(30).collect::<String>()
+            ),
             fixable: false,
         });
     }
@@ -1240,7 +1311,9 @@ mod tests {
 
         let errors = validate_issue_file(&path);
         assert!(
-            errors.iter().any(|e| e.kind == ErrorKind::InvalidFrontmatter),
+            errors
+                .iter()
+                .any(|e| e.kind == ErrorKind::InvalidFrontmatter),
             "expected InvalidFrontmatter for unclosed frontmatter, got: {:?}",
             errors.iter().map(|e| &e.kind).collect::<Vec<_>>()
         );
@@ -1260,7 +1333,9 @@ mod tests {
 
         let errors = validate_issue_file(&path);
         assert!(
-            !errors.iter().any(|e| e.kind == ErrorKind::InvalidFrontmatter),
+            !errors
+                .iter()
+                .any(|e| e.kind == ErrorKind::InvalidFrontmatter),
             "well-formed frontmatter must not be InvalidFrontmatter, got: {:?}",
             errors.iter().map(|e| &e.kind).collect::<Vec<_>>()
         );

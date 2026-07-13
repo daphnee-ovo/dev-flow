@@ -14,12 +14,19 @@ fn main() {
         .current_dir(project_root)
         .output()
         .ok()
-        .and_then(|o| if o.status.success() { String::from_utf8(o.stdout).ok() } else { None })
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| "main".to_string());
     let branch = branch.trim();
 
     // VERSION 格式: multi-line "(branch)X.Y.Z", find matching branch line
-    let version = content.lines()
+    let version = content
+        .lines()
         .find_map(|line| {
             let pattern = format!("({})", branch);
             if line.starts_with(&pattern) {
@@ -30,9 +37,10 @@ fn main() {
         })
         .or_else(|| {
             // Fallback: first line with (branch)version format
-            content.lines().next().and_then(|line| {
-                line.find(')').map(|pos| line[pos + 1..].trim())
-            })
+            content
+                .lines()
+                .next()
+                .and_then(|line| line.find(')').map(|pos| line[pos + 1..].trim()))
         })
         .unwrap_or("0.0.0");
 

@@ -337,8 +337,14 @@ fn test_context_blocks_when_all_tasks_done() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["decision"], "block");
     let reason = json["reason"].as_str().unwrap();
-    assert!(reason.contains("dow task create"), "should suggest dow task create");
-    assert!(reason.contains("dow issue create"), "should suggest dow issue create");
+    assert!(
+        reason.contains("dow task create"),
+        "should suggest dow task create"
+    );
+    assert!(
+        reason.contains("dow issue create"),
+        "should suggest dow issue create"
+    );
     assert!(reason.contains("/test"), "should suggest /test");
 }
 
@@ -392,7 +398,10 @@ fn test_context_codex_hook_injects_context_without_blocking() {
     let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
     assert_eq!(context["blocked"], true);
     assert!(context["guard_notice"].as_str().is_some());
-    assert!(context["reason"].as_str().unwrap().contains("dow task create"));
+    assert!(context["reason"]
+        .as_str()
+        .unwrap()
+        .contains("dow task create"));
 }
 
 #[test]
@@ -461,7 +470,10 @@ fn test_guard_blocks_code_write_when_all_done() {
         "should output permission JSON"
     );
     assert!(stdout.contains("deny"), "should deny code write");
-    assert!(stdout.contains("dow task create"), "should suggest dow task create");
+    assert!(
+        stdout.contains("dow task create"),
+        "should suggest dow task create"
+    );
 }
 
 #[test]
@@ -607,7 +619,11 @@ fn test_guard_allows_positional_trusted_flow_command() {
         .unwrap();
 
     assert!(output.status.success());
-    assert!(output.stdout.is_empty(), "got: {}", String::from_utf8_lossy(&output.stdout));
+    assert!(
+        output.stdout.is_empty(),
+        "got: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[test]
@@ -626,7 +642,11 @@ fn test_guard_allows_absolute_current_dow_metadata_command() {
         .unwrap();
 
     assert!(output.status.success());
-    assert!(output.stdout.is_empty(), "got: {}", String::from_utf8_lossy(&output.stdout));
+    assert!(
+        output.stdout.is_empty(),
+        "got: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[test]
@@ -648,7 +668,11 @@ fn test_guard_does_not_exempt_flow_command_with_redirect() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "got: {}", stdout);
+    assert!(
+        stdout.contains("\"permissionDecision\":\"deny\""),
+        "got: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -670,7 +694,11 @@ fn test_guard_does_not_exempt_flow_command_with_tee() {
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "got: {}", stdout);
+    assert!(
+        stdout.contains("\"permissionDecision\":\"deny\""),
+        "got: {}",
+        stdout
+    );
 }
 
 #[test]

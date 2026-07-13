@@ -10,7 +10,7 @@
 
 ```markdown
 ---
-source: test | devtest | other | audit
+source: test | other | audit
 nums: <issue 总数>
 ---
 
@@ -19,6 +19,8 @@ nums: <issue 总数>
   - location：<文件路径:行号>
   - description：<具体描述>
   - reproduce：<复现方法，可选>
+  - files_modify: [<修改文件，可选>]
+  - files_create: [<创建文件，可选>]
   - fix：<关闭时填写修复说明>
 - [x] ISSUE-I002：<标题>
   - severity: P1
@@ -31,12 +33,14 @@ nums: <issue 总数>
 
 | 字段 | 值 | 说明 |
 |------|-----|------|
-| source | `test` / `devtest` / `other` / `audit` | 发现来源 |
+| source | `test` / `other` / `audit` | 发现来源；Task 关闭测试也使用 `test` |
 | nums | 数字 | 该文件中 issue 总数 |
 | severity | `P0` / `P1` / `P2` | **必填**。P0=阻塞、P1=严重、P2=轻微 |
 | location | 文件路径:行号 | 问题所在位置 |
 | description | 文本 | 具体描述 |
 | reproduce | 文本（可选） | 复现步骤 |
+| files_modify | 字符串数组（可选） | 关联的修改文件 |
+| files_create | 字符串数组（可选） | 关联的新增文件 |
 | fix | 文本 | 关闭时填写修复说明 |
 
 ## 状态标记
@@ -57,6 +61,6 @@ dow hooks context 按优先级分层：P0 全关闭才展示 P1 标题。
 
 ## 命名规则
 
-- `source`：`test`（/test 发现）/ `devtest`（/devtest 发现）/ `other`（手动创建）/ `audit`（审计发现）
+- `source`：`test`（dow test 发现）/ `other`（手动创建）/ `audit`（审计发现）
 - `seq`：当天该来源的序号，从 1 开始
 - 创建新文件：`dow doc issue --source <source>`（自动计算序号）

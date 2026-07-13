@@ -3,19 +3,21 @@ description: Check if development work is synced to .dev-doc documentation
 allowed-tools: Bash, Read
 ---
 
-# CHECK — Documentation Sync Check
+# CHECK — Doctor compatibility entry
 
 ## Execution Method
 
-Run script directly, display output:
+`/check` is a workflow alias for the current `dow doctor` command:
 
 ```bash
 dow doctor
 ```
 
-Script auto-checks CHANGELOG, task completion vs phase match, issue status, code changes vs doc update time, phase required files. Agent only needs to run and display results.
+`dow doctor` performs the current structure, schema and documentation checks.
+Use `dow doctor --fix` when automatic repair is explicitly requested.
 
 ## Notes
 
-- This is read-only check, doesn't modify any files
-- Outputs suggestions but doesn't auto-execute
+- `dow check` and `dow validate` are not current CLI commands.
+- Doctor may initialize missing workflow directories or `.gitignore` entries
+  during its normal checks. Do not describe it as strictly read-only.

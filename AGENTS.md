@@ -17,11 +17,10 @@
 | `/spec` | 启动 SPEC agent，进入技术规范阶段 |
 | `/task` | 启动 TASK agent，进入任务拆解阶段 |
 | `/issue` | 手动创建 issue 文件 |
-| `/devtest` | 开发中例行测试（任务级验证） |
 | `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 启动完整 TEST agent（项目级全量验证） |
+| `/test` | 执行 `dow test` 全量测试 |
 | `/status` | 报告当前项目状态和进度 |
-| `/check` | 检查开发工作是否已同步到 .dev-doc |
+| `/check` | 执行 `dow doctor` 检查文档和项目状态 |
 | `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
@@ -42,14 +41,13 @@
 | 子命令 | 作用 |
 |--------|------|
 | `dow status` | 读写 STATUS.yaml（`--phase`/`--mode`/`--exec-mode`/`--name`/`--field`） |
-| `dow check` | 文档规范检查 |
+| `dow doctor [--fix]` | 诊断、校验并可修复 .dev-doc；`dow fix` 是兼容别名 |
 | `dow issue --list` | 列出未关闭的 issue |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v minor] [--confirm]` | 迭代交付 |
 | `dow scan` | 项目扫描 |
-| `dow validate` | 校验 .dev-doc 结构 |
 | `dow doc <type> [--md\|--json] [-n N] [--source X]` | 生成文档模板 / 查询文档规范 |
-| `dow devtest [--task <id>]` | 任务级测试 |
-| `dow test [--file <x>]` | 全量测试 |
+| `dow test` | 全量测试 |
+| `dow test <TASK-ID>` | 执行指定 Task 关联的测试 |
 | `dow archive list [--branch <b>]` | 列出所有归档版本 |
 | `dow archive show <version>` | 某版本归档详情 |
 | `dow archive tasks [--version v] [--priority P0]` | 查询归档任务 |
@@ -106,10 +104,10 @@ subagent prompt 中应使用 `--json` 输出拼入格式要求。
 
 | 脚本 | 作用 |
 |------|------|
-| `sync-skill.sh` | 将 `skills/dev-flow/SKILL.md` 同步到 `.claude/skills/` 和 `.agents/skills/` |
-| `sync-plugin.sh` | 同步项目到 Claude Code 插件缓存 |
+| `assemble.sh` | 将共享命令和 agent 组装为 Claude、Codex、Kiro 产物 |
+| `deploy-local.sh` | 编译并部署本地 agent 插件 |
 
-**修改 SKILL.md 后必须执行 `bash devtools/sync-skill.sh` 同步副本。**
+**修改 `plugin/commands/` 或 `plugin/agents/` 后必须执行 `bash devtools/assemble.sh all` 验证生成产物。**
 
 ## 目录结构约定
 

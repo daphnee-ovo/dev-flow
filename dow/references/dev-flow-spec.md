@@ -77,7 +77,7 @@ task/
 
 **格式**：`issue_<source>_<YYYY-MM-DD>_<seq>.md`
 
-- `source`：产出来源，固定值为 `test` / `devtest` / `other` / `audit`
+- `source`：产出来源，固定值为 `test` / `other` / `audit`；Task 关闭门禁仍由 `dow test TASK-ID` 执行，不再产生独立 devtest 来源
 - `YYYY-MM-DD`：创建日期
 - `seq`：当天该来源的序号（从 1 开始，按 source+date 计数）
 
@@ -88,10 +88,9 @@ task/
 issue/
 ├── issue_test_2026-05-14_1.md              # /test 在 5月14日发现的第 1 个 issue
 ├── issue_test_2026-05-14_2.md              # /test 在 5月14日发现的第 2 个 issue
-├── issue_devtest_2026-05-15_1.md           # /devtest 在 5月15日发现的第 1 个 issue
 ├── issue_other_2026-05-15_1.md             # 手动或其他来源创建
 ├── closed_issue_test_2026-05-14_1.md       # 已关闭
-└── closed_issue_devtest_2026-05-15_1.md    # 已关闭
+└── closed_issue_other_2026-05-15_1.md      # 已关闭
 ```
 
 **创建新 issue 文件**：
@@ -182,7 +181,7 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 | SPEC.md | `/spec` | 用户反馈修改 | `dow iterate` 时归档 |
 | task/*.md | `/task` | 开发中勾选、`dow hooks post-write` 自动重命名 | `dow iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
 | TEST.md | `/test` | 重新测试时覆盖 | `dow iterate` 时归档 |
-| issue/*.md | `/test` `/devtest` `/issue` | `/fix` 修复后 `dow hooks post-write` 自动重命名 | 已关闭的归档，未关闭的保留 |
+| issue/*.md | `dow test` `/issue` | `/fix` 修复后 `dow hooks post-write` 自动重命名 | 已关闭的归档，未关闭的保留 |
 
 ## 初始化
 
@@ -256,13 +255,13 @@ tests/
 
 | 阶段 | 测试要求 |
 |------|----------|
-| `/devtest` | 运行与当前任务相关的测试模块 |
-| `/test` | 运行全量测试 `tests/` |
+| `dow test TASK-ID` | 运行 Task 关联的 files.test |
+| `dow test` | 运行项目全量测试 |
 | `/fix` | 修复后运行相关测试验证 |
 
 ### 测试文件创建时机
 
 - SPEC 中定义了接口/行为 → TASK 阶段拆出"编写测试"任务
 - DEV 阶段实现功能时同步编写测试
-- `/devtest` 验证时**必须将测试代码写入 `tests/`**，不允许直接在终端运行临时命令验证
-- `/test` 全量测试时运行 `tests/` 下所有测试
+- Task 关闭前由 `dow task done TASK-ID` 自动调用 `dow test TASK-ID`
+- `dow test` 的失败输出由 CLI 原样返回并创建 `source: test` ISSUE；前置条件失败不创建 ISSUE

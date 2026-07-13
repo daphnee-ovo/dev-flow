@@ -5,11 +5,11 @@
 // - [Guard Hook](../hooks/guard.rs)
 // - [Claim Core](../core/claim.rs)
 
+use crate::cli::ClaimArgs;
 use crate::commands::task as task_cmd;
 use crate::core::{claim, doc_root};
 use crate::error::DowError;
 use crate::output;
-use crate::cli::ClaimArgs;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
@@ -33,9 +33,8 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     if args.revoke {
         let normalized_target = args.ids.first().map(|s| normalize_claim_id(s));
         let target = normalized_target.as_deref();
-        claim::revoke_claims(&doc_root_path, target).map_err(|e| {
-            DowError::new(format!("Failed to revoke claim: {}", e), 1)
-        })?;
+        claim::revoke_claims(&doc_root_path, target)
+            .map_err(|e| DowError::new(format!("Failed to revoke claim: {}", e), 1))?;
 
         // Silent on success — operator knows what they revoked
         return Ok(0);
@@ -54,7 +53,10 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         }
         if !invalid.is_empty() {
             return Err(DowError::new(
-                format!("Cannot claim completed or non-existent items: {}", invalid.join(", ")),
+                format!(
+                    "Cannot claim completed or non-existent items: {}",
+                    invalid.join(", ")
+                ),
                 1,
             ));
         }
@@ -65,9 +67,8 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         // Check issue files requirement
         check_issue_files(&doc_root_path, &normalized)?;
 
-        claim::add_claims(&doc_root_path, &normalized).map_err(|e| {
-            DowError::new(format!("Failed to add claim: {}", e), 1)
-        })?;
+        claim::add_claims(&doc_root_path, &normalized)
+            .map_err(|e| DowError::new(format!("Failed to add claim: {}", e), 1))?;
 
         // Silent on success — operator knows what they claimed
         return Ok(0);
@@ -203,12 +204,14 @@ fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String
         }
     }
 
-    let invalid: Vec<String> = ids.iter()
+    let invalid: Vec<String> = ids
+        .iter()
         .filter(|id| !id_count.contains_key(id.as_str()))
         .cloned()
         .collect();
 
-    let duplicates: Vec<String> = ids.iter()
+    let duplicates: Vec<String> = ids
+        .iter()
         .filter(|id| id_count.get(id.as_str()).copied().unwrap_or(0) > 1)
         .cloned()
         .collect();
@@ -242,22 +245,32 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
         };
 
         // 1. Check explicit depends_on: all must be done
-        let incomplete_deps: Vec<&str> = target.depends_on.iter()
+        let incomplete_deps: Vec<&str> = target
+            .depends_on
+            .iter()
             .filter_map(|dep_id| {
                 let dep = all_tasks.iter().find(|t| t.id == *dep_id)?;
-                if dep.status != "done" { Some(dep_id.as_str()) } else { None }
+                if dep.status != "done" {
+                    Some(dep_id.as_str())
+                } else {
+                    None
+                }
             })
             .collect();
 
         if !incomplete_deps.is_empty() {
             errors.push(format!(
                 "cannot claim {}: blocked by incomplete dependencies [{}]",
-                full_id, incomplete_deps.join(", ")
+                full_id,
+                incomplete_deps.join(", ")
             ));
         }
 
         // 2. Check file conflicts with currently claimed tasks
-        let target_files: HashSet<&str> = target.files.create.iter()
+        let target_files: HashSet<&str> = target
+            .files
+            .create
+            .iter()
             .chain(target.files.modify.iter())
             .filter(|f| !f.is_empty())
             .map(|f| f.as_str())
@@ -278,7 +291,10 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
                 continue;
             }
 
-            let claimed_files: HashSet<&str> = claimed_task.files.create.iter()
+            let claimed_files: HashSet<&str> = claimed_task
+                .files
+                .create
+                .iter()
                 .chain(claimed_task.files.modify.iter())
                 .filter(|f| !f.is_empty())
                 .map(|f| f.as_str())
@@ -289,7 +305,9 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
                 let shared_list: Vec<&str> = shared.into_iter().copied().collect();
                 errors.push(format!(
                     "cannot claim {}: file conflict with currently claimed {} (shared: {})",
-                    full_id, claimed_full_id, shared_list.join(", ")
+                    full_id,
+                    claimed_full_id,
+                    shared_list.join(", ")
                 ));
             }
         }
@@ -354,7 +372,9 @@ fn check_issue_has_files(issue_dir: &std::path::Path, target_id: &str) -> bool {
                     break;
                 } else if in_target {
                     let trimmed = line.trim();
-                    if trimmed.starts_with("- files_modify:") || trimmed.starts_with("- files_create:") {
+                    if trimmed.starts_with("- files_modify:")
+                        || trimmed.starts_with("- files_create:")
+                    {
                         let after_colon = trimmed.splitn(2, ':').nth(1).unwrap_or("").trim();
                         if after_colon != "[]" && !after_colon.is_empty() {
                             return true;

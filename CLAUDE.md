@@ -17,11 +17,10 @@
 | `/spec` | 启动 SPEC agent，进入技术规范阶段 |
 | `/task` | 启动 TASK agent，进入任务拆解阶段 |
 | `/issue` | 手动创建 issue 文件 |
-| `/devtest` | 开发中例行测试（任务级验证） |
 | `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 启动完整 TEST agent（项目级全量验证） |
+| `/test` | 执行 `dow test` 全量测试 |
 | `/status` | 报告当前项目状态和进度 |
-| `/check` | 检查开发工作是否已同步到 .dev-doc |
+| `/check` | 执行 `dow doctor` 检查文档和项目状态 |
 | `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
@@ -69,7 +68,8 @@
 | `dow status set --phase/--mode/--exec-mode/--name/--goals-minor/--goals-major` | 写入 STATUS.yaml |
 | `dow init --name <n> --mode <m>` | 初始化 dev-flow 工作流管理 |
 | `dow doctor [--fix]` | 检查 .dev-doc 结构 + 规范 + 一致性（合并原 check/validate/fix）；`dow fix` 保留为 `dow doctor --fix` 兼容入口 |
-| `dow test [--task <ID>] [--file <x>]` | 运行测试（全量 / 任务级） |
+| `dow test` | 运行全量测试 |
+| `dow test <TASK-ID>` | 运行指定 Task 关联的测试 |
 | `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--confirm ITR-xxx]` | 迭代交付 |
 | `dow rollback --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
 | `dow rollback --list` | 列出可回退的版本 |

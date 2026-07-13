@@ -231,7 +231,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                     }
                 }
                 if let Err(e) = fs::remove_file(entry.path()) {
-                    eprintln!("[dev-flow] Warning: Failed to delete {} after archive: {}", name, e);
+                    eprintln!(
+                        "[dev-flow] Warning: Failed to delete {} after archive: {}",
+                        name, e
+                    );
                 }
             }
         }
@@ -250,7 +253,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                     }
                 }
                 if let Err(e) = fs::remove_file(entry.path()) {
-                    eprintln!("[dev-flow] Warning: Failed to delete {} after archive: {}", name, e);
+                    eprintln!(
+                        "[dev-flow] Warning: Failed to delete {} after archive: {}",
+                        name, e
+                    );
                 }
             }
         }
@@ -264,7 +270,10 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
                 archive_db::insert_doc(&conn, &released_version, doc_type, &content)?;
             }
             if let Err(e) = fs::remove_file(&src) {
-                eprintln!("[dev-flow] Warning: Failed to delete {}.md after archive: {}", doc_type, e);
+                eprintln!(
+                    "[dev-flow] Warning: Failed to delete {}.md after archive: {}",
+                    doc_type, e
+                );
             }
         }
     }
@@ -412,7 +421,10 @@ fn run_pre_iterate(version: &str, human: bool) -> Result<Vec<String>, DowError> 
         if let Err(err) = result {
             snapshot.restore().map_err(|rollback_err| {
                 DowError::new(
-                    format!("{}; preIterate rollback failed: {}", err.message, rollback_err.message),
+                    format!(
+                        "{}; preIterate rollback failed: {}",
+                        err.message, rollback_err.message
+                    ),
                     1,
                 )
             })?;
@@ -467,11 +479,21 @@ impl PreIterateSnapshot {
                 Some(bytes) => {
                     if let Some(parent) = target.parent() {
                         fs::create_dir_all(parent).map_err(|e| {
-                            DowError::new(format!("Failed to create rollback directory {}: {}", parent.display(), e), 1)
+                            DowError::new(
+                                format!(
+                                    "Failed to create rollback directory {}: {}",
+                                    parent.display(),
+                                    e
+                                ),
+                                1,
+                            )
                         })?;
                     }
                     fs::write(target, bytes).map_err(|e| {
-                        DowError::new(format!("Failed to write rollback file {}: {}", target.display(), e), 1)
+                        DowError::new(
+                            format!("Failed to write rollback file {}: {}", target.display(), e),
+                            1,
+                        )
                     })?;
                 }
                 None => {
@@ -492,7 +514,12 @@ fn remove_path(path: &Path) -> Result<(), DowError> {
     } else {
         fs::remove_file(path)
     }
-    .map_err(|e| DowError::new(format!("Failed to delete {} during rollback: {}", path.display(), e), 1))
+    .map_err(|e| {
+        DowError::new(
+            format!("Failed to delete {} during rollback: {}", path.display(), e),
+            1,
+        )
+    })
 }
 
 fn read_pre_iterate_steps() -> Result<Vec<PreIterateStep>, DowError> {
@@ -524,7 +551,10 @@ fn parse_pre_iterate_steps(content: &str) -> Result<Vec<PreIterateStep>, DowErro
         if let Some(path) = trimmed.strip_prefix("sync-version:") {
             let path = unquote(path.trim());
             if path.is_empty() {
-                return Err(DowError::new("preIterate sync-version target cannot be empty", 1));
+                return Err(DowError::new(
+                    "preIterate sync-version target cannot be empty",
+                    1,
+                ));
             }
             steps.push(PreIterateStep::SyncVersion { path });
             continue;
@@ -573,7 +603,12 @@ fn run_shell_step(name: &str, command: &str) -> Result<(), DowError> {
     } else {
         Command::new("sh").args(["-c", command]).output()
     }
-    .map_err(|e| DowError::new(format!("preIterate step `{}` failed to start: {}", name, e), 1))?;
+    .map_err(|e| {
+        DowError::new(
+            format!("preIterate step `{}` failed to start: {}", name, e),
+            1,
+        )
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -921,7 +956,10 @@ fn validate_git_add_inputs(files: &[String]) -> Result<(), DowError> {
         }
         if !Path::new(file).exists() {
             return Err(DowError::new(
-                format!("iterate --files path does not exist, stopped before archive: {}", file),
+                format!(
+                    "iterate --files path does not exist, stopped before archive: {}",
+                    file
+                ),
                 1,
             ));
         }
@@ -1009,7 +1047,9 @@ fn print_changelog_summary(entries: &[String]) {
     if entries.is_empty() {
         println!();
         println!("⚠ CHANGELOG is empty, please check if there are missing entries.");
-        println!("  If there are any omissions, manually add them to CHANGELOG.md before confirmation.");
+        println!(
+            "  If there are any omissions, manually add them to CHANGELOG.md before confirmation."
+        );
     } else {
         println!();
         println!("CHANGELOG current entries ({} entries):", entries.len());
@@ -1059,7 +1099,10 @@ fn print_human_preview(result: &IterateOutput) {
         let bare = t.strip_prefix("ITR-").unwrap_or(t);
         println!();
         println!("Confirm: dow iterate --confirm {} ...", t);
-        println!("  (or: DOW_ITERATE_{}=1 dow iterate --confirm {} ...)", bare, t);
+        println!(
+            "  (or: DOW_ITERATE_{}=1 dow iterate --confirm {} ...)",
+            bare, t
+        );
     }
 }
 

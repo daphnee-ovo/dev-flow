@@ -58,7 +58,10 @@ pub fn run(command: Option<String>, codex_hook: bool, _kiro_hook: bool) -> Resul
             .unwrap_or_else(|| "unknown".to_string());
         messages.push(format!("  Phase: {}, doc directory ready.", phase));
     } else {
-        messages.push("  ⚠ New branch not yet initialized with .dev-doc, will be created automatically.".to_string());
+        messages.push(
+            "  ⚠ New branch not yet initialized with .dev-doc, will be created automatically."
+                .to_string(),
+        );
     }
 
     emit_messages(codex_hook, &messages)?;

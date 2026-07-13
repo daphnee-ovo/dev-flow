@@ -1,4 +1,4 @@
-const sizeMap = { S: 22, M: 30, L: 38, XL: 46 };
+const sizeMap = { S: 22, M: 30, L: 38 };
 const severitySizeMap = { P0: 38, P1: 30, P2: 22 };
 const colorMap = { P0: '#E85D6F', P1: '#E8A44C', P2: '#6DC08A' };
 const PULSE_CLASS = 'node-pulse';

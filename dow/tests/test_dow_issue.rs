@@ -10,7 +10,11 @@ use std::process::Command;
 use common::default_branch;
 
 fn setup_env(dir: &Path) -> std::path::PathBuf {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     let branch = default_branch(dir);
     let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(doc.join("task")).unwrap();
@@ -32,24 +36,32 @@ fn test_issue_create_with_flags() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args([
-            "issue", "create",
-            "--title", "bug in parser",
-            "--severity", "P0",
-            "--location", "src/parser.rs:42",
-            "--desc", "crashes on empty input",
-            "--reproduce", "run with empty string",
-            "--source", "test",
+            "issue",
+            "create",
+            "--title",
+            "bug in parser",
+            "--severity",
+            "P0",
+            "--location",
+            "src/parser.rs:42",
+            "--desc",
+            "crashes on empty input",
+            "--reproduce",
+            "run with empty string",
+            "--source",
+            "test",
         ])
         .current_dir(dir.path())
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
-    // Successful creation returns the generated issue ID.
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "ISSUE-I001"
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
+    // Successful creation returns the generated issue ID.
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ISSUE-I001");
 
     // Verify file was created
     let issue_dir = doc.join("issue");
@@ -86,13 +98,177 @@ fn test_issue_create_with_stdin_json() {
         .unwrap();
 
     use std::io::Write;
-    child.stdin.take().unwrap().write_all(json_input.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ISSUE-I001");
+}
+
+#[test]
+fn test_issue_create_with_optional_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "issue",
+            "create",
+            "--title",
+            "scoped issue",
+            "--severity",
+            "P1",
+            "--location",
+            "src/main.rs:10",
+            "--desc",
+            "needs a scoped fix",
+            "--reproduce",
+            "run the test",
+            "--source",
+            "test",
+            "--files-modify",
+            "src/main.rs,src/lib.rs",
+            "--files-create",
+            "src/new.rs",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let issue_file = fs::read_dir(doc.join("issue"))
+        .unwrap()
+        .flatten()
+        .find(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("issue_test_")
+        })
+        .unwrap();
+    let content = fs::read_to_string(issue_file.path()).unwrap();
+    assert!(content.contains("files_modify: [src/main.rs, src/lib.rs]"));
+    assert!(content.contains("files_create: [src/new.rs]"));
+}
+
+#[test]
+fn test_issue_create_batch_json_groups_by_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let json_input = r#"[
+        {"title":"test one","severity":"P1","location":"a.rs:1","desc":"d1","reproduce":"r1","source":"test","files_modify":["a.rs"]},
+        {"title":"other one","severity":"P2","location":"b.rs:2","desc":"d2","reproduce":"r2","source":"other"},
+        {"title":"test two","severity":"P0","location":"c.rs:3","desc":"d3","reproduce":"r3","source":"test","files_create":["c.rs"]}
+    ]"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    use std::io::Write;
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "ISSUE-I001"
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .collect::<Vec<_>>(),
+        ["ISSUE-I001", "ISSUE-I002", "ISSUE-I003"]
+    );
+
+    let issue_files: Vec<_> = fs::read_dir(doc.join("issue")).unwrap().flatten().collect();
+    assert_eq!(issue_files.len(), 2);
+    let test_file = issue_files
+        .iter()
+        .find(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("issue_test_")
+        })
+        .unwrap();
+    let test_content = fs::read_to_string(test_file.path()).unwrap();
+    assert!(test_content.contains("nums: 2"));
+    assert!(test_content.contains("ISSUE-I001"));
+    assert!(test_content.contains("ISSUE-I003"));
+    assert!(test_content.contains("files_modify: [a.rs]"));
+    assert!(test_content.contains("files_create: [c.rs]"));
+
+    let other_file = issue_files
+        .iter()
+        .find(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("issue_other_")
+        })
+        .unwrap();
+    let other_content = fs::read_to_string(other_file.path()).unwrap();
+    assert!(other_content.contains("nums: 1"));
+    assert!(other_content.contains("ISSUE-I002"));
+}
+
+#[test]
+fn test_issue_create_batch_validation_is_atomic() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let json_input = r#"[
+        {"title":"valid","severity":"P1","location":"a.rs:1","desc":"d","reproduce":"r","source":"test"},
+        {"title":"invalid","severity":"CRITICAL","location":"b.rs:1","desc":"d","reproduce":"r","source":"test"}
+    ]"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    use std::io::Write;
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Invalid severity"));
+    let issue_files: Vec<_> = fs::read_dir(doc.join("issue")).unwrap().flatten().collect();
+    assert!(
+        issue_files.is_empty(),
+        "invalid batch must not create issue files"
     );
 }
 
@@ -115,10 +291,18 @@ fn test_issue_create_rejects_fix_in_json() {
         .unwrap();
 
     use std::io::Write;
-    child.stdin.take().unwrap().write_all(json_input.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
 
-    assert!(!output.status.success(), "create should fail when `fix` is provided");
+    assert!(
+        !output.status.success(),
+        "create should fail when `fix` is provided"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("update") && stderr.contains("--fix"),
@@ -140,13 +324,20 @@ fn test_issue_create_invalid_severity() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args([
-            "issue", "create",
-            "--title", "test",
-            "--severity", "CRITICAL",
-            "--location", "a.rs:1",
-            "--desc", "test desc",
-            "--reproduce", "steps",
-            "--source", "other",
+            "issue",
+            "create",
+            "--title",
+            "test",
+            "--severity",
+            "CRITICAL",
+            "--location",
+            "a.rs:1",
+            "--desc",
+            "test desc",
+            "--reproduce",
+            "steps",
+            "--source",
+            "other",
         ])
         .current_dir(dir.path())
         .output()
@@ -186,19 +377,30 @@ fn test_issue_create_auto_increments_id() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args([
-            "issue", "create",
-            "--title", "second issue",
-            "--severity", "P2",
-            "--location", "b.rs:5",
-            "--desc", "another bug",
-            "--reproduce", "steps here",
-            "--source", "test",
+            "issue",
+            "create",
+            "--title",
+            "second issue",
+            "--severity",
+            "P2",
+            "--location",
+            "b.rs:5",
+            "--desc",
+            "another bug",
+            "--reproduce",
+            "steps here",
+            "--source",
+            "test",
         ])
         .current_dir(dir.path())
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Find the new file
     let issue_dir = doc.join("issue");
@@ -213,7 +415,11 @@ fn test_issue_create_auto_increments_id() {
     assert_eq!(files.len(), 1);
 
     let content = fs::read_to_string(files[0].path()).unwrap();
-    assert!(content.contains("ISSUE-I002"), "should get ID 002, got: {}", content);
+    assert!(
+        content.contains("ISSUE-I002"),
+        "should get ID 002, got: {}",
+        content
+    );
 }
 
 // ─── show tests ──────────────────────────────────────────────────────────────
@@ -234,7 +440,11 @@ fn test_issue_show() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["id"], "ISSUE-I001");
     assert_eq!(json["title"], "parser crash");
@@ -275,7 +485,11 @@ fn test_issue_show_closed() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["status"], "closed");
     assert_eq!(json["fix"], "patched");
@@ -299,7 +513,11 @@ fn test_issue_close() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(output.stdout.is_empty(), "should be silent on success");
 
     // File should be renamed to closed_
@@ -350,15 +568,25 @@ fn test_issue_close_multi_item_file_partial() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // File should NOT be renamed (still has open issues)
     assert!(doc.join("issue/issue_test_2026-06-20_1.md").exists());
     assert!(!doc.join("issue/closed_issue_test_2026-06-20_1.md").exists());
 
     let content = fs::read_to_string(doc.join("issue/issue_test_2026-06-20_1.md")).unwrap();
-    assert!(content.contains("- [x] ISSUE-I001"), "I001 should be checked");
-    assert!(content.contains("- [ ] ISSUE-I002"), "I002 should remain unchecked");
+    assert!(
+        content.contains("- [x] ISSUE-I001"),
+        "I001 should be checked"
+    );
+    assert!(
+        content.contains("- [ ] ISSUE-I002"),
+        "I002 should remain unchecked"
+    );
 }
 
 // ─── reopen tests ────────────────────────────────────────────────────────────
@@ -379,7 +607,11 @@ fn test_issue_reopen_preview() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["id"], "ISSUE-I001");
     assert!(json["confirm_token"].as_str().unwrap().starts_with("IRO-"));
@@ -412,7 +644,11 @@ fn test_issue_reopen_with_confirm() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(output.stdout.is_empty(), "should be silent on success");
 
     // File should be renamed back (no closed_ prefix)
@@ -445,7 +681,8 @@ fn test_issue_reopen_wrong_token() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Token mismatch") || stderr.contains("mismatch"),
-        "stderr: {}", stderr
+        "stderr: {}",
+        stderr
     );
 }
 
@@ -476,7 +713,11 @@ fn test_issue_reopen_not_closed() {
 fn test_issue_schema() {
     let dir = tempfile::tempdir().unwrap();
     // schema doesn't require .dev-doc, but we init git for doc_root resolution
-    Command::new("git").args(["init"]).current_dir(dir.path()).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "schema"])
@@ -484,7 +725,11 @@ fn test_issue_schema() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(json["fields"].is_array());
     let fields = json["fields"].as_array().unwrap();
@@ -493,6 +738,12 @@ fn test_issue_schema() {
     // Check that severity field has valid_values
     let severity_field = fields.iter().find(|f| f["name"] == "severity").unwrap();
     assert!(severity_field["valid_values"].as_array().unwrap().len() == 3);
+
+    for name in ["files_modify", "files_create"] {
+        let field = fields.iter().find(|f| f["name"] == name).unwrap();
+        assert_eq!(field["required"], false);
+        assert_eq!(field["type"], "array");
+    }
 
     assert!(json["file_format"].as_str().unwrap().contains("issue_"));
     assert!(json["id_format"].as_str().unwrap().contains("ISSUE-I"));
@@ -511,7 +762,11 @@ fn test_issue_list_empty() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["total"], 0);
 }
@@ -536,7 +791,11 @@ fn test_issue_list_shows_open_only() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["total"], 1);
 }
@@ -561,7 +820,11 @@ fn test_issue_list_all() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let open = json["open"].as_array().unwrap();
     assert_eq!(open.len(), 2, "should show both open and closed files");

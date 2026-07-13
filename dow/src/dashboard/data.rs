@@ -150,13 +150,21 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
         let trimmed = line.trim();
         let (is_done, id, title) = if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
             if let Some(colon_pos) = rest.find(':') {
-                (false, rest[..colon_pos].trim().to_string(), rest[colon_pos + 1..].trim().to_string())
+                (
+                    false,
+                    rest[..colon_pos].trim().to_string(),
+                    rest[colon_pos + 1..].trim().to_string(),
+                )
             } else {
                 continue;
             }
         } else if let Some(rest) = trimmed.strip_prefix("- [x] ") {
             if let Some(colon_pos) = rest.find(':') {
-                (true, rest[..colon_pos].trim().to_string(), rest[colon_pos + 1..].trim().to_string())
+                (
+                    true,
+                    rest[..colon_pos].trim().to_string(),
+                    rest[colon_pos + 1..].trim().to_string(),
+                )
             } else {
                 continue;
             }
@@ -212,15 +220,31 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
             }
 
             if sub_trimmed.starts_with("- type:") {
-                task_type = sub_trimmed.strip_prefix("- type:").unwrap().trim().to_string();
+                task_type = sub_trimmed
+                    .strip_prefix("- type:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- priority:") {
-                priority = sub_trimmed.strip_prefix("- priority:").unwrap().trim().to_string();
+                priority = sub_trimmed
+                    .strip_prefix("- priority:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- refs:") {
-                refs = sub_trimmed.strip_prefix("- refs:").unwrap().trim().to_string();
+                refs = sub_trimmed
+                    .strip_prefix("- refs:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- files:") {
                 in_files = true;
             } else if sub_trimmed.starts_with("- complexity:") {
-                complexity = sub_trimmed.strip_prefix("- complexity:").unwrap().trim().to_string();
+                complexity = sub_trimmed
+                    .strip_prefix("- complexity:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- depends_on:") {
                 depends_on = parse_inline_list(sub_trimmed.strip_prefix("- depends_on:").unwrap());
             } else if sub_trimmed.starts_with("- done_when:") {
@@ -233,7 +257,11 @@ fn parse_tasks_from_file(content: &str) -> Vec<TaskData> {
             title,
             priority,
             complexity,
-            status: if is_done { "done".to_string() } else { "pending".to_string() },
+            status: if is_done {
+                "done".to_string()
+            } else {
+                "pending".to_string()
+            },
             depends_on,
             done_when,
             r#type: task_type,
@@ -327,13 +355,23 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
                 severity = sub.strip_prefix("- severity:").unwrap().trim().to_string();
                 last_field = "severity";
             } else if sub.starts_with("- description:") {
-                description = sub.strip_prefix("- description:").unwrap().trim().to_string();
+                description = sub
+                    .strip_prefix("- description:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
                 last_field = "description";
             } else if sub.starts_with("- description：") {
-                description = sub.strip_prefix("- description：").unwrap().trim().to_string();
+                description = sub
+                    .strip_prefix("- description：")
+                    .unwrap()
+                    .trim()
+                    .to_string();
                 last_field = "description";
-            } else if sub.starts_with("- location") || sub.starts_with("- reproduce")
-                || sub.starts_with("- fix") {
+            } else if sub.starts_with("- location")
+                || sub.starts_with("- reproduce")
+                || sub.starts_with("- fix")
+            {
                 last_field = "";
             } else if sub.starts_with("- files_modify:") {
                 files_modify = parse_inline_list(sub.strip_prefix("- files_modify:").unwrap());
@@ -343,7 +381,11 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
                 last_field = "";
             } else if last_field == "description" {
                 let raw = lines[j];
-                let continuation = if raw.starts_with("    ") { &raw[4..] } else { sub };
+                let continuation = if raw.starts_with("    ") {
+                    &raw[4..]
+                } else {
+                    sub
+                };
                 description.push('\n');
                 description.push_str(continuation);
             } else {
@@ -355,7 +397,11 @@ fn parse_issues_from_file(content: &str) -> Vec<IssueData> {
             id,
             title,
             severity,
-            status: if is_closed { "closed".to_string() } else { "open".to_string() },
+            status: if is_closed {
+                "closed".to_string()
+            } else {
+                "open".to_string()
+            },
             description,
             files_modify,
             files_create,
@@ -467,7 +513,8 @@ nums: 2
   - done_when:
       - done criterion
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         // BRAINSTORM.md
         fs::write(doc_root.join("BRAINSTORM.md"), "# Brainstorm\nContent here").unwrap();
@@ -476,11 +523,7 @@ nums: 2
         // read_current() will resolve (env-independent — matches whatever the
         // fresh git repo's initial branch is).
         let branch = crate::core::version::resolve_branch();
-        fs::write(
-            doc_root.join("VERSION"),
-            format!("({})1.0.0\n", branch),
-        )
-        .unwrap();
+        fs::write(doc_root.join("VERSION"), format!("({})1.0.0\n", branch)).unwrap();
 
         let data = collect_project_data(doc_root);
 

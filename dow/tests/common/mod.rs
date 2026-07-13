@@ -17,9 +17,17 @@ pub fn default_branch(dir: &Path) -> String {
 /// 初始化 git 仓库并创建初始 commit
 #[allow(dead_code)]
 pub fn git_init_with_commit(dir: &Path) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     fs::write(dir.join("dummy.txt"), "init").unwrap();
-    Command::new("git").args(["add", "."]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     Command::new("git")
         .args(["commit", "-m", "init"])
         .current_dir(dir)
