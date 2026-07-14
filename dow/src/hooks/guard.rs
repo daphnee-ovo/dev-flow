@@ -344,6 +344,16 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             }
             return None;
         }
+        // TEST phase: deny all source code writes
+        if phase == "TEST" {
+            return Some(PhaseDecision::Deny(format!(
+                "[dev-flow] BLOCKED: TEST phase only allows test execution, not source code modification. If a fix is needed:\n\
+                → `dow status set --phase DEV` to switch to DEV phase\n\
+                → `dow task create` or `dow issue create` to track the work\n\
+                Attempted write: {}",
+                path.display()
+            )));
+        }
         // DEV phase: check agent mismatch (advisory warning, not block)
         if phase == "DEV" {
             if let Some(warning) = check_claim_agent_mismatch(&ctx.doc_root_path()) {

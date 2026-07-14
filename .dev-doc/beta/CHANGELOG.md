@@ -6,3 +6,7 @@
 
 ## 2026-07-13
 - 23:40 fix: guard apply_patch patch body parsing
+
+## 2026-07-14
+- 11:08 feat: unify test workflow and sync docs
+- 11:10 feat: iterate 跳过 gitignored .dev-doc/ 的 git commit

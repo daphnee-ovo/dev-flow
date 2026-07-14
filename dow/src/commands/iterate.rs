@@ -137,7 +137,11 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         // Generate token (preview mode)
         let token = generate_token_for_minute(0, &args);
         // Default: Output preview
-        let commit_files = list_pending_changes(&args.files);
+        let mut commit_files = list_pending_changes(&args.files);
+        // Filter out .dev-doc/ paths if gitignored
+        if is_dev_doc_gitignored() {
+            commit_files.retain(|f| !f.starts_with(".dev-doc/") && !f.starts_with(".dev-doc\\"));
+        }
         let should_tag = args.bump != "patch" || args.tag;
         let changelog_entries = read_changelog_entries(&doc_root_path);
         let pre_iterate = describe_pre_iterate_steps()?;
@@ -309,7 +313,18 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
         &args.r#type,
         &changelog_entries,
     );
-    commit_files.push(archive_db_path.clone());
+    // Only add archive_db_path if .dev-doc/ is not gitignored
+    if !is_dev_doc_gitignored() {
+        commit_files.push(archive_db_path.clone());
+    }
+    // Filter out all .dev-doc/ paths if gitignored
+    let commit_files: Vec<String> = if is_dev_doc_gitignored() {
+        commit_files.into_iter()
+            .filter(|f| !f.starts_with(".dev-doc/") && !f.starts_with(".dev-doc\\"))
+            .collect()
+    } else {
+        commit_files
+    };
     git_commit(&commit_msg, &commit_files)?;
 
     // Only create git tag for minor/major or explicit --tag
@@ -984,6 +999,14 @@ fn run_git<const N: usize>(args: [&str; N], label: &str) -> Result<(), DowError>
         return Err(DowError::new(format!("{} failed: {}", label, detail), 1));
     }
     Ok(())
+}
+
+fn is_dev_doc_gitignored() -> bool {
+    Command::new("git")
+        .args(["check-ignore", "-q", ".dev-doc/"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 fn git_tag(version: &str) -> Result<(), DowError> {

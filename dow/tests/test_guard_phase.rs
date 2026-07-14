@@ -307,3 +307,35 @@ fn test_dev_no_active_work_tmp_still_allowed() {
     let (stdout, _) = run_guard(&dir, "tmp/scratch.py");
     assert_allow(&stdout);
 }
+
+// ─── TEST 阶段：源码写入被拦截 ────────────────────────────────────────────
+
+#[test]
+fn test_test_phase_source_denied() {
+    let dir = create_test_dir();
+    setup_env(&dir, "TEST", "fast");
+    let (stdout, _) = run_guard(&dir, "src/main.rs");
+    assert_deny(&stdout);
+    assert!(stdout.contains("TEST phase"));
+}
+
+#[test]
+fn test_test_phase_tmp_allowed() {
+    let dir = create_test_dir();
+    setup_env(&dir, "TEST", "fast");
+    let (stdout, _) = run_guard(&dir, "tmp/result.json");
+    assert_allow(&stdout);
+}
+
+#[test]
+fn test_test_phase_devdoc_allowed() {
+    let dir = create_test_dir();
+    setup_env(&dir, "TEST", "fast");
+    let branch = default_branch(&dir);
+    let target = format!(".dev-doc/{}/TEST.md", branch);
+    // 创建文件使其通过存在性检查
+    let test_md = dir.join(&target);
+    fs::write(&test_md, "# Test\n").unwrap();
+    let (stdout, _) = run_guard(&dir, &target);
+    assert_allow(&stdout);
+}
