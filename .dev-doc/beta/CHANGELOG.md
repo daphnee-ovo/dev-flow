@@ -10,3 +10,4 @@
 ## 2026-07-14
 - 11:08 feat: unify test workflow and sync docs
 - 11:10 feat: iterate 跳过 gitignored .dev-doc/ 的 git commit
+- 11:37 fix: when `.dev-doc/` included in gitignored, iterate shoud avoid commit it; writing code shoud be guarded in test phase

@@ -131,13 +131,23 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 | TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 | TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 
+#### Kiro：启用 Hooks
+
+Kiro 的默认 agent（`kiro-default`）不支持 hook 配置。要使用 dev-flow 的 hooks（上下文注入、文件守护、changelog 保存），需要将 `dev-flow` agent 设为默认：
+
+```bash
+kiro-cli agent set-default --name dev-flow
+```
+
+`dow setup --agent kiro` 注册完成后会提示此步骤。不执行的话，dev-flow 可以正常安装但 hooks 不会触发 — 流程约束将大幅削弱。
+
 #### 已知限制
 
 | Agent | 限制 |
 |-------|------|
 | **Claude Code** | 无已知限制 |
 | **Codex CLI** | 无原生 slash command — 命令通过 skill（`SKILL.md`）暴露。Hook 协议使用 JSON envelope（`--codex-hook`）。 |
-| **Kiro** | 测试中 — 尚未在生产工作流中验证。无原生 slash command — 命令通过 agent 配置处理。Hook 协议使用 `--kiro-hook` 标志。 |
+| **Kiro** | 需执行 `kiro-cli agent set-default --name dev-flow` 启用 hooks（kiro-default 不支持 hook 配置）。无原生 slash command — 命令通过 agent 配置处理。Hook 协议使用 `--kiro-hook` 标志。 |
 
 ---
 

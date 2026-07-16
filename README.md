@@ -131,13 +131,23 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 | TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 | TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 
+#### Kiro: Enabling Hooks
+
+Kiro's default agent (`kiro-default`) does not support hook configuration. To use dev-flow's hooks (context injection, file guards, changelog save), you must set the `dev-flow` agent as default:
+
+```bash
+kiro-cli agent set-default --name dev-flow
+```
+
+`dow setup --agent kiro` will remind you about this step after registration completes. Without it, dev-flow installs correctly but hooks will not fire — significantly reducing workflow enforcement.
+
 #### Known Limitations
 
 | Agent | Limitations |
 |-------|-------------|
 | **Claude Code** | None known |
 | **Codex CLI** | No native slash commands — commands are exposed as skills (`SKILL.md`). Hook protocol uses JSON envelope (`--codex-hook`). |
-| **Kiro** | Testing status — not yet validated in production workflows. No native slash commands — commands are handled through agent configuration. Hook protocol uses `--kiro-hook` flag. |
+| **Kiro** | Requires `kiro-cli agent set-default --name dev-flow` to enable hooks (kiro-default does not support hook config). No native slash commands — commands are handled through agent configuration. Hook protocol uses `--kiro-hook` flag. |
 
 ---
 

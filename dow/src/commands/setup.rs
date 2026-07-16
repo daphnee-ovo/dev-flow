@@ -233,7 +233,9 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
         }
     }
 
-    eprintln!("[dow] Tip: Run /agent set-default dev-flow to set dev-flow as the default agent for kiro-cli");
+    eprintln!("[dow] ⚠ Important: Kiro's default agent does not support hooks.");
+    eprintln!("[dow]   To enable dev-flow hooks, run:");
+    eprintln!("[dow]     kiro-cli agent set-default --name dev-flow");
 
     Ok(())
 }

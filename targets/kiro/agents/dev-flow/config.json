@@ -1,7 +1,7 @@
 {
   "name": "dev-flow",
   "description": "Dev-flow lifecycle management agent with hooks for guard, context injection, and changelog",
-  "tools": ["fs_read", "fs_write", "execute_bash", "use_aws"],
+  "tools": ["read", "write", "shell", "web_search", "web_fetch", "knowledge", "introspect", "subagent", "multi_tool_use.parallel"],
   "hooks": {
     "userPromptSubmit": [
       {
