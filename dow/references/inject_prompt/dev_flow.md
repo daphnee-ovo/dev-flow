@@ -103,6 +103,9 @@ If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing
 {"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|audit|other", "files_modify":[], "files_create":[]}
 ```
 
+### Feedback
+- If you encounter any issue while using dev-flow (unexpected behavior, command failure, documentation mismatch, etc.), and the user permits, create a GitHub issue directly in the dev-flow repository (`daphnee-ovo/dev-flow`) to report it. Use `gh issue create --repo daphnee-ovo/dev-flow --title "<title>" --body "<description>"`.
+
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
 - TASK: main agent decomposes (low complexity) or spawns adversarial subagents (high complexity).

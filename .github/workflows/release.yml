@@ -114,3 +114,98 @@ jobs:
         run: cd npm/dev-flow && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  crates-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Update Cargo.toml version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          sed -i "s/^version = \".*\"/version = \"$TAG\"/" dow/Cargo.toml
+
+      - name: Publish to crates.io
+        run: cargo publish --manifest-path dow/Cargo.toml --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  brew-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VER="${TAG#v}"
+
+          SHA_DARWIN_ARM64=$(sha256sum artifacts/dow-${TAG}-darwin-arm64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_X86_64=$(sha256sum artifacts/dow-${TAG}-linux-x86_64.tar.gz | cut -d' ' -f1)
+          SHA_LINUX_AARCH64=$(sha256sum artifacts/dow-${TAG}-linux-aarch64.tar.gz | cut -d' ' -f1)
+
+          cat > formula.rb <<FORMULA
+          class DevFlow < Formula
+            desc "Lightweight engineering workflow for Claude Code and Codex CLI agents"
+            homepage "https://github.com/daphnee-ovo/dev-flow"
+            version "${VER}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/daphnee-ovo/dev-flow/releases/download/${TAG}/dow-${TAG}-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                odie "dev-flow Homebrew package currently provides macOS arm64 only."
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/daphnee-ovo/dev-flow/releases/download/${TAG}/dow-${TAG}-linux-aarch64.tar.gz"
+                sha256 "${SHA_LINUX_AARCH64}"
+              else
+                url "https://github.com/daphnee-ovo/dev-flow/releases/download/${TAG}/dow-${TAG}-linux-x86_64.tar.gz"
+                sha256 "${SHA_LINUX_X86_64}"
+              end
+            end
+
+            def install
+              if (buildpath/"bin/dow").exist?
+                bin.install "bin/dow" => "dow"
+              else
+                bin.install "dow"
+              end
+              pkgshare.install "bundle" if (buildpath/"bundle").directory?
+            end
+
+            test do
+              assert_match "dow", shell_output("#{bin}/dow --version")
+            end
+          end
+          FORMULA
+
+          # Remove leading spaces from heredoc
+          sed -i 's/^          //' formula.rb
+
+          # Push to homebrew-tap repo
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/daphnee-ovo/homebrew-tap.git" tap
+          cp formula.rb tap/Formula/dev-flow.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/dev-flow.rb
+          git commit -m "dev-flow ${VER}"
+          git push
