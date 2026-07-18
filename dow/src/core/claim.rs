@@ -146,7 +146,11 @@ pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
     add_claims_with_agent(doc_root, ids, detect_agent_id())
 }
 
-pub fn add_claims_with_agent(doc_root: &Path, ids: &[String], agent_id: Option<String>) -> std::io::Result<()> {
+pub fn add_claims_with_agent(
+    doc_root: &Path,
+    ids: &[String],
+    agent_id: Option<String>,
+) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);
     let ts = now_ts();
 

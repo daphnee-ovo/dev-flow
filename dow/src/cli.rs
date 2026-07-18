@@ -181,7 +181,7 @@ pub struct TaskCreateArgs {
     #[arg(long)]
     pub parallel: bool,
 
-    /// Complexity (S/M/L/XL)
+    /// Complexity (S/M/L)
     #[arg(long)]
     pub complexity: Option<String>,
 
@@ -248,7 +248,7 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub parallel: Option<bool>,
 
-    /// Complexity (S/M/L/XL)
+    /// Complexity (S/M/L)
     #[arg(long)]
     pub complexity: Option<String>,
 
@@ -311,9 +311,17 @@ pub struct IssueCreateArgs {
     #[arg(long)]
     pub reproduce: Option<String>,
 
-    /// Issue source (test/devtest/audit/other)
+    /// Issue source (test/audit/other)
     #[arg(long)]
     pub source: Option<String>,
+
+    /// Files to modify (comma-separated)
+    #[arg(long)]
+    pub files_modify: Option<String>,
+
+    /// Files to create (comma-separated)
+    #[arg(long)]
+    pub files_create: Option<String>,
 }
 
 #[derive(clap::Args)]
@@ -530,13 +538,9 @@ pub struct IterateArgs {
 
 #[derive(clap::Args)]
 pub struct TestArgs {
-    /// Run tests for a specific task
-    #[arg(long)]
-    pub task: Option<String>,
-
-    /// Run specified test file
-    #[arg(long)]
-    pub file: Option<String>,
+    /// Run tests for a specific Task ID; omit for the full project suite
+    #[arg(value_name = "TASK-ID")]
+    pub task_id: Option<String>,
 }
 
 // ─── Version ─────────────────────────────────────────────────────────────────

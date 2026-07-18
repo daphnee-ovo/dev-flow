@@ -17,11 +17,10 @@
 | `/spec` | 启动 SPEC agent，进入技术规范阶段 |
 | `/task` | 启动 TASK agent，进入任务拆解阶段 |
 | `/issue` | 手动创建 issue 文件 |
-| `/devtest` | 开发中例行测试（任务级验证） |
 | `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 启动完整 TEST agent（项目级全量验证） |
+| `/test` | 执行 `dow test` 全量测试 |
 | `/status` | 报告当前项目状态和进度 |
-| `/check` | 检查开发工作是否已同步到 .dev-doc |
+| `/check` | 执行 `dow doctor` 检查文档和项目状态 |
 | `/iterate` | 迭代交付（检查 + 归档 + commit & tag + bump） |
 | `/mode` | 选择开发模式（full/quick/fast/mvp；audit 为自动触发） |
 
@@ -69,8 +68,9 @@
 | `dow status set --phase/--mode/--exec-mode/--name/--goals-minor/--goals-major` | 写入 STATUS.yaml |
 | `dow init --name <n> --mode <m>` | 初始化 dev-flow 工作流管理 |
 | `dow doctor [--fix]` | 检查 .dev-doc 结构 + 规范 + 一致性（合并原 check/validate/fix）；`dow fix` 保留为 `dow doctor --fix` 兼容入口 |
-| `dow test [--task <ID>] [--file <x>]` | 运行测试（全量 / 任务级） |
-| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--confirm ITR-xxx]` | 迭代交付 |
+| `dow test` | 运行全量测试 |
+| `dow test <TASK-ID>` | 运行指定 Task 关联的测试 |
+| `dow iterate --topic <t> --type <type> [--files f1 f2...] [-v patch] [--tag] [--confirm ITR-xxx]` | 迭代交付 |
 | `dow rollback --version <v>` | 版本回退（仅回退流程状态，不撤销 git commit） |
 | `dow rollback --list` | 列出可回退的版本 |
 | `dow claim [IDs...] [--revoke]` | 声明/释放当前工作关联的 task/issue |
@@ -80,22 +80,23 @@
 | `dow archive show <version>` | 某版本归档详情 |
 | `dow archive tasks [--version v] [--priority P0]` | 查询归档任务 |
 | `dow archive issues [--version v] [--severity P0]` | 查询归档 issue |
-| `dow archive doc <version> <PRD\|SPEC\|TEST>` | 输出归档文档原文 |
+| `dow archive doc <version> <PRD\|SPEC\|TEST\|BRAINSTORM>` | 输出归档文档原文 |
 | `dow archive migrate [--delete-originals]` | 从目录迁移到 SQLite |
 | `dow archive stats` | 归档统计 |
-| `dow hooks context [--codex-hook]` | hook：注入上下文 |
-| `dow hooks guard <file>` | hook：文件写入守护 |
-| `dow hooks post-write <file>` | hook：写后联动 |
+| `dow hooks context [--codex-hook\|--kiro-hook]` | hook：注入上下文 |
+| `dow hooks guard [file]` | hook：文件写入守护（file 可选，fallback 环境变量） |
+| `dow hooks post-write [file]` | hook：写后联动（file 可选，fallback 环境变量） |
 | `dow hooks post-bash [command]` | hook：Bash 执行后检测分支切换 |
-| `dow hooks save-changelog [--codex-hook]` | hook：保存 CHANGELOG |
-| `dow dashboard [--port PORT]` | 启动本地 web 可视化面板（依赖图 + 状态 + 文档） |
+| `dow hooks save-changelog [--codex-hook\|--kiro-hook]` | hook：保存 CHANGELOG |
+| `dow inbox context` | 生成项目上下文摘要（供 agent 内部使用） |
+| `dow dashboard [--port PORT] [--no-open]` | 启动本地 web 可视化面板（依赖图 + 状态 + 文档） |
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
 | `dow self-check` | 查看安装状态和健康度 |
 
 默认 JSON 输出，`-H` 切换人类友好格式。
 
-构建与部署：`bash devtools/deploy-local.sh <claude|codex|all>`（编译 + 组装 + 本地部署）。
+构建与部署：`bash devtools/deploy-local.sh <claude|codex|kiro|all>`（编译 + 组装 + 本地部署）。
 
 ## 文档格式规范（必读）
 
@@ -127,11 +128,11 @@ dow changelog schema   # 获取 CHANGELOG 格式定义
 ## 多 Agent 支持
 
 - 严禁更新 A agent 相关内容的时候导致 B agent的支持被破坏
-- 共享内容（skills、commands、agents）放 `plugin/`
+- 共享内容（commands、agents）放 `plugin/`（skills 由 assemble 生成到 dist）
 - agent 差异（plugin.json、hooks.json）放 `targets/<agent>/`
 - Codex 不支持直接注册 slash command；`assemble.sh codex` 会把 `plugin/commands/<command>.md` 转换为 `skills/<command>/SKILL.md`，并使用 skill 语义的触发描述
 - Kiro 同样不支持 slash command；`assemble.sh kiro` 会转换为 `skills/dev-flow-<command>/SKILL.md`，agents 转为 JSON 格式
-- Kiro hooks 是每个 hook 独立 JSON 文件放 `.kiro/hooks/`，格式为 `{name, when: {type, toolTypes?}, then: {type: "runCommand", command}}`
+- Kiro hooks 内嵌于 agent config（`targets/kiro/agents/dev-flow/config.json`），格式为 `{name, when: {type, toolTypes?}, then: {type: "runCommand", command}}`
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`，Kiro 使用 subagent
 - `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`，Kiro 优先写 `.kiro/steering/`
 
@@ -143,7 +144,6 @@ dow changelog schema   # 获取 CHANGELOG 格式定义
 |------|------|
 | `assemble.sh` | 组装 plugin/ + targets/ → dist/<agent>/ |
 | `deploy-local.sh` | 编译 + 组装 + 部署到本地 agent 插件目录 |
-| `sync-skill.sh` | 将 SKILL.md 同步到各副本位置 |
 
 ## 目录结构约定
 

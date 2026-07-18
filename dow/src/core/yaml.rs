@@ -67,9 +67,9 @@ pub fn set(path: &Path, key: &str, value: &str) -> std::io::Result<()> {
 
     if !found && !is_delete {
         // Insert fields like goals/exec_mode before updated/started (keep timestamps at end)
-        let insert_pos = lines.iter().position(|l| {
-            l.starts_with("updated:") || l.starts_with("started:")
-        });
+        let insert_pos = lines
+            .iter()
+            .position(|l| l.starts_with("updated:") || l.starts_with("started:"));
         if let Some(pos) = insert_pos {
             lines.insert(pos, format!("{}: {}", key, value));
         } else {
@@ -158,9 +158,9 @@ pub fn set_list(path: &Path, key: &str, values: &[String]) -> std::io::Result<()
     }
 
     if !values.is_empty() {
-        let insert_pos = lines.iter().position(|l| {
-            l.starts_with("updated:") || l.starts_with("started:")
-        });
+        let insert_pos = lines
+            .iter()
+            .position(|l| l.starts_with("updated:") || l.starts_with("started:"));
         let mut block = vec![format!("{}:", key)];
         for v in values {
             block.push(format!("  - {}", v));
@@ -217,7 +217,8 @@ mod tests {
 
     #[test]
     fn test_parse_list_basic() {
-        let content = "name: test\ndocs:\n  - docs/structure.md\n  - docs/usage.md\nupdated: 2026-01-01\n";
+        let content =
+            "name: test\ndocs:\n  - docs/structure.md\n  - docs/usage.md\nupdated: 2026-01-01\n";
         let items = parse_list(content, "docs");
         assert_eq!(items, vec!["docs/structure.md", "docs/usage.md"]);
     }
@@ -240,7 +241,11 @@ mod tests {
     fn test_set_list_and_read_back() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("STATUS.yaml");
-        fs::write(&path, "name: test\nupdated: 2026-01-01\nstarted: 2026-01-01\n").unwrap();
+        fs::write(
+            &path,
+            "name: test\nupdated: 2026-01-01\nstarted: 2026-01-01\n",
+        )
+        .unwrap();
 
         let values = vec!["docs/a.md".to_string(), "docs/b.md".to_string()];
         set_list(&path, "docs", &values).unwrap();
@@ -257,7 +262,11 @@ mod tests {
     fn test_set_list_empty_removes_field() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("STATUS.yaml");
-        fs::write(&path, "name: test\ndocs:\n  - docs/a.md\nupdated: 2026-01-01\nstarted: 2026-01-01\n").unwrap();
+        fs::write(
+            &path,
+            "name: test\ndocs:\n  - docs/a.md\nupdated: 2026-01-01\nstarted: 2026-01-01\n",
+        )
+        .unwrap();
 
         set_list(&path, "docs", &[]).unwrap();
 

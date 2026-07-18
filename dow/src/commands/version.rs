@@ -50,7 +50,10 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
         };
         if human {
             let prev_str = result.previous.as_deref().unwrap_or("(damaged)");
-            println!("[dev-flow] version({}): {} → {}", branch, prev_str, result.version);
+            println!(
+                "[dev-flow] version({}): {} → {}",
+                branch, prev_str, result.version
+            );
         } else {
             output::print_json(&result);
         }
@@ -69,7 +72,13 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
             warning: None,
         };
         if human {
-            println!("[dev-flow] version({}): {} → {} ({})", branch, result.previous.as_ref().unwrap(), result.version, bump_type);
+            println!(
+                "[dev-flow] version({}): {} → {} ({})",
+                branch,
+                result.previous.as_ref().unwrap(),
+                result.version,
+                bump_type
+            );
         } else {
             output::print_json(&result);
         }
@@ -92,5 +101,9 @@ pub fn run(args: VersionArgs, human: bool) -> Result<i32, DowError> {
     } else {
         output::print_json(&result);
     }
-    if detached { Ok(2) } else { Ok(0) }
+    if detached {
+        Ok(2)
+    } else {
+        Ok(0)
+    }
 }

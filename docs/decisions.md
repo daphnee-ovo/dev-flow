@@ -62,4 +62,4 @@
 - **日期**：2026-06
 - **决策**：task ID（T001, T002...）和 issue ID（I001, I002...）在所有文件中全局递增，不按文件重新计数
 - **理由**：rollback 还原文件后 ID 冲突；claim 操作需要唯一 ID 来定位目标
-- **后果**：`dow doc task` 创建新 task 时扫描所有 task 文件（含 done_task_）取最大 ID 继续递增；validator 检查全局 1..N 连续性；claim 检测到重复 ID 时报错
+- **后果**：`dow task create` 创建新 task 时扫描所有 task 文件（含 done_task_）取最大 ID 继续递增；validator 检查全局 1..N 连续性；claim 检测到重复 ID 时报错

@@ -81,64 +81,27 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 |-------|------|------|
 | **Claude Code** | 已支持 | `dow setup --agent claude` |
 | **Codex CLI** | 已支持 | `dow setup --agent codex` |
-| **Kiro** | 测试中 | `dow setup --agent kiro` |
+| **Kiro** | 已支持 | `dow setup --agent kiro` |
 
-### Agent 兼容性矩阵
+### Agent 兼容性
 
-#### 安装与设置
+三个 agent 提供完全一致的工作流体验 — 命令、hooks、子 agent、状态管理均相同。唯一差异是平台实现方式：
 
-| 能力 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| `dow setup` 注册 | Yes | Yes | Yes |
-| `dow self-check` 检测 | Yes | Yes | Yes |
-| 插件清单 | `plugin.json` | `plugin.json` | `config.json` |
+| 方面 | Claude Code | Codex CLI / App | Kiro |
+|------|-------------|-----------------|------|
+| 命令接口 | Slash commands | Skill commands | Skill commands |
+| 子 agent 调用 | `Agent` tool | `spawn_agent` | subagent |
 | 项目指令文件 | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
 
-#### Hook 支持
+#### Kiro：启用 Hooks
 
-| Hook | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| UserPromptSubmit（上下文注入） | Yes | Yes | Yes |
-| PreToolUse — Write/Edit 守护 | Yes | Yes | Yes |
-| PreToolUse — Bash 守护 | Yes | Yes | Yes |
-| PostToolUse — Write/Edit 同步 | Yes | Yes | Yes |
-| PostToolUse — Bash 同步 | Yes | Yes | Yes |
-| Stop（保存 changelog） | Yes | Yes | Yes |
+Kiro 的默认 agent 不支持 hook 配置。安装后需将 dev-flow agent 设为默认：
 
-#### 命令支持
+```bash
+kiro-cli agent set-default --name dev-flow
+```
 
-| 命令 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| `/init` | Slash command | Skill | Agent command |
-| `/brainstorm` | Slash command | Skill | Agent command |
-| `/prd` | Slash command | Skill | Agent command |
-| `/spec` | Slash command | Skill | Agent command |
-| `/task` | Slash command | Skill | Agent command |
-| `/issue` | Slash command | Skill | Agent command |
-| `/devtest` | Slash command | Skill | Agent command |
-| `/fix` | Slash command | Skill | Agent command |
-| `/test` | Slash command | Skill | Agent command |
-| `/status` | Slash command | Skill | Agent command |
-| `/check` | Slash command | Skill | Agent command |
-| `/iterate` | Slash command | Skill | Agent command |
-| `/mode` | Slash command | Skill | Agent command |
-
-#### Sub-Agent 支持
-
-| 能力 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| PRD agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| SPEC agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-
-#### 已知限制
-
-| Agent | 限制 |
-|-------|------|
-| **Claude Code** | 无已知限制 |
-| **Codex CLI** | 无原生 slash command — 命令通过 skill（`SKILL.md`）暴露。Hook 协议使用 JSON envelope（`--codex-hook`）。 |
-| **Kiro** | 测试中 — 尚未在生产工作流中验证。无原生 slash command — 命令通过 agent 配置处理。Hook 协议使用 `--kiro-hook` 标志。 |
+`dow setup --agent kiro` 会在注册完成后提醒此步骤。不执行的话 hooks 不会触发。
 
 ---
 
@@ -164,13 +127,12 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 |------|------|
 | `/init` | 初始化项目（创建 .dev-doc、选择模式、规范校验） |
 | `/brainstorm` | 实现前的协作式需求探索与设计 |
-| `/prd` | 启动 PRD agent，产出 PRD.md |
-| `/spec` | 启动 SPEC agent，产出 SPEC.md |
-| `/task` | 启动 TASK agent，产出任务文件 |
+| `/prd` | PRD 阶段 — 主 agent 产出 PRD.md，审计 agent 审核 |
+| `/spec` | SPEC 阶段 — 主 agent 产出 SPEC.md，审计 agent 审核 |
+| `/task` | TASK 阶段 — 拆解任务文件（复杂情况由 challenger agent 辅助） |
 | `/issue` | 手动创建 issue 文件 |
-| `/devtest` | 开发中例行测试（任务级验证） |
+| `/test` | 执行 dow test 全量测试 |
 | `/fix` | 自动读取未关闭 issue 并修复 |
-| `/test` | 完整 TEST agent（项目级全量验证） |
 | `/status` | 查看当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 .dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |
@@ -195,22 +157,23 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 ### 角色隔离
 
-每个阶段由独立 agent 执行，避免思维定势：
+主 agent 驱动各阶段，独立审计/挑战子 agent 审核产出：
 
-| 阶段 | 角色 |
-|------|------|
-| PRD | 懂技术的高级产品经理 |
-| SPEC | 资深架构师 |
-| TASK | 经验丰富的技术主管 |
-| DEV | 主 agent 直接执行 |
-| TEST | 严格的 QA 工程师 |
+| 阶段 | 执行 | 审核 |
+|------|------|------|
+| BRAINSTORM | 主 agent | brainstorm-audit-agent |
+| PRD | 主 agent | prd-audit-agent |
+| SPEC | 主 agent | spec-audit-agent |
+| TASK | 主 agent | task-challenger-agent（复杂情况） |
+| DEV | 主 agent | — |
+| TEST | `dow test` CLI | test-agent（失败分析） |
 
 ### 自动化 Hooks
 
 无需手动操作：
 
 - **上下文注入** — 每次对话注入当前阶段状态和规范提醒
-- **自动 devtest** — 任务完成后自动触发例行测试
+- **Task 关闭测试门禁** — dow task done TASK-ID 在改写 Task 前先执行 dow test TASK-ID
 - **文档同步检查** — 代码变更时提醒同步文档
 - **变更日志** — 会话结束时自动保存 CHANGELOG
 - **系统临时目录拦截** — 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，新项目默认使用 `tmp`
@@ -229,7 +192,6 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
     ├── BRAINSTORM.md      # 头脑风暴
     ├── PRD.md             # 产品需求
     ├── SPEC.md            # 技术规范
-    ├── TEST.md            # 测试报告
     ├── task/              # 任务文件（task_<日期>_<序号>.md）
     └── issue/             # 问题追踪（issue_<来源>_<日期>_<序号>.md）
 ```
@@ -251,9 +213,9 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 `dow dashboard` 启动本地 web 看板，包含：
 
-- **看板视图** — 按状态（Open、In Progress、Pending、Closed、Done）分组的任务和 issue
-- **依赖图** — 使用 D3 + dagre 可视化显式和隐式任务/issue 依赖。隐式依赖基于任务间文件交集推断。进行中的节点闪烁。
-- **文档查看器** — 内联浏览 PRD、SPEC、TEST 文档
+- **看板视图** — 任务按 In Progress / Pending / Done 分组，issue 按 In Progress / Open / Closed 分组
+- **依赖图** — 使用 D3 force simulation 可视化显式和隐式任务/issue 依赖。隐式依赖基于任务间文件交集推断。进行中的节点闪烁。
+- **文档查看器** — 内联浏览 BRAINSTORM、PRD、SPEC 文档
 - **筛选** — 按优先级（P0/P1/P2）和状态过滤
 - **状态概览** — 当前阶段、模式和迭代状态
 
@@ -270,7 +232,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issue 支持完整的生命周期：
 
-- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity
+- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity。创建支持单个 JSON 对象或批量 JSON 数组。
 - **多行值**：description/reproduce/fix 支持 YAML 缩进续行格式
 - **关闭强制**：关闭时必须填写非空 fix 字段
 - **增量数组更新**：`--files +src/foo.rs -src/bar.rs` 增减特定项
@@ -310,23 +272,20 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 |------|------|
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
-| `dow self-check` | 查看安装状态 |
 | `dow doctor [--fix]` | 诊断 .dev-doc 结构和规范一致性 |
 | `dow status` | 读写 STATUS.yaml |
 | `dow claim <TASK-ID\|ISSUE-ID>` | 认领 task 或 issue（含依赖检查） |
 | `dow task create/update/show/list` | Task 全生命周期管理 |
 | `dow issue create/update/close/show/list` | Issue 全生命周期管理 |
 | `dow fix` | `dow doctor --fix` 的兼容别名 |
-| `dow devtest [--task <id>]` | 任务级验证 |
-| `dow test [--file <x>]` | 项目级全量测试 |
-| `dow check` | 检查开发工作是否同步到 .dev-doc |
+| `dow test` | 项目级全量测试 |
+| `dow test <TASK-ID>` | 执行 Task 的 files.test |
 | `dow scan` | 项目结构扫描 |
 | `dow version [--set X.Y.Z] [--bump patch]` | 读写多分支 VERSION |
 | `dow iterate [--confirm]` | 交付：归档 + commit + tag + bump |
 | `dow rollback --version <v>` | 回滚迭代：从归档恢复任务/issue/文档 |
-| `dow doc <type>` | 生成/查询文档模板 |
-| `dow dashboard [--port PORT]` | 启动本地 web 看板（依赖图 + 看板 + 文档） |
-| `dow mod` | 设置开发模式 |
+| `dow task/issue/prd/spec/brainstorm/changelog schema` | 获取对应文档 schema |
+| `dow dashboard [--port PORT] [--no-open]` | 启动本地 web 看板（依赖图 + 看板 + 文档） |
 | `dow hooks ...` | Hook 调度（context, guard, post-write） |
 | `dow archive list/show/tasks/issues/doc` | 从 archive.db 查询历史迭代 |
 
@@ -376,7 +335,7 @@ dev-flow/
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
-│   │   ├── commands/              # 26 个子命令实现
+│   │   ├── commands/              # 24 个子命令模块
 │   │   │   ├── setup.rs          # dow setup
 │   │   │   ├── doctor.rs         # dow doctor
 │   │   │   ├── claim.rs          # dow claim

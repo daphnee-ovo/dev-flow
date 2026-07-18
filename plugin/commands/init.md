@@ -134,11 +134,11 @@ Initialize and populate project persistent docs (`docs/` directory).
 #### 3.5-1. Generate Skeleton
 
 ```bash
-dow doc init
+dow init
 ```
 
 Auto-creates `docs/{structure.md, decisions.md, usage.md}` (existing files won't be overwritten).
-Also creates `README.md` if it doesn't exist.
+Also creates `README.md` if it doesn't exist. Persistent documentation is initialized as part of `dow init`.
 
 #### 3.5-2. Fill Content
 

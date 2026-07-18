@@ -81,64 +81,27 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
 | **Codex CLI** | Supported | `dow setup --agent codex` |
-| **Kiro** | Testing | `dow setup --agent kiro` |
+| **Kiro** | Supported | `dow setup --agent kiro` |
 
-### Agent Compatibility Matrix
+### Agent Compatibility
 
-#### Install & Setup
+All three agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
 
-| Capability | Claude Code | Codex CLI | Kiro |
-|------------|:-----------:|:---------:|:----:|
-| `dow setup` registration | Yes | Yes | Yes |
-| `dow self-check` validation | Yes | Yes | Yes |
-| Plugin manifest | `plugin.json` | `plugin.json` | `config.json` |
-| Project instructions file | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
+| Aspect | Claude Code | Codex CLI / App | Kiro |
+|--------|-------------|-----------------|------|
+| Command interface | Slash commands | Skill commands | Skill commands |
+| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
 
-#### Hook Support
+#### Kiro: Enabling Hooks
 
-| Hook | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| UserPromptSubmit (context injection) | Yes | Yes | Yes |
-| PreToolUse — Write/Edit guard | Yes | Yes | Yes |
-| PreToolUse — Bash guard | Yes | Yes | Yes |
-| PostToolUse — Write/Edit sync | Yes | Yes | Yes |
-| PostToolUse — Bash sync | Yes | Yes | Yes |
-| Stop (changelog save) | Yes | Yes | Yes |
+Kiro's default agent does not support hook configuration. After setup, set the dev-flow agent as default:
 
-#### Command Support
+```bash
+kiro-cli agent set-default --name dev-flow
+```
 
-| Command | Claude Code | Codex CLI | Kiro |
-|---------|:-----------:|:---------:|:----:|
-| `/init` | Slash command | Skill | Agent command |
-| `/brainstorm` | Slash command | Skill | Agent command |
-| `/prd` | Slash command | Skill | Agent command |
-| `/spec` | Slash command | Skill | Agent command |
-| `/task` | Slash command | Skill | Agent command |
-| `/issue` | Slash command | Skill | Agent command |
-| `/devtest` | Slash command | Skill | Agent command |
-| `/fix` | Slash command | Skill | Agent command |
-| `/test` | Slash command | Skill | Agent command |
-| `/status` | Slash command | Skill | Agent command |
-| `/check` | Slash command | Skill | Agent command |
-| `/iterate` | Slash command | Skill | Agent command |
-| `/mode` | Slash command | Skill | Agent command |
-
-#### Sub-Agent Support
-
-| Capability | Claude Code | Codex CLI | Kiro |
-|------------|:-----------:|:---------:|:----:|
-| PRD agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| SPEC agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-
-#### Known Limitations
-
-| Agent | Limitations |
-|-------|-------------|
-| **Claude Code** | None known |
-| **Codex CLI** | No native slash commands — commands are exposed as skills (`SKILL.md`). Hook protocol uses JSON envelope (`--codex-hook`). |
-| **Kiro** | Testing status — not yet validated in production workflows. No native slash commands — commands are handled through agent configuration. Hook protocol uses `--kiro-hook` flag. |
+`dow setup --agent kiro` reminds you of this step. Without it, hooks will not fire.
 
 ---
 
@@ -150,7 +113,7 @@ Core principles:
 
 - **Think before building** — clarify goals, boundaries, approach, and acceptance criteria before changing code.
 - **Lightweight** — keep only the documents and commands that move delivery forward.
-- **Structured** — PRD, SPEC, TASK, TEST, issues, and archives use stable formats that are easy to inspect and reuse.
+- **Structured** — PRD, SPEC, TASK, issues, and archives use stable formats that are easy to inspect and reuse.
 - **Constrained** — phases, hooks, checks, and task loops prevent agents from skipping requirements, specs, verification, and delivery gates.
 - **Goal-necessary** — every capability must answer whether it serves the current goal. Keep necessary constraints; do not import ceremony.
 - **Synchronized** — process documents must stay aligned with the real project state: code, tasks, versions, tests, and iterations. Once management docs drift, they become noise.
@@ -164,13 +127,12 @@ Core principles:
 |---------|-------------|
 | `/init` | Initialize project (create dev-doc, select mode, validate specs) |
 | `/brainstorm` | Collaborative requirement exploration & design before implementation |
-| `/prd` | Launch PRD agent — produce PRD.md |
-| `/spec` | Launch SPEC agent — produce SPEC.md |
-| `/task` | Launch TASK agent — produce task files |
+| `/prd` | PRD phase — main agent produces PRD.md, then audit agent reviews |
+| `/spec` | SPEC phase — main agent produces SPEC.md, then audit agent reviews |
+| `/task` | TASK phase — decompose into task files (challenger agent for complex cases) |
 | `/issue` | Manually create issue files |
-| `/devtest` | Routine dev testing (task-level verification) |
+| `/test` | Run dow test for full project verification |
 | `/fix` | Auto-read open issues and fix them |
-| `/test` | Full TEST agent (project-level verification) |
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with .dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
@@ -195,22 +157,23 @@ Core principles:
 
 ### Role Isolation
 
-Each phase is executed by an independent agent to avoid cognitive bias:
+Main agent drives each phase directly; independent audit/challenger sub-agents review the output:
 
-| Phase | Role |
-|-------|------|
-| PRD | Senior product manager with technical background |
-| SPEC | Senior architect |
-| TASK | Experienced tech lead |
-| DEV | Main agent (direct execution) |
-| TEST | Strict QA engineer |
+| Phase | Execution | Review |
+|-------|-----------|--------|
+| BRAINSTORM | Main agent | brainstorm-audit-agent |
+| PRD | Main agent | prd-audit-agent |
+| SPEC | Main agent | spec-audit-agent |
+| TASK | Main agent | task-challenger-agent (complex cases) |
+| DEV | Main agent | — |
+| TEST | `dow test` CLI | test-agent (failure analysis) |
 
 ### Automated Hooks
 
 No manual operations needed:
 
 - **Context injection** — injects current phase status and spec reminders on every message
-- **Auto devtest** — triggers routine testing when a task is marked complete
+- **Task close test gate** — dow task done TASK-ID runs dow test TASK-ID before changing the Task file
 - **Doc sync check** — reminds you to sync documentation when code changes
 - **Changelog save** — automatically saves changelog on conversation end
 - **System temp blocking** — prevents writing to system temp directories; project-local `tmp` and `temp` are allowed, and new projects default to `tmp`
@@ -229,14 +192,13 @@ The plugin maintains a `.dev-doc/` directory in your project, organized by branc
     ├── BRAINSTORM.md      # Brainstorming notes
     ├── PRD.md             # Product requirements
     ├── SPEC.md            # Technical specification
-    ├── TEST.md            # Test report
     ├── task/              # Task files (task_<date>_<seq>.md)
     └── issue/             # Issue tracking (issue_<source>_<date>_<seq>.md)
 ```
 
 ### Iteration Management
 
-`/iterate` archives completed tasks, closed issues, test reports, changelog entries, and phase documents into `.dev-doc/archive.db`, then starts a new development cycle. Use `dow archive list/show/tasks/issues/doc` to query historical iterations.
+`/iterate` archives completed tasks, closed issues, changelog entries, and phase documents including BRAINSTORM, PRD, and SPEC into `.dev-doc/archive.db`, then starts a new development cycle. Use `dow archive list/show/tasks/issues/doc` to query historical iterations.
 
 If `.dev-doc/preIterate.ci` exists, `dow iterate --confirm` runs its steps before archive, commit, tag, and bump. A failing step stops the whole iteration. Supported steps are `sync-version: <path>` for explicit Cargo/npm/uv project manifests and `run: <command>` for project-local checks, lockfile updates, or generators.
 
@@ -253,9 +215,9 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 `dow dashboard` launches a local web dashboard with:
 
-- **Kanban board** — tasks and issues grouped by status (Open, In Progress, Pending, Closed, Done)
-- **Dependency graph** — visualizes explicit and implicit task/issue dependencies using D3 + dagre. Implicit edges are inferred from file intersections between tasks. In-progress nodes blink.
-- **Document viewer** — browse PRD, SPEC, TEST docs inline
+- **Kanban board** — tasks grouped by status (In Progress / Pending / Done), issues by (In Progress / Open / Closed)
+- **Dependency graph** — visualizes explicit and implicit task/issue dependencies using D3 force simulation. Implicit edges are inferred from file intersections between tasks. In-progress nodes blink.
+- **Document viewer** — browse BRAINSTORM, PRD, SPEC docs inline
 - **Filtering** — filter by priority (P0/P1/P2) and status
 - **Status overview** — current phase, mode, and iteration state
 
@@ -272,7 +234,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issues support a full lifecycle beyond tasks:
 
-- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity
+- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity. Creation accepts one JSON object or a batch JSON array.
 - **Multi-line values**: description/reproduce/fix support YAML indented continuation format
 - **Close enforcement**: closing requires a non-empty fix field
 - **Incremental array updates**: `--files +src/foo.rs -src/bar.rs` to add/remove specific items
@@ -312,23 +274,20 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 |---------|-------------|
 | `dow setup [--agent claude\|codex\|all]` | Register plugin with agents (interactive TUI) |
 | `dow update` | Self-update binary + plugins |
-| `dow self-check` | Show install status and health |
 | `dow doctor [--fix]` | Diagnose .dev-doc structure, spec, and consistency |
 | `dow status` | Read/write STATUS.yaml |
 | `dow claim <TASK-ID\|ISSUE-ID>` | Claim a task or issue (with dependency check) |
 | `dow task create/update/show/list` | Task lifecycle management |
 | `dow issue create/update/close/show/list` | Issue lifecycle management |
 | `dow fix` | Compatibility alias for `dow doctor --fix` |
-| `dow devtest [--task <id>]` | Task-level verification |
-| `dow test [--file <x>]` | Full project-level test suite |
-| `dow check` | Check if dev work is synced with .dev-doc |
+| `dow test` | Full project-level test suite |
+| `dow test <TASK-ID>` | Task-level test for the Task's files.test |
 | `dow scan` | Project structure scan |
 | `dow version [--set X.Y.Z] [--bump patch]` | Read/write multi-branch VERSION |
 | `dow iterate [--confirm]` | Delivery: archive + commit + tag + bump |
 | `dow rollback --version <v>` | Undo an iteration: restore tasks/issues/docs from archive |
-| `dow doc <type>` | Generate/query document templates |
+| `dow task/issue/prd/spec/brainstorm/changelog schema` | Query the current document schemas |
 | `dow dashboard [--port PORT]` | Launch local web dashboard (dependency graph, kanban, docs) |
-| `dow mod` | Set development mode |
 | `dow hooks ...` | Hook dispatch (context, guard, post-write) |
 | `dow archive list/show/tasks/issues/doc` | Query historical iterations from archive.db |
 
@@ -378,7 +337,7 @@ dev-flow/
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
-│   │   ├── commands/              # 26 subcommand implementations
+│   │   ├── commands/              # 24 subcommand modules
 │   │   │   ├── setup.rs          # dow setup
 │   │   │   ├── doctor.rs         # dow doctor
 │   │   │   ├── claim.rs          # dow claim

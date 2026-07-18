@@ -34,7 +34,10 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         .map_err(|e| DowError::new(&format!("Failed to create temp directory: {}", e), 1))?;
 
     let tarball_path = tmp_dir.join("dow.tar.gz");
-    eprintln!("[dow] Downloading dow-{}-{}...", release.tag_name, platform_triple);
+    eprintln!(
+        "[dow] Downloading dow-{}-{}...",
+        release.tag_name, platform_triple
+    );
     github::download_release_asset(&release.tag_name, platform_triple, &tarball_path)
         .map_err(|e| DowError::new(&format!("Download failed: {}", e), 1))?;
 
@@ -53,8 +56,7 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         if bundle_dest.exists() {
             let _ = fs::remove_dir_all(&bundle_dest);
         }
-        copy_dir_recursive(&new_bundle, &bundle_dest)
-            .map_err(|e| DowError::new(&e, 1))?;
+        copy_dir_recursive(&new_bundle, &bundle_dest).map_err(|e| DowError::new(&e, 1))?;
         eprintln!("[dow] Bundle updated");
     }
 
@@ -79,7 +81,10 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
 
     let _ = fs::remove_dir_all(&tmp_dir);
 
-    eprintln!("[dow] ✓ Update complete! Current version: v{}", release.version);
+    eprintln!(
+        "[dow] ✓ Update complete! Current version: v{}",
+        release.version
+    );
     Ok(0)
 }
 
@@ -95,7 +100,11 @@ fn refresh_agent_plugin(agent: &str) {
 }
 
 fn find_binary(extract_dir: &std::path::Path) -> Result<PathBuf, DowError> {
-    let bin_name = if cfg!(target_os = "windows") { "dow.exe" } else { "dow" };
+    let bin_name = if cfg!(target_os = "windows") {
+        "dow.exe"
+    } else {
+        "dow"
+    };
 
     let in_bin = extract_dir.join("bin").join(bin_name);
     if in_bin.exists() {
@@ -107,16 +116,16 @@ fn find_binary(extract_dir: &std::path::Path) -> Result<PathBuf, DowError> {
         return Ok(in_root);
     }
 
-    Err(DowError::new(&format!("Binary {} not found after extraction", bin_name), 1))
+    Err(DowError::new(
+        &format!("Binary {} not found after extraction", bin_name),
+        1,
+    ))
 }
 
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    fs::create_dir_all(dst)
-        .map_err(|e| format!("Failed to create directory: {}", e))?;
+    fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory: {}", e))?;
 
-    for entry in fs::read_dir(src)
-        .map_err(|e| format!("Failed to read directory: {}", e))?
-    {
+    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory: {}", e))? {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
@@ -124,8 +133,7 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
         if src_path.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
         } else {
-            fs::copy(&src_path, &dst_path)
-                .map_err(|e| format!("Copy failed: {}", e))?;
+            fs::copy(&src_path, &dst_path).map_err(|e| format!("Copy failed: {}", e))?;
         }
     }
     Ok(())

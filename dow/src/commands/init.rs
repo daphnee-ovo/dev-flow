@@ -26,28 +26,22 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     }
 
     let base_dir = std::path::Path::new(crate::core::DOC_DIR);
-    fs::create_dir_all(base_dir)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::create_dir_all(base_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // Parse multi-branch mode path: .dev-doc/<branch>/
-    let branch = crate::core::doc_root::current_branch()
-        .unwrap_or_else(|| "main".to_string());
+    let branch = crate::core::doc_root::current_branch().unwrap_or_else(|| "main".to_string());
     let doc_root_path = base_dir.join(&branch);
-    fs::create_dir_all(&doc_root_path)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::create_dir_all(&doc_root_path).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // Create directory structure (archive migrated to SQLite, no longer creating directory)
     for dir in &["issue", "task"] {
-        fs::create_dir_all(doc_root_path.join(dir))
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        fs::create_dir_all(doc_root_path.join(dir)).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
-    fs::create_dir_all("tests")
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::create_dir_all("tests").map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // tmp directory: if temp already exists, don't create tmp
     if !std::path::Path::new("temp").is_dir() {
-        fs::create_dir_all("tmp")
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        fs::create_dir_all("tmp").map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Determine starting phase
@@ -71,14 +65,12 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
             1,
         ));
     }
-    fs::write(&status_path, &status_content)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::write(&status_path, &status_content).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // Write VERSION (initialize with current branch)
     let version_path = std::path::Path::new("VERSION");
     if !version_path.exists() {
-        let branch = crate::core::doc_root::current_branch()
-            .unwrap_or_else(|| "main".to_string());
+        let branch = crate::core::doc_root::current_branch().unwrap_or_else(|| "main".to_string());
         version::write_branch(&branch, "0.1.0")?;
     }
 
@@ -88,8 +80,7 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     // Write CHANGELOG
     let changelog_path = doc_root_path.join("CHANGELOG.md");
     if !changelog_path.exists() {
-        fs::write(&changelog_path, "# Changelog\n")
-            .map_err(|e| DowError::new(e.to_string(), 1))?;
+        fs::write(&changelog_path, "# Changelog\n").map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Ensure .gitignore has claim.lock entry
@@ -144,8 +135,7 @@ fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Re
         "docs/decisions.md".to_string(),
         "docs/usage.md".to_string(),
     ];
-    yaml::set_list(status_path, "docs", &docs_list)
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    yaml::set_list(status_path, "docs", &docs_list).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     Ok(())
 }

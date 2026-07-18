@@ -51,9 +51,9 @@ pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, D
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
-        DowError::new(format!("Failed to bind port {}: {}", port, e), 1)
-    })?;
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| DowError::new(format!("Failed to bind port {}: {}", port, e), 1))?;
 
     eprintln!("[dow dashboard] Listening on http://127.0.0.1:{}", port);
 
@@ -119,15 +119,15 @@ async fn handle_sse(
     let rx = state.notify_tx.subscribe();
     let stream = BroadcastStream::new(rx);
 
-    let event_stream = stream.filter_map(move |msg| {
-        match msg {
+    let event_stream = stream.filter_map(move |msg| match msg {
             Ok(_) => {
                 let project_data = data::collect_project_data(&doc_root);
                 let json = serde_json::to_string(&project_data).unwrap_or_default();
-                Some(Ok::<_, Infallible>(Event::default().event("update").data(json)))
+            Some(Ok::<_, Infallible>(
+                Event::default().event("update").data(json),
+            ))
             }
             Err(_) => None,
-        }
     });
 
     let guard = ConnectionGuard(connections);
@@ -136,9 +136,8 @@ async fn handle_sse(
         item
     });
 
-    Sse::new(event_stream).keep_alive(
-        axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)),
-    )
+    Sse::new(event_stream)
+        .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
 }
 
 struct ConnectionGuard(Arc<AtomicUsize>);
@@ -155,7 +154,8 @@ async fn handle_index() -> impl IntoResponse {
             StatusCode::OK,
             [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
             file.data.to_vec(),
-        ).into_response(),
+        )
+            .into_response(),
         None => (StatusCode::NOT_FOUND, "index.html not found").into_response(),
     }
 }
@@ -168,7 +168,8 @@ async fn handle_asset(AxumPath(path): AxumPath<String>) -> impl IntoResponse {
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, mime.as_ref().to_string())],
                 file.data.to_vec(),
-            ).into_response()
+            )
+                .into_response()
         }
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
     }

@@ -53,4 +53,28 @@ if ! "$BIN_DIR/dow" setup --agent "$1"; then
   exit 1
 fi
 
+# 6. Kiro: prompt user to set default agent (hooks require it)
+if [ "$1" = "kiro" ] || [ "$1" = "all" ]; then
+  echo ""
+  echo "[deploy] ⚠ Kiro hooks require the dev-flow agent to be set as default."
+  echo "         (kiro-default does not support hook configuration)"
+  echo ""
+  read -p "[deploy] Run 'kiro-cli agent set-default --name dev-flow' now? [Y/n] " answer
+  case "${answer:-Y}" in
+    [Yy]*)
+      if command -v kiro-cli &>/dev/null; then
+        kiro-cli agent set-default --name dev-flow
+        echo "[deploy] ✓ dev-flow set as kiro default agent"
+      else
+        echo "[deploy] ✗ kiro-cli not found in PATH — please run manually:"
+        echo "         kiro-cli agent set-default --name dev-flow"
+      fi
+      ;;
+    *)
+      echo "[deploy] Skipped. Run manually when ready:"
+      echo "         kiro-cli agent set-default --name dev-flow"
+      ;;
+  esac
+fi
+
 echo "[deploy] 完成！"

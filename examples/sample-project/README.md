@@ -8,13 +8,12 @@ The `.dev-doc` files in this example were generated in an isolated temporary pro
 
 ```bash
 dow init --name sample-settings-app --mode fast
-dow doc task -n 3
-dow doc issue --source devtest -n 1
-dow doc test
+dow task schema
+dow issue schema
 dow hooks post-write .dev-doc/main/task/task_2026-06-08_1.md
-dow hooks post-write .dev-doc/main/issue/issue_devtest_2026-06-08_1.md
-dow iterate --topic settings-page --type feat --files src tests .dev-doc/main/TEST.md
-DOW_ITERATE_<preview-token>=1 dow iterate --topic settings-page --type feat --files src tests .dev-doc/main/TEST.md --confirm
+dow hooks post-write .dev-doc/main/issue/issue_test_2026-06-08_1.md
+dow iterate --topic settings-page --type feat --files src tests
+dow iterate --topic settings-page --type feat --files src tests --confirm ITR-xxxxxx
 ```
 
 ## Files To Inspect
@@ -38,8 +37,8 @@ examples/sample-project/
 1. `/init` creates `.dev-doc/STATUS.yaml`.
 2. `/task` turns the feature request into a structured task file.
 3. Development updates code and marks task checkboxes only after verification.
-4. `/devtest` records a concrete issue if validation fails.
-5. `/iterate` archives completed task, issue, TEST, and CHANGELOG records into `.dev-doc/archive.db`.
+4. `dow test <TASK-ID>` validates the task; creates an issue if tests fail.
+5. `/iterate` archives completed tasks, issues, BRAINSTORM, PRD, SPEC, and CHANGELOG records into `.dev-doc/archive.db`.
 6. `dow archive ...` commands query archived records from SQLite.
 
 See [archive-queries.md](archive-queries.md) for the real `dow archive` output from this sample.

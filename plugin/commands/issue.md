@@ -36,10 +36,23 @@ dow issue list | grep 'other'
 dow issue create --title "..." --severity P1 --location "file:line" --desc "..." --source other
 ```
 
-Also supports stdin JSON:
+Also supports stdin JSON. The input can be one object or an array; an array is
+created as one batch and receives IDs in input order:
 ```bash
-echo '{"title":"bug","severity":"P0","location":"main.rs:10","desc":"crash on startup"}' | dow issue create
+echo '{"title":"bug","severity":"P0","location":"main.rs:10","desc":"crash on startup","reproduce":"run command","source":"other"}' | dow issue create
+echo '[{"title":"bug 1","severity":"P1","location":"a.rs:1","desc":"...","reproduce":"...","source":"other"},{"title":"bug 2","severity":"P1","location":"b.rs:2","desc":"...","reproduce":"...","source":"other"}]' | dow issue create
 ```
+
+The required fields are `title`, `severity`, `location`, `desc`, `reproduce`
+and `source`. Creation also accepts optional string arrays `files_modify` and
+`files_create`, either as JSON fields or CLI flags:
+
+```bash
+dow issue create --files-modify "src/a.rs,src/b.rs" --files-create "tests/a.rs"
+```
+
+Use `dow issue schema` for the authoritative field definition. `files_test`
+is a Task field and is not an ISSUE field.
 
 ### 4. Write Format
 
@@ -71,5 +84,6 @@ Without `+`/`-` prefix = full replacement.
 ## Notes
 
 - Main agent executes directly, doesn't launch subagent
-- source fixed as `other` (distinguish from test/devtest auto-creation)
+- Manual creation normally uses `source: other`; test failures use
+  `source: test` and are created by `dow test`.
 - After creation doesn't auto-fix, user decides whether to /fix

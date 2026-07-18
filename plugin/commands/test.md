@@ -1,77 +1,63 @@
 ---
-description: Start complete TEST phase — project-level comprehensive verification
-allowed-tools: Agent, Bash, Read, Write, Edit
+description: Run complete project or Task-scoped tests
+allowed-tools: Bash, Read
 ---
 
-# TEST — Project Testing (comprehensive verification)
+# TEST — Test execution
 
-## Pre-checks (blocking)
+`/test` is the workflow entry. The `dow test` CLI is the only test executor and
+the only component that creates test-failure ISSUE files.
 
-1. Read all active task files under `task/` directory, count incomplete tasks
-2. If has incomplete tasks → **stop, tell user to complete all tasks first**, don't continue
-3. Check if `<DOC_ROOT>/issue/` has unclosed issues → remind to fix first
+## Commands
 
-## Phase Switch
+Full project test:
 
-**Before launching agent**, immediately update STATUS.yaml to TEST.
-
-## Input Assembly
-
-1. Generate project context: `dow hooks context`
-2. Collect all task file content (including done_task_*) as verification scope
-3. Read SPEC.md as verification standard
-
-## Agent Dispatch (Isolation Template)
-
-**Launch brand new independent TEST agent (full version), absolutely don't reuse dev context. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
-
-```
-description: "Project TEST - Comprehensive verification"
-prompt: `<read complete content of agents/test-agent.md>
-
-## Input Documents
-
-### SPEC.md (verification standard)
-<SPEC.md complete content, paste as-is>
-
-### Task Files (verification scope)
-<all task file content under task/ directory (including done_task_*), paste as-is>
-
-### Project Context
-<execute dow hooks context output, paste as-is>
-
-## Output Paths
-
-- Test code: tests/ (test_<feature>.<ext>)
-- Test report: output to stdout (no longer creates TEST.md)
-- Issue files: create via `dow issue create --source test`, get format via `dow issue schema`
-
-## Prohibited
-
-- Don't view git log or commit history
-- Don't reference any conversation from dev process
-- Don't report issue because features not required by SPEC are missing
-- Don't report issue for content marked "non-goal" in TASK
-- Don't trust "developer said tested" — verify yourself`
+```bash
+dow test
 ```
 
-## Input Isolation Rules
+Task-scoped test:
 
-| Allowed Input | Prohibited Input |
-|---------------|------------------|
-| agents/test-agent.md content | PRD.md |
-| SPEC.md complete content (original) | Any conversation history from dev phase |
-| All task file content under task/ directory (including done_task_*) | git log / commit messages |
-| Project context (context.sh output) | Routine TEST result history |
-| Current date (for issue filename) | |
+```bash
+dow test TASK-ID
+```
 
-## Why Strict Isolation
+`dow test TASK-ID` reads the matching Task from both active `task_*` and
+completed `done_task_*` files, then runs its `files.test`. An empty test list is
+`PASS`. Paths are relative to `project_root`.
 
-TEST agent must be **completely independent from dev agent**. Developers unconsciously avoid weak points in their own code. Only brand new perspective, only reading docs not process, independent testing can find true blind spots.
+## Configuration
 
-Project context helps TEST agent quickly understand how to run project and existing test structure, doesn't need to spend lots of tokens exploring.
+Create `.dev-doc/test.ci` when project defaults do not fit:
 
-## Result Handling
+```text
+devtest:
+  run: <Task test command>
+test:
+  run: <full project test command>
+```
 
-- **All pass** → execute /iterate for delivery
-- **Found problems** → issue files written, STATUS switches back to DEV, fix then /test again
+The command runs in `project_root` with inherited environment variables.
+Available placeholders are ``project_root``, ``task_id``,
+``task_file``, and ``test_files``. Unknown placeholders and missing tools
+are `PRECONDITION_FAILED`.
+
+Without custom commands, the CLI uses built-in adapters for Rust, Go, Python
+pytest, JavaScript/TypeScript package test scripts and runners, and compatible
+Shell tests. Unsupported files or runners are precondition failures; they are
+not silently executed as Shell.
+
+## Outcomes
+
+- `PASS` exits 0.
+- `TEST_FAILED` exits 1, returns the original test output, and creates a P1
+  ISSUE with `source: test`.
+- `PRECONDITION_FAILED` exits 2, returns the prerequisite error, and does not
+  create an ISSUE.
+
+The ISSUE title is `Test fail:<summary>` for full tests and
+`Test TASK-ID fail:<summary>` for Task tests. Failure targets may populate
+`files_modify` and `files_create`.
+
+There is no `--file` or `--task` test selector. Use the language's own command
+for an ad hoc single-file check, or configure `test.ci`.

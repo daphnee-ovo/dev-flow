@@ -112,10 +112,7 @@ fn read_project_name(base_path: &Path) -> Option<String> {
 }
 
 fn now_str() -> String {
-    let output = Command::new("date")
-        .args(["+%Y-%m-%d %H:%M"])
-        .output()
-        .ok();
+    let output = Command::new("date").args(["+%Y-%m-%d %H:%M"]).output().ok();
     output
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|| "unknown".to_string())

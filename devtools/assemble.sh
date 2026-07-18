@@ -109,7 +109,7 @@ config = {
     "name": agent_name,
     "description": description,
     "instructions": content,
-    "tools": ["fs_read", "fs_write", "execute_bash"],
+    "tools": ["read", "write", "shell", "web_search", "web_fetch", "multi_tool_use.parallel"],
     "hooks": hooks
 }
 

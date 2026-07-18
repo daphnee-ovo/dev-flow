@@ -29,7 +29,7 @@ If mode not specified, ask user to choose first, then run script.
 
 ### full
 
-**prd → spec → task → dev(devtest loop) → test → iterate**
+**prd → spec → task → dev → test → iterate**
 
 Full process, doesn't skip any phase. Suitable for brand new projects or features with unclear requirements. brainstorm is optional precursor.
 
@@ -41,7 +41,7 @@ Next step: `/prd` (or `/brainstorm` first)
 
 ### quick
 
-**spec → task → dev(devtest loop) → test → iterate**
+**spec → task → dev → test → iterate**
 
 Skip exploration and requirements definition, start directly from technical solution. Suitable for features with clear requirements.
 
@@ -49,7 +49,7 @@ Next step: `/spec`
 
 ### fast
 
-**task → dev(devtest loop) → test → iterate**
+**task → dev → test → iterate**
 
 Even skip technical solution, directly decompose tasks and start. Suitable for small changes, known solution scenarios.
 
@@ -80,7 +80,6 @@ Next step: `/spec` (or `/brainstorm` first)
 | `/prd` | ✓ | - | - | - |
 | `/spec` | ✓ | ✓ | - | ✓ |
 | `/task` | ✓ | ✓ | ✓ | ✓ |
-| `/devtest` | ✓ | ✓ | ✓ | ✓ |
 | `/fix` | ✓ | ✓ | ✓ | ✓ |
 | `/test` | ✓ | ✓ | ✓ | - |
 | `/check` | ✓ | ✓ | ✓ | ✓ |
@@ -88,6 +87,9 @@ Next step: `/spec` (or `/brainstorm` first)
 | `/status` | ✓ | ✓ | ✓ | ✓ |
 
 `-` means this step not included in current mode flow, prompts "current mode doesn't need this step" when executed.
+
+Task-level verification is performed by dow task done TASK-ID, which invokes
+dow test TASK-ID before closing the Task.
 
 > Note: `/brainstorm` is free exploration tool, not required phase in any mode, but can be used anytime in all modes.
 

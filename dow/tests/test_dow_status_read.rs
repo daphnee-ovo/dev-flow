@@ -10,7 +10,11 @@ use std::process::Command;
 use common::default_branch;
 
 fn setup_test_env(dir: &Path) {
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     let branch = default_branch(dir);
     let doc = dir.join(".dev-doc").join(&branch);
     fs::create_dir_all(&doc).unwrap();
@@ -45,7 +49,11 @@ fn test_status_json_output() {
     let doc_root = json["doc_root"].as_str().unwrap();
     let doc_root_path = Path::new(doc_root);
     let branch = common::default_branch(dir.path());
-    assert!(doc_root_path.is_absolute(), "doc_root should be absolute: {}", doc_root);
+    assert!(
+        doc_root_path.is_absolute(),
+        "doc_root should be absolute: {}",
+        doc_root
+    );
     assert!(
         doc_root_path.ends_with(Path::new(".dev-doc").join(branch)),
         "doc_root should include the current branch: {}",

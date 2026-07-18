@@ -112,8 +112,18 @@ mod tests {
 
         let files = iter_task_files(&task_dir);
         assert_eq!(files.len(), 1);
-        assert!(files[0].file_name().unwrap().to_str().unwrap().starts_with("task_"));
-        assert!(files[0].file_name().unwrap().to_str().unwrap().ends_with(".md"));
+        assert!(files[0]
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("task_"));
+        assert!(files[0]
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(".md"));
     }
 
     #[test]
@@ -208,11 +218,7 @@ mod tests {
     #[test]
     fn test_count_all_checklist() {
         let task_dir = setup_tmp_dir("count_all");
-        fs::write(
-            task_dir.join("task_a.md"),
-            "- [x] done1\n- [ ] todo1\n",
-        )
-        .unwrap();
+        fs::write(task_dir.join("task_a.md"), "- [x] done1\n- [ ] todo1\n").unwrap();
         fs::write(
             task_dir.join("task_b.md"),
             "- [x] done2\n- [x] done3\n- [ ] todo2\n",

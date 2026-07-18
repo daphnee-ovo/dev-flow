@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── info.rs  -- dow info context (Generate project context summary for agent subagents)
+// ├── inbox.rs  -- dow inbox context (Generate project context summary for agent subagents)
 
 use crate::error::DowError;
 use std::fs;
@@ -7,8 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 pub fn context() -> Result<i32, DowError> {
-    let root = std::env::current_dir()
-        .map_err(|e| DowError::new(e.to_string(), 1))?;
+    let root = std::env::current_dir().map_err(|e| DowError::new(e.to_string(), 1))?;
     let output = generate_context(&root);
     print!("{}", output);
     Ok(0)
@@ -80,9 +79,11 @@ fn generate_context(root: &Path) -> String {
     if let Ok(result) = Command::new("tree")
         .args([
             root.to_str().unwrap_or("."),
-            "-L", "2",
+            "-L",
+            "2",
             "--dirsfirst",
-            "-I", "node_modules|.git|__pycache__|.venv|venv|dist|build|.codegraph|tmp|temp|target",
+            "-I",
+            "node_modules|.git|__pycache__|.venv|venv|dist|build|.codegraph|tmp|temp|target",
             "--noreport",
         ])
         .output()
@@ -179,10 +180,7 @@ fn collect_test_files(dir: &Path, root: &Path, results: &mut Vec<String>, max: u
                 collect_test_files(&path, root, results, max);
             } else {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with("test_")
-                    || name.contains("_test.")
-                    || name.contains(".test.")
-                {
+                if name.starts_with("test_") || name.contains("_test.") || name.contains(".test.") {
                     let rel = path
                         .strip_prefix(root)
                         .map(|p| p.to_string_lossy().to_string())

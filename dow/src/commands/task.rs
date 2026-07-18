@@ -12,7 +12,10 @@
 // Related Docs:
 // - [CLAUDE.md - Task File Format](../../../CLAUDE.md)
 
-use crate::cli::{TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs};
+use crate::cli::{
+    TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs,
+};
+use crate::commands::test_runner;
 use crate::core::{doc_root, task_store};
 use crate::error::DowError;
 use crate::output;
@@ -95,13 +98,15 @@ pub(crate) fn expand_braces(input: &str) -> Vec<String> {
     let suffix = &input[close + 1..];
     let inner = &input[open + 1..close];
 
-    inner.split(',')
+    inner
+        .split(',')
         .flat_map(|part| expand_braces(&format!("{}{}{}", prefix, part.trim(), suffix)))
         .collect()
 }
 
 pub(crate) fn expand_file_list(files: Vec<String>) -> Vec<String> {
-    files.into_iter()
+    files
+        .into_iter()
         .flat_map(|f| expand_braces(&f))
         .filter(|f| !f.is_empty())
         .collect()
@@ -112,7 +117,9 @@ pub(crate) fn expand_file_list(files: Vec<String>) -> Vec<String> {
 ///   +item → append to existing, -item → remove from existing.
 /// If no items have prefix → full replacement (backward compatible).
 pub(crate) fn apply_incremental(input: Vec<String>, existing: Vec<String>) -> Vec<String> {
-    let is_incremental = input.iter().any(|s| s.starts_with('+') || s.starts_with('-'));
+    let is_incremental = input
+        .iter()
+        .any(|s| s.starts_with('+') || s.starts_with('-'));
     if !is_incremental {
         return input;
     }
@@ -152,7 +159,14 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
 fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
     let mut tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
-        return Err(DowError::new("no task input provided (use --title or pipe JSON to stdin)", 2));
+        return Err(DowError::new(
+            "no task input provided (use --title or pipe JSON to stdin)",
+            2,
+        ));
+    }
+
+    for task in &tasks {
+        validate_complexity(&task.complexity)?;
     }
 
     for task in &mut tasks {
@@ -218,23 +232,32 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
         Some(t) => t,
         None => return Ok(Vec::new()),
     };
-    let task_type = args.task_type
+    let task_type = args
+        .task_type
         .ok_or_else(|| DowError::new("--task-type is required", 2))?;
-    let priority = args.priority
+    let priority = args
+        .priority
         .ok_or_else(|| DowError::new("--priority is required", 2))?;
-    let refs = args.refs
+    let refs = args
+        .refs
         .ok_or_else(|| DowError::new("--refs is required", 2))?;
-    let files_modify = args.files_modify
+    let files_modify = args
+        .files_modify
         .ok_or_else(|| DowError::new("--files-modify is required", 2))?;
-    let files_create = args.files_create
+    let files_create = args
+        .files_create
         .ok_or_else(|| DowError::new("--files-create is required", 2))?;
-    let files_test = args.files_test
+    let files_test = args
+        .files_test
         .ok_or_else(|| DowError::new("--files-test is required", 2))?;
-    let depends_on = args.depends_on
+    let depends_on = args
+        .depends_on
         .ok_or_else(|| DowError::new("--depends-on is required", 2))?;
-    let complexity = args.complexity
+    let complexity = args
+        .complexity
         .ok_or_else(|| DowError::new("--complexity is required", 2))?;
-    let done_when = args.done_when
+    let done_when = args
+        .done_when
         .ok_or_else(|| DowError::new("--done-when is required", 2))?;
 
     let task = TaskInput {
@@ -279,6 +302,19 @@ fn split_comma(opt: &Option<String>) -> Vec<String> {
         Some(s) if !s.is_empty() => s.split(',').map(|x| x.trim().to_string()).collect(),
         _ => Vec::new(),
     }
+}
+
+fn validate_complexity(complexity: &str) -> Result<(), DowError> {
+    if ["S", "M", "L"].contains(&complexity) {
+        return Ok(());
+    }
+    Err(DowError::new(
+        format!(
+            "invalid complexity '{}', valid: S/M/L; split oversized work into multiple Tasks",
+            complexity
+        ),
+        2,
+    ))
 }
 
 fn scan_next_id(task_dir: &Path) -> usize {
@@ -398,10 +434,22 @@ fn format_task_entry(id: &str, task: &TaskInput) -> String {
         lines.push(format!("  - refs: {}", task.refs));
     }
     lines.push("  - files:".to_string());
-    lines.push(format!("      create: [{}]", format_string_list(&task.files_create)));
-    lines.push(format!("      modify: [{}]", format_string_list(&task.files_modify)));
-    lines.push(format!("      test: [{}]", format_string_list(&task.files_test)));
-    lines.push(format!("  - depends_on: [{}]", format_string_list(&task.depends_on)));
+    lines.push(format!(
+        "      create: [{}]",
+        format_string_list(&task.files_create)
+    ));
+    lines.push(format!(
+        "      modify: [{}]",
+        format_string_list(&task.files_modify)
+    ));
+    lines.push(format!(
+        "      test: [{}]",
+        format_string_list(&task.files_test)
+    ));
+    lines.push(format!(
+        "  - depends_on: [{}]",
+        format_string_list(&task.depends_on)
+    ));
     lines.push(format!("  - parallel: {}", task.parallel));
     lines.push(format!("  - complexity: {}", task.complexity));
     lines.push("  - done_when:".to_string());
@@ -473,7 +521,10 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
     let mut input = resolve_update_input(args)?;
 
     if !has_any_task_update(&input) {
-        return Err(DowError::new("no fields to update (provide at least one --field)", 2));
+        return Err(DowError::new(
+            "no fields to update (provide at least one --field)",
+            2,
+        ));
     }
 
     if let Some(files) = input.files_modify.take() {
@@ -491,20 +542,25 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
         let valid = ["feat", "fix", "refactor", "docs", "perf", "test", "style"];
         if !valid.contains(&t.as_str()) {
             return Err(DowError::new(
-                format!("invalid type '{}', valid: feat/fix/refactor/docs/perf/test/style", t), 2));
+                format!(
+                    "invalid type '{}', valid: feat/fix/refactor/docs/perf/test/style",
+                    t
+                ),
+                2,
+            ));
         }
     }
     if let Some(ref p) = input.priority {
         let valid = ["P0", "P1", "P2"];
         if !valid.contains(&p.as_str()) {
-            return Err(DowError::new(format!("invalid priority '{}', valid: P0/P1/P2", p), 2));
+            return Err(DowError::new(
+                format!("invalid priority '{}', valid: P0/P1/P2", p),
+                2,
+            ));
         }
     }
     if let Some(ref c) = input.complexity {
-        let valid = ["S", "M", "L", "XL"];
-        if !valid.contains(&c.as_str()) {
-            return Err(DowError::new(format!("invalid complexity '{}', valid: S/M/L/XL", c), 2));
-        }
+        validate_complexity(c)?;
     }
 
     let task_dir = resolve_task_dir()?;
@@ -517,7 +573,9 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
             if let Some(detail) = parse_task_detail(&content, &id, &filename) {
                 if detail.status == "done" {
                     return Err(DowError::new(
-                        format!("cannot update completed task {} (use 'reopen' first)", id), 1));
+                        format!("cannot update completed task {} (use 'reopen' first)", id),
+                        1,
+                    ));
                 }
 
                 // Merge (array fields use incremental logic)
@@ -562,10 +620,17 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
 }
 
 fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowError> {
-    let has_flags = args.title.is_some() || args.task_type.is_some() || args.priority.is_some()
-        || args.refs.is_some() || args.files_modify.is_some() || args.files_create.is_some()
-        || args.files_test.is_some() || args.depends_on.is_some() || args.parallel.is_some()
-        || args.complexity.is_some() || args.done_when.is_some();
+    let has_flags = args.title.is_some()
+        || args.task_type.is_some()
+        || args.priority.is_some()
+        || args.refs.is_some()
+        || args.files_modify.is_some()
+        || args.files_create.is_some()
+        || args.files_test.is_some()
+        || args.depends_on.is_some()
+        || args.parallel.is_some()
+        || args.complexity.is_some()
+        || args.done_when.is_some();
     // Check stdin JSON
     if let Some(stdin_data) = read_stdin_if_available(has_flags) {
         let trimmed = stdin_data.trim();
@@ -721,10 +786,13 @@ fn remove(args: TaskRemoveArgs, human: bool) -> Result<i32, DowError> {
     higher_ids.sort();
     higher_ids.dedup();
 
-    let renumber: Vec<RenumberEntry> = higher_ids.iter().map(|&n| RenumberEntry {
+    let renumber: Vec<RenumberEntry> = higher_ids
+        .iter()
+        .map(|&n| RenumberEntry {
         from: format!("TASK-T{:03}", n),
         to: format!("TASK-T{:03}", n - 1),
-    }).collect();
+        })
+        .collect();
 
     match args.confirm {
         None => {
@@ -757,7 +825,10 @@ fn remove(args: TaskRemoveArgs, human: bool) -> Result<i32, DowError> {
         }
         Some(ref token) => {
             if !token.starts_with("TRM-") || token.len() != 10 {
-                return Err(DowError::new("invalid confirmation token format (expected TRM-xxxxxx)", 2));
+                return Err(DowError::new(
+                    "invalid confirmation token format (expected TRM-xxxxxx)",
+                    2,
+                ));
             }
             let expected = generate_trm_token(id);
             if token != &expected {
@@ -859,7 +930,9 @@ fn remove_task_entry(content: &str, target_id: &str) -> String {
 }
 
 fn purge_id_from_depends_on(content: &str, removed_id: &str) -> String {
-    content.lines().map(|line| {
+    content
+        .lines()
+        .map(|line| {
         if !line.contains("depends_on:") || !line.contains(removed_id) {
             return line.to_string();
         }
@@ -868,7 +941,8 @@ fn purge_id_from_depends_on(content: &str, removed_id: &str) -> String {
             if let Some(bracket_end) = line.find(']') {
                 let prefix = &line[..bracket_start + 1];
                 let inner = &line[bracket_start + 1..bracket_end];
-                let items: Vec<&str> = inner.split(',')
+                    let items: Vec<&str> = inner
+                        .split(',')
                     .map(|s| s.trim())
                     .filter(|s| {
                         let unquoted = s.trim_matches('"');
@@ -879,7 +953,9 @@ fn purge_id_from_depends_on(content: &str, removed_id: &str) -> String {
             }
         }
         line.to_string()
-    }).collect::<Vec<_>>().join("\n")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn find_owning_task_id(content: &str, target_line: &str) -> Option<String> {
@@ -937,7 +1013,10 @@ fn list(args: TaskListArgs, human: bool) -> Result<i32, DowError> {
             println!("{}", "━".repeat(40));
             for item in &items {
                 let marker = if item.status == "done" { "x" } else { " " };
-                println!("[{}] {} - {} [{}] ({})", marker, item.id, item.title, item.priority, item.r#type);
+                println!(
+                    "[{}] {} - {} [{}] ({})",
+                    marker, item.id, item.title, item.priority, item.r#type
+                );
             }
         }
     } else {
@@ -994,7 +1073,11 @@ fn parse_all_tasks_in_file(content: &str, filename: &str) -> Vec<TaskListItem> {
             title,
             r#type: task_type,
             priority,
-            status: if is_done { "done".to_string() } else { "pending".to_string() },
+            status: if is_done {
+                "done".to_string()
+            } else {
+                "pending".to_string()
+            },
             file: filename.to_string(),
         });
     }
@@ -1025,7 +1108,11 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
     Err(DowError::new(format!("task {} not found", id), 1))
 }
 
-pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) -> Option<TaskDetail> {
+pub(crate) fn parse_task_detail(
+    content: &str,
+    target_id: &str,
+    filename: &str,
+) -> Option<TaskDetail> {
     let lines: Vec<&str> = content.lines().collect();
 
     for (i, line) in lines.iter().enumerate() {
@@ -1080,7 +1167,8 @@ pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) 
             }
 
             if in_done_when {
-                if sub_trimmed.starts_with("- ") && !sub_trimmed.starts_with("- type:")
+                if sub_trimmed.starts_with("- ")
+                    && !sub_trimmed.starts_with("- type:")
                     && !sub_trimmed.starts_with("- priority:")
                     && !sub_trimmed.starts_with("- refs:")
                     && !sub_trimmed.starts_with("- files:")
@@ -1114,11 +1202,23 @@ pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) 
             }
 
             if sub_trimmed.starts_with("- type:") {
-                task_type = sub_trimmed.strip_prefix("- type:").unwrap().trim().to_string();
+                task_type = sub_trimmed
+                    .strip_prefix("- type:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- priority:") {
-                priority = sub_trimmed.strip_prefix("- priority:").unwrap().trim().to_string();
+                priority = sub_trimmed
+                    .strip_prefix("- priority:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- refs:") {
-                refs = sub_trimmed.strip_prefix("- refs:").unwrap().trim().to_string();
+                refs = sub_trimmed
+                    .strip_prefix("- refs:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- files:") {
                 in_files = true;
             } else if sub_trimmed.starts_with("- depends_on:") {
@@ -1126,7 +1226,11 @@ pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) 
             } else if sub_trimmed.starts_with("- parallel:") {
                 parallel = sub_trimmed.strip_prefix("- parallel:").unwrap().trim() == "true";
             } else if sub_trimmed.starts_with("- complexity:") {
-                complexity = sub_trimmed.strip_prefix("- complexity:").unwrap().trim().to_string();
+                complexity = sub_trimmed
+                    .strip_prefix("- complexity:")
+                    .unwrap()
+                    .trim()
+                    .to_string();
             } else if sub_trimmed.starts_with("- done_when:") {
                 in_done_when = true;
             }
@@ -1137,7 +1241,11 @@ pub(crate) fn parse_task_detail(content: &str, target_id: &str, filename: &str) 
             title,
             r#type: task_type,
             priority,
-            status: if is_done { "done".to_string() } else { "pending".to_string() },
+            status: if is_done {
+                "done".to_string()
+            } else {
+                "pending".to_string()
+            },
             refs,
             files: TaskFiles {
                 create: files_create,
@@ -1214,12 +1322,10 @@ fn done_single(id: &str) -> Result<i32, DowError> {
     for path in &all_files {
         if let Ok(content) = fs::read_to_string(path) {
             if content.contains(&format!("- [ ] {}:", id)) {
-                let new_content = content.replace(
-                    &format!("- [ ] {}:", id),
-                    &format!("- [x] {}:", id),
-                );
-                fs::write(path, &new_content)
-                    .map_err(|e| DowError::new(format!("cannot write task file: {}", e), 1))?;
+                test_runner::check_task_test(id)?;
+
+                let new_content =
+                    content.replace(&format!("- [ ] {}:", id), &format!("- [x] {}:", id));
 
                 // Check if all tasks in file are done
                 if !task_store::has_undone_items(&new_content) {
@@ -1230,7 +1336,8 @@ fn done_single(id: &str) -> Result<i32, DowError> {
                     if done_path.exists() {
                         let mut suffix = 2u32;
                         loop {
-                            let alt = format!("done_{}_{}.md", filename.trim_end_matches(".md"), suffix);
+                            let alt =
+                                format!("done_{}_{}.md", filename.trim_end_matches(".md"), suffix);
                             done_path = task_dir.join(&alt);
                             if !done_path.exists() {
                                 break;
@@ -1238,8 +1345,26 @@ fn done_single(id: &str) -> Result<i32, DowError> {
                             suffix += 1;
                         }
                     }
-                    fs::rename(path, &done_path)
-                        .map_err(|e| DowError::new(format!("cannot rename task file: {}", e), 1))?;
+
+                    atomic_write(path, &new_content)?;
+                    if let Err(error) = fs::rename(path, &done_path) {
+                        let rollback = atomic_write(path, &content);
+                        return match rollback {
+                            Ok(()) => Err(DowError::new(
+                                format!("cannot rename task file: {}", error),
+                                1,
+                            )),
+                            Err(rollback_error) => Err(DowError::new(
+                                format!(
+                                    "cannot rename task file: {}; rollback failed: {}",
+                                    error, rollback_error
+                                ),
+                                1,
+                            )),
+                        };
+                    }
+                } else {
+                    atomic_write(path, &new_content)?;
                 }
 
                 return Ok(0);
@@ -1248,6 +1373,41 @@ fn done_single(id: &str) -> Result<i32, DowError> {
     }
 
     Err(DowError::new(format!("pending task {} not found", id), 1))
+}
+
+fn atomic_write(path: &Path, content: &str) -> Result<(), DowError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| DowError::new("cannot determine task file directory", 1))?;
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("task");
+    let suffix = format!(
+        "{}-{}-{}",
+        std::process::id(),
+        chrono::Local::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default(),
+        filename
+    );
+    let temp_path = parent.join(format!(".dow-task-{}.tmp", suffix));
+
+    if let Err(error) = fs::write(&temp_path, content) {
+        return Err(DowError::new(
+            format!("cannot write task file: {}", error),
+            1,
+        ));
+    }
+
+    if let Err(error) = fs::rename(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(DowError::new(
+            format!("cannot write task file: {}", error),
+            1,
+        ));
+    }
+    Ok(())
 }
 
 // ─── Reopen ──────────────────────────────────────────────────────────────────
@@ -1300,7 +1460,10 @@ fn reopen(args: TaskReopenArgs, human: bool) -> Result<i32, DowError> {
                 println!("[dev-flow] Reopen impact for {}", id);
                 println!("  title: {}", impact.title);
                 println!("  file: {}", impact.file);
-                println!("  confirm: dow task reopen {} --confirm {}", id, impact.confirm_token);
+                println!(
+                    "  confirm: dow task reopen {} --confirm {}",
+                    id, impact.confirm_token
+                );
             } else {
                 output::print_json(&impact);
             }
@@ -1309,7 +1472,10 @@ fn reopen(args: TaskReopenArgs, human: bool) -> Result<i32, DowError> {
         Some(ref token) => {
             // Verify token format
             if !token.starts_with("TRO-") || token.len() != 10 {
-                return Err(DowError::new("invalid confirmation token format (expected TRO-xxxxxx)", 2));
+                return Err(DowError::new(
+                    "invalid confirmation token format (expected TRO-xxxxxx)",
+                    2,
+                ));
             }
 
             // Verify token matches
@@ -1321,10 +1487,7 @@ fn reopen(args: TaskReopenArgs, human: bool) -> Result<i32, DowError> {
             // Perform reopen: change [x] back to [ ]
             let content = fs::read_to_string(&file_path)
                 .map_err(|e| DowError::new(format!("cannot read file: {}", e), 1))?;
-            let new_content = content.replace(
-                &format!("- [x] {}:", id),
-                &format!("- [ ] {}:", id),
-            );
+            let new_content = content.replace(&format!("- [x] {}:", id), &format!("- [ ] {}:", id));
             fs::write(&file_path, &new_content)
                 .map_err(|e| DowError::new(format!("cannot write file: {}", e), 1))?;
 
@@ -1407,7 +1570,7 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             "complexity": {
                 "type": "string",
                 "required": true,
-                "enum": ["S", "M", "L", "XL"],
+                "enum": ["S", "M", "L"],
                 "description": "Estimated complexity"
             },
             "done_when": {
@@ -1434,10 +1597,7 @@ fn schema(_human: bool) -> Result<i32, DowError> {
 fn resolve_task_dir() -> Result<PathBuf, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     if !doc_root_path.join("STATUS.yaml").exists() {
-        return Err(DowError::new(
-            "no .dev-doc found (run `dow init` first)",
-            1,
-        ));
+        return Err(DowError::new("no .dev-doc found (run `dow init` first)", 1));
     }
     Ok(doc_root_path.join("task"))
 }

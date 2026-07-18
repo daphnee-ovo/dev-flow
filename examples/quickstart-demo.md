@@ -30,20 +30,19 @@ Ask the agent:
 /init
 ```
 
-dev-flow creates:
+dev-flow creates the current branch's workflow workspace:
 
 ```text
 .dev-doc/
-├── archive.db
-└── main/
+└── <branch>/
     ├── STATUS.yaml
     ├── CHANGELOG.md
-    ├── PRD.md
-    ├── SPEC.md
-    ├── TEST.md
     ├── task/
     └── issue/
+VERSION
 ```
+
+Phase documents (BRAINSTORM.md, PRD.md, SPEC.md) are created by their respective commands as needed.
 
 Then ask for a task breakdown:
 
@@ -51,7 +50,7 @@ Then ask for a task breakdown:
 /task
 ```
 
-The agent writes structured task files under `.dev-doc/task/` instead of keeping the plan only in chat.
+The agent writes structured task files under `.dev-doc/<branch>/task/` instead of keeping the plan only in chat.
 
 During development, dev-flow hooks keep the agent aligned with the workflow:
 

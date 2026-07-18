@@ -1,0 +1,15 @@
+name: PR to main gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject non-beta source branches
+        if: github.head_ref != 'beta'
+        run: |
+          echo "::error::Only the 'beta' branch can be merged into main. Please merge your changes into beta first."
+          exit 1

@@ -1,4 +1,5 @@
 run: bash tests/test_all.sh
+run: sed -i "s/^(main).*/(main)$(grep -oP '^\(beta\)\K.*' VERSION)/" VERSION
 sync-version: dow/Cargo.toml
 sync-version: npm/dev-flow/package.json
 run: cargo update -p dev-flow --manifest-path dow/Cargo.toml

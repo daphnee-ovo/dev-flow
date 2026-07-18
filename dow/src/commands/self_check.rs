@@ -19,8 +19,22 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
     let config_exists = DowConfig::path().exists();
     let bundle_exists = platform::bundle_dir().exists();
     eprintln!("Path status:");
-    eprintln!("  Config file: {}", if config_exists { "✓" } else { "✗ does not exist" });
-    eprintln!("  Bundle: {}", if bundle_exists { "✓" } else { "✗ does not exist" });
+    eprintln!(
+        "  Config file: {}",
+        if config_exists {
+            "✓"
+        } else {
+            "✗ does not exist"
+        }
+    );
+    eprintln!(
+        "  Bundle: {}",
+        if bundle_exists {
+            "✓"
+        } else {
+            "✗ does not exist"
+        }
+    );
     eprintln!();
 
     // Registered agents
@@ -35,8 +49,7 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
                 .map(|a| a.display_name)
                 .unwrap_or(agent.as_str());
 
-            let issues = agent_registry::verify_plugin_integrity(agent)
-                .unwrap_or_default();
+            let issues = agent_registry::verify_plugin_integrity(agent).unwrap_or_default();
 
             if issues.is_empty() {
                 eprintln!("  ✓ {} — complete", display);

@@ -14,8 +14,13 @@ fn setup_project(dir: &Path) {
     fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"test-proj\"\nversion = \"0.1.0\"\n",
-    ).unwrap();
-    Command::new("git").args(["init"]).current_dir(dir).output().unwrap();
+    )
+    .unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
     Command::new("git")
         .args(["add", "."])
         .current_dir(dir)

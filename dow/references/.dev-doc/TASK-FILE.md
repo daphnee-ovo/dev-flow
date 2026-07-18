@@ -2,7 +2,7 @@
 
 ## 路径
 
-`dev-doc/<branch>/task/task_<YYYY-MM-DD>_<seq>.md`（使用 `dow doc task` 自动创建）
+`.dev-doc/<branch>/task/task_<YYYY-MM-DD>_<seq>.md`（使用 `dow task create` 创建）
 
 完成标记：hook 自动重命名为 `done_task_<YYYY-MM-DD>_<seq>.md`
 
@@ -79,16 +79,13 @@ nums: <任务总数>
 
 | 值 | 含义 |
 |------|------|
-| `init` | 初始化项目 |
 | `feat` | 新特性 |
-| `docs` | 文档修改 |
-| `style` | 代码格式修改 |
+| `fix` | 修复缺陷 |
 | `refactor` | 代码重构 |
+| `docs` | 文档修改 |
 | `perf` | 优化代码，提高性能 |
 | `test` | 测试用例修改 |
-| `revert` | 回滚到某个版本 |
-| `merge` | 合并请求 |
-| `workflow` | 工作流相关文件修改 |
+| `style` | 代码格式修改 |
 
 ## Priority 定义
 
@@ -139,4 +136,4 @@ nums: <任务总数>
 ## 命名规则
 
 - `seq`：当天的序号，从 1 开始
-- 创建新 task 文件：`dow doc task`（自动计算序号）
+- 创建新 task：`dow task create`（自动计算序号）

@@ -29,8 +29,9 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
     for agent_name in &agents {
         eprint!("[dow] Registering to {}...", agent_display_name(agent_name));
 
-        agent_registry::deploy_plugin(agent_name, &bundle)
-            .map_err(|e| DowError::new(&format!("Failed to deploy {} plugin: {}", agent_name, e), 1))?;
+        agent_registry::deploy_plugin(agent_name, &bundle).map_err(|e| {
+            DowError::new(&format!("Failed to deploy {} plugin: {}", agent_name, e), 1)
+        })?;
 
         match agent_registry::inject_global_instructions(agent_name) {
             Ok(true) => eprintln!(" Global instructions injected"),
@@ -42,14 +43,18 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
             DowError::new(
                 &format!(
                     "{} registration failed: {}",
-                    agent_display_name(agent_name), e
+                    agent_display_name(agent_name),
+                    e
                 ),
                 1,
             )
         })?;
 
         config.add_agent(agent_name);
-        eprintln!("[dow] ✓ {} registration completed", agent_display_name(agent_name));
+        eprintln!(
+            "[dow] ✓ {} registration completed",
+            agent_display_name(agent_name)
+        );
     }
 
     config.save().map_err(|e| DowError::new(&e, 1))?;
@@ -72,7 +77,10 @@ fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
                 Ok(vec![name.to_string()])
             } else {
                 Err(DowError::new(
-                    &format!("Unsupported agent: {} (options: claude, codex, kiro, all)", name),
+                    &format!(
+                        "Unsupported agent: {} (options: claude, codex, kiro, all)",
+                        name
+                    ),
                     1,
                 ))
             }
@@ -195,7 +203,10 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
     if !conflicts.is_empty() {
         eprintln!("[dow] kiro skill naming conflicts:");
         for (orig, renamed) in &conflicts {
-            eprintln!("  {} → {} (skill with same name already exists)", orig, renamed);
+            eprintln!(
+                "  {} → {} (skill with same name already exists)",
+                orig, renamed
+            );
         }
     }
 
@@ -222,7 +233,9 @@ fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {
         }
     }
 
-    eprintln!("[dow] Tip: Run /agent set-default dev-flow to set dev-flow as the default agent for kiro-cli");
+    eprintln!("[dow] ⚠ Important: Kiro's default agent does not support hooks.");
+    eprintln!("[dow]   To enable dev-flow hooks, run:");
+    eprintln!("[dow]     kiro-cli agent set-default --name dev-flow");
 
     Ok(())
 }
@@ -394,7 +407,8 @@ fn install_codex_personal_skill(plugin_dir: &Path) -> Result<(), String> {
         .join(CODEX_PLUGIN_NAME);
 
     if target.exists() {
-        fs::remove_dir_all(&target).map_err(|e| format!("Failed to clean up Codex skill: {}", e))?;
+        fs::remove_dir_all(&target)
+            .map_err(|e| format!("Failed to clean up Codex skill: {}", e))?;
     }
 
     // New Codex bundles expose command skills directly and do not include the
@@ -404,7 +418,8 @@ fn install_codex_personal_skill(plugin_dir: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    copy_dir_recursive(&source, &target).map_err(|e| format!("Failed to install Codex skill: {}", e))
+    copy_dir_recursive(&source, &target)
+        .map_err(|e| format!("Failed to install Codex skill: {}", e))
 }
 
 fn install_codex_marketplace_manifest(plugin_dir: &Path) -> Result<(), String> {
@@ -445,8 +460,12 @@ fn install_codex_personal_marketplace(plugin_dir: &Path) -> Result<std::path::Pa
 
     let target = marketplace_dir.join("marketplace.json");
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create Codex personal marketplace directory: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "Failed to create Codex personal marketplace directory: {}",
+                e
+            )
+        })?;
     }
     fs::copy(&source, &target)
         .map_err(|e| format!("Failed to write Codex personal marketplace: {}", e))?;
@@ -601,7 +620,8 @@ fn trust_codex_hooks_from_file(hooks_path: &Path) -> Result<(), String> {
     }
     config_content.push_str(&trust_sections);
 
-    fs::write(&config_path, config_content).map_err(|e| format!("Failed to write config: {}", e))?;
+    fs::write(&config_path, config_content)
+        .map_err(|e| format!("Failed to write config: {}", e))?;
     Ok(())
 }
 
@@ -672,9 +692,11 @@ fn canonical_json(value: &serde_json::Value) -> serde_json::Value {
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("Failed to create directory {}: {}", dst.display(), e))?;
 
-    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
+    for entry in fs::read_dir(src)
+        .map_err(|e| format!("Failed to read directory {}: {}", src.display(), e))?
     {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let src_path = entry.path();
@@ -701,11 +723,13 @@ fn set_codex_plugin_enabled(plugin_key: &str, enabled: bool) -> Result<(), Strin
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
+        fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };
@@ -731,7 +755,8 @@ fn set_codex_plugin_enabled(plugin_key: &str, enabled: bool) -> Result<(), Strin
             content.insert_str(section_body_start, &format!("\n{}", enabled_line));
         }
 
-        fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
+        fs::write(&config_path, content)
+            .map_err(|e| format!("Failed to write Codex config: {}", e))?;
         return Ok(());
     }
 
@@ -753,8 +778,8 @@ fn remove_codex_config_section(header: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    let mut content =
-        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?;
+    let mut content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read Codex config: {}", e))?;
 
     if let Some(start) = content.find(header) {
         let section_end = content[start + header.len()..]
@@ -767,7 +792,8 @@ fn remove_codex_config_section(header: &str) -> Result<(), String> {
             start
         };
         content.replace_range(remove_start..section_end, "");
-        fs::write(&config_path, content).map_err(|e| format!("Failed to write Codex config: {}", e))?;
+        fs::write(&config_path, content)
+            .map_err(|e| format!("Failed to write Codex config: {}", e))?;
     }
 
     Ok(())
@@ -777,11 +803,13 @@ fn set_codex_feature_enabled(feature: &str, enabled: bool) -> Result<(), String>
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
+        fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };
@@ -827,11 +855,13 @@ fn set_codex_root_bool(key: &str, enabled: bool) -> Result<(), String> {
     let config_path = codex_config_path()?;
 
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create Codex config directory: {}", e))?;
     }
 
     let mut content = if config_path.exists() {
-        fs::read_to_string(&config_path).map_err(|e| format!("Failed to read Codex config: {}", e))?
+        fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read Codex config: {}", e))?
     } else {
         String::new()
     };

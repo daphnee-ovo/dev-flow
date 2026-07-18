@@ -25,10 +25,7 @@ fn resolve_github_token() -> Option<String> {
             return Some(token);
         }
     }
-    let output = Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-        .ok()?;
+    let output = Command::new("gh").args(["auth", "token"]).output().ok()?;
     if output.status.success() {
         let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !token.is_empty() {
@@ -60,7 +57,8 @@ pub fn check_latest_version() -> Result<ReleaseInfo, String> {
         return Err(format!("GitHub API returned {}", resp.status()));
     }
 
-    let body: serde_json::Value = resp.json()
+    let body: serde_json::Value = resp
+        .json()
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let tag_name = body["tag_name"]
@@ -105,7 +103,8 @@ pub fn download_release_asset(tag: &str, platform: &str, dest: &Path) -> Result<
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    let resp = client.get(&url)
+    let resp = client
+        .get(&url)
         .send()
         .map_err(|e| format!("Download failed: {}", e))?;
 
@@ -114,28 +113,28 @@ pub fn download_release_asset(tag: &str, platform: &str, dest: &Path) -> Result<
     }
 
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
-    let bytes = resp.bytes()
+    let bytes = resp
+        .bytes()
         .map_err(|e| format!("Failed to read response body: {}", e))?;
-    fs::write(dest, &bytes)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    fs::write(dest, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }
 
 pub fn extract_tarball(tarball_path: &Path, dest_dir: &Path) -> Result<(), String> {
-    let file = fs::File::open(tarball_path)
-        .map_err(|e| format!("Failed to open tarball: {}", e))?;
+    let file =
+        fs::File::open(tarball_path).map_err(|e| format!("Failed to open tarball: {}", e))?;
     let gz = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz);
 
     fs::create_dir_all(dest_dir)
         .map_err(|e| format!("Failed to create destination directory: {}", e))?;
 
-    archive.unpack(dest_dir)
+    archive
+        .unpack(dest_dir)
         .map_err(|e| format!("Failed to extract: {}", e))?;
 
     Ok(())
@@ -161,8 +160,8 @@ pub fn is_update_available(current: &str, remote: &str, remote_published_at: &st
 }
 
 pub fn self_replace_binary(new_binary: &Path) -> Result<(), String> {
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to get current binary path: {}", e))?;
+    let current_exe =
+        std::env::current_exe().map_err(|e| format!("Failed to get current binary path: {}", e))?;
 
     let backup = current_exe.with_extension("old");
     if current_exe.exists() {
@@ -170,8 +169,7 @@ pub fn self_replace_binary(new_binary: &Path) -> Result<(), String> {
             .map_err(|e| format!("Failed to backup old binary: {}", e))?;
     }
 
-    fs::copy(new_binary, &current_exe)
-        .map_err(|e| {
+    fs::copy(new_binary, &current_exe).map_err(|e| {
             // Restore backup
             let _ = fs::rename(&backup, &current_exe);
             format!("Failed to replace binary: {}", e)

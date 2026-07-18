@@ -115,7 +115,10 @@ fn enter_audit_mode(status_file: &Path, current_mode: &str, codex_hook: bool) {
         emit_warning(format!("[dow] Warning: failed to set phase=DEV: {}", e));
     }
     if let Err(e) = yaml::touch_updated(status_file) {
-        emit_warning(format!("[dow] Warning: failed to update audit mode timestamp: {}", e));
+        emit_warning(format!(
+            "[dow] Warning: failed to update audit mode timestamp: {}",
+            e
+        ));
     }
     emit_message(
         codex_hook,
@@ -126,11 +129,7 @@ fn enter_audit_mode(status_file: &Path, current_mode: &str, codex_hook: bool) {
     );
 }
 
-fn check_task_completion(
-    doc_root: &Path,
-    status_file: &Path,
-    codex_hook: bool,
-) {
+fn check_task_completion(doc_root: &Path, status_file: &Path, codex_hook: bool) {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
         return;
@@ -173,7 +172,10 @@ fn check_task_completion(
                     let task_name = last_done.trim_start_matches("- [x] ");
                     emit_message(
                         codex_hook,
-                        format!("[dev-flow] Task completed ({}/{}): {}", done, total, task_name),
+                        format!(
+                            "[dev-flow] Task completed ({}/{}): {}",
+                            done, total, task_name
+                        ),
                     );
                     if exec_mode == "continuous" {
                         emit_message(
@@ -224,12 +226,7 @@ fn check_task_completion(
     }
 }
 
-fn check_issue_completion(
-    doc_root: &Path,
-    status_file: &Path,
-    mode: &str,
-    codex_hook: bool,
-) {
+fn check_issue_completion(doc_root: &Path, status_file: &Path, mode: &str, codex_hook: bool) {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
         if mode.starts_with("audit/") {
@@ -307,11 +304,7 @@ fn read_file_path_from_stdin() -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn check_persistent_docs_reminder(
-    changed_file: &str,
-    status_file: &Path,
-    codex_hook: bool,
-) {
+fn check_persistent_docs_reminder(changed_file: &str, status_file: &Path, codex_hook: bool) {
     // Exclude changes to docs/ itself
     if changed_file.starts_with("docs/") || changed_file == "README.md" {
         return;
@@ -328,12 +321,10 @@ fn check_persistent_docs_reminder(
         .output();
 
     let changed_count = match output {
-        Ok(o) => {
-            String::from_utf8_lossy(&o.stdout)
+        Ok(o) => String::from_utf8_lossy(&o.stdout)
                 .lines()
                 .filter(|l| !l.starts_with(".dev-doc/") && !l.starts_with("docs/") && *l != "README.md")
-                .count()
-        }
+            .count(),
         Err(_) => return,
     };
 
@@ -353,12 +344,7 @@ fn check_persistent_docs_reminder(
     }
 }
 
-fn check_code_sync(
-    changed_file: &str,
-    doc_root: &Path,
-    mode: &str,
-    codex_hook: bool,
-) {
+fn check_code_sync(changed_file: &str, doc_root: &Path, mode: &str, codex_hook: bool) {
     if mode == "fast" {
         return;
     }
