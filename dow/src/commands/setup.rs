@@ -65,36 +65,61 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
 
 fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
     match agent_arg.as_deref() {
-        Some("all") => Ok(agent_registry::SUPPORTED_AGENTS
-            .iter()
-            .map(|a| a.name.to_string())
-            .collect()),
+        Some("all") => {
+            let available = available_agents();
+            if available.is_empty() {
+                return Err(DowError::new(
+                    "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, or Kiro CLI first.",
+                    1,
+                ));
+            }
+            Ok(available)
+        }
         Some(name) => {
-            if agent_registry::SUPPORTED_AGENTS
+            if !agent_registry::SUPPORTED_AGENTS
                 .iter()
                 .any(|a| a.name == name)
             {
-                Ok(vec![name.to_string()])
-            } else {
-                Err(DowError::new(
+                return Err(DowError::new(
                     &format!(
                         "Unsupported agent: {} (options: claude, codex, kiro, all)",
                         name
                     ),
                     1,
-                ))
+                ));
             }
+            if !is_agent_runtime_available(name) {
+                return Err(DowError::new(
+                    &format!(
+                        "Agent '{}' runtime not found. Please install it first.",
+                        name
+                    ),
+                    1,
+                ));
+            }
+            Ok(vec![name.to_string()])
         }
         None => interactive_select(),
     }
 }
 
 fn interactive_select() -> Result<Vec<String>, DowError> {
-    let mut items: Vec<&str> = agent_registry::SUPPORTED_AGENTS
+    let detected: Vec<&agent_registry::AgentInfo> = agent_registry::SUPPORTED_AGENTS
         .iter()
-        .map(|a| a.display_name)
+        .filter(|a| is_agent_runtime_available(a.name))
         .collect();
-    items.push("All");
+
+    if detected.is_empty() {
+        return Err(DowError::new(
+            "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, or Kiro CLI first.",
+            1,
+        ));
+    }
+
+    let mut items: Vec<&str> = detected.iter().map(|a| a.display_name).collect();
+    if detected.len() > 1 {
+        items.push("All detected");
+    }
 
     let defaults: Vec<bool> = items.iter().map(|_| false).collect();
 
@@ -110,17 +135,31 @@ fn interactive_select() -> Result<Vec<String>, DowError> {
     }
 
     let all_index = items.len() - 1;
-    if selections.contains(&all_index) {
-        return Ok(agent_registry::SUPPORTED_AGENTS
-            .iter()
-            .map(|a| a.name.to_string())
-            .collect());
+    if detected.len() > 1 && selections.contains(&all_index) {
+        return Ok(detected.iter().map(|a| a.name.to_string()).collect());
     }
 
     Ok(selections
         .iter()
-        .map(|&i| agent_registry::SUPPORTED_AGENTS[i].name.to_string())
+        .map(|&i| detected[i].name.to_string())
         .collect())
+}
+
+fn is_agent_runtime_available(agent: &str) -> bool {
+    match agent {
+        "claude" => executable_on_path("claude").is_some(),
+        "codex" => resolve_codex_binary().is_ok(),
+        "kiro" => executable_on_path("kiro-cli").is_some() || executable_on_path("kiro").is_some(),
+        _ => false,
+    }
+}
+
+fn available_agents() -> Vec<String> {
+    agent_registry::SUPPORTED_AGENTS
+        .iter()
+        .filter(|a| is_agent_runtime_available(a.name))
+        .map(|a| a.name.to_string())
+        .collect()
 }
 
 fn register_with_agent(agent: &str) -> Result<(), String> {

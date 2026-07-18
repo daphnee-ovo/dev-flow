@@ -141,24 +141,22 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     }
 
     let required_dirs: &[&str] = match agent {
-        "claude" => &["skills", "commands", "agents"],
+        "claude" => &["commands", "agents"],
         "codex" => &["skills", "agents"],
         _ => &[],
     };
     for dir in required_dirs {
         if !target.join(dir).exists() {
-            issues.push(format!("Missing directory: {}/{}", target.display(), dir));
+            issues.push(format!("Missing directory: {}", target.join(dir).display()));
         }
     }
 
     match agent {
         "claude" => {
-            if !target.join("hooks/hooks.json").exists()
-                && !target.join("hooks").join("hooks.json").exists()
-            {
+            if !target.join("hooks").join("hooks.json").exists() {
                 issues.push("Missing hooks/hooks.json".to_string());
             }
-            if !target.join(".claude-plugin/plugin.json").exists() {
+            if !target.join(".claude-plugin").join("plugin.json").exists() {
                 issues.push("Missing .claude-plugin/plugin.json".to_string());
             }
         }
