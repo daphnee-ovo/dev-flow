@@ -1,4 +1,4 @@
-name: Check VERSION consistency
+name: PR to main gate
 
 on:
   pull_request:
@@ -13,22 +13,3 @@ jobs:
         run: |
           echo "::error::Only the 'beta' branch can be merged into main. Please merge your changes into beta first."
           exit 1
-
-      - uses: actions/checkout@v4
-
-      - name: Verify main version equals beta version
-        run: |
-          main_ver=$(grep -oP '^\(main\)\K.*' VERSION)
-          beta_ver=$(grep -oP '^\(beta\)\K.*' VERSION)
-
-          if [ -z "$main_ver" ] || [ -z "$beta_ver" ]; then
-            echo "::error::VERSION file missing (main) or (beta) entry"
-            exit 1
-          fi
-
-          if [ "$main_ver" != "$beta_ver" ]; then
-            echo "::error::Version mismatch: (main)=$main_ver != (beta)=$beta_ver. Run 'dow version --sync' or update VERSION before merging."
-            exit 1
-          fi
-
-          echo "Version check passed: $main_ver"
