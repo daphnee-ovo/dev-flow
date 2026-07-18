@@ -197,11 +197,11 @@ fn validate_issue_create_input(input: IssueCreateInput) -> Result<IssueCreateRec
         ));
     }
 
-    let valid_sources = ["test", "devtest", "other", "audit"];
+    let valid_sources = ["test", "other", "audit"];
     if !valid_sources.contains(&source.as_str()) {
         return Err(DowError::new(
             format!(
-                "Invalid source '{}', valid: test/devtest/other/audit",
+                "Invalid source '{}', valid: test/other/audit",
                 source
             ),
             2,
@@ -1178,7 +1178,6 @@ fn schema(_human: bool) -> Result<i32, DowError> {
                 description: "Issue source".to_string(),
                 valid_values: vec![
                     "test".into(),
-                    "devtest".into(),
                     "other".into(),
                     "audit".into(),
                 ],

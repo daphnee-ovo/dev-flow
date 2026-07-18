@@ -52,7 +52,7 @@ fn parse_issue_spec() -> IssueSpec {
 
     for line in REF_ISSUE.lines() {
         // Extract enum values from field description table
-        // Format: | source | `test` / `devtest` / `other` / `audit` | ... |
+        // Format: | source | `test` / `other` / `audit` | ... |
         if line.contains("| source") || line.contains("| source") {
             valid_sources = extract_enum_values(line);
         }
@@ -65,7 +65,6 @@ fn parse_issue_spec() -> IssueSpec {
     if valid_sources.is_empty() {
         valid_sources = vec![
             "test".into(),
-            "devtest".into(),
             "other".into(),
             "audit".into(),
         ];

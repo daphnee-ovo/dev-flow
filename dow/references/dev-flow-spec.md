@@ -8,10 +8,9 @@
 └── <branch>/                              # 多分支模式（如 main/、feature-x/）
     ├── STATUS.yaml                        # 项目状态
     ├── CHANGELOG.md                       # 追加式会话日志
-    ├── BRAINSTORM.md                      # 头脑风暴记录（持久，不归档）
+    ├── BRAINSTORM.md                      # 头脑风暴记录
     ├── PRD.md                             # 产品需求文档
     ├── SPEC.md                            # 技术规范
-    ├── TEST.md                            # 测试报告
     ├── task/                              # 任务清单（多文件）
     │   ├── task_<YYYY-MM-DD>_<seq>.md          # 活跃任务
     │   └── done_task_<YYYY-MM-DD>_<seq>.md     # 已完成
@@ -39,7 +38,6 @@
 | `BRAINSTORM.md` | 头脑风暴探索记录 | `/brainstorm` |
 | `PRD.md` | 产品需求（MoSCoW 优先级） | `/prd` |
 | `SPEC.md` | 技术规范（架构、接口、数据模型） | `/spec` |
-| `TEST.md` | 测试报告（用例、结果） | `/test` |
 
 ### Task 文件命名
 
@@ -93,10 +91,7 @@ issue/
 └── closed_issue_other_2026-05-15_1.md      # 已关闭
 ```
 
-**创建新 issue 文件**：
-```bash
-dow doc issue --source <source>
-```
+**创建新 issue 文件**：通过 `dow issue create`（JSON 或参数形式）创建，格式可先用 `dow issue schema` 查询。
 
 **关闭 issue**：文件内所有 checkbox 勾选为 `[x]` 后，`dow hooks post-write` 自动重命名为 `closed_` 前缀。
 
@@ -106,10 +101,9 @@ dow doc issue --source <source>
 
 - `version`：当前版本号，从 VERSION 文件读取
 - `topic`：由用户在 `/iterate` 时指定，简短描述本轮主题
-- 归档内容：done_task_*、task_*（活跃任务）、已关闭 issue、CHANGELOG.md、PRD.md、SPEC.md、TEST.md
-- 写入 SQLite 后源 task、已关闭 issue、TEST、CHANGELOG 和阶段文档删除或重置
+- 归档内容：done_task_*、task_*（活跃任务）、已关闭 issue、CHANGELOG.md、BRAINSTORM.md、PRD.md、SPEC.md
+- 写入 SQLite 后源 task、已关闭 issue、CHANGELOG 和阶段文档删除或重置
 - 未关闭 issue 留在当前 `issue/` 带入下一轮
-- BRAINSTORM.md 不归档（持久参考）
 - 历史内容通过 `dow archive list/show/tasks/issues/doc/stats` 查询
 
 ## 开发模式
@@ -158,7 +152,7 @@ JSON 格式，包含以下字段：
 | 字段 | 说明 |
 |------|------|
 | version | VERSION 文件中的版本号 |
-| version_tag | `synced`（git tag 已存在）/ `no-tag`（开发中） |
+| version_tag | `tagged`（git tag 已存在）/ `no-tag`（开发中） |
 | mode | 当前开发模式 |
 | phase | 当前阶段 |
 | exec_mode | 执行模式（step/continuous） |
@@ -176,11 +170,10 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 |------|----------|----------|----------|
 | STATUS.yaml | `dow init` 或 `/mode` | 阶段转换时 `dow status` 更新 | 不归档（原地更新） |
 | CHANGELOG.md | `dow hooks save-changelog` | 每次会话结束追加 | `dow iterate` 时归档 |
-| BRAINSTORM.md | `/brainstorm` | brainstorm 过程中 | **不归档**（持久参考） |
+| BRAINSTORM.md | `/brainstorm` | brainstorm 过程中 | `dow iterate` 时归档 |
 | PRD.md | `/prd` | 用户反馈修改 | `dow iterate` 时归档 |
 | SPEC.md | `/spec` | 用户反馈修改 | `dow iterate` 时归档 |
 | task/*.md | `/task` | 开发中勾选、`dow hooks post-write` 自动重命名 | `dow iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
-| TEST.md | `/test` | 重新测试时覆盖 | `dow iterate` 时归档 |
 | issue/*.md | `dow test` `/issue` | `/fix` 修复后 `dow hooks post-write` 自动重命名 | 已关闭的归档，未关闭的保留 |
 
 ## 初始化

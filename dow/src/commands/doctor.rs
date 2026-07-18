@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── lint.rs  -- dow doctor (merged check + validate + fix)
+// ├── doctor.rs  -- dow doctor (merged check + validate + fix)
 //
 // Unified doctor command that merges logic from:
 // - check.rs: changelog, task completion, issue status, time sync, phase files, spec AC, task nums

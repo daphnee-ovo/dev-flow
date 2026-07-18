@@ -124,5 +124,5 @@ After user confirms direction is OK:
 ## Notes
 
 - Pure conversational process, main agent executes directly, doesn't launch subagent
-- BRAINSTORM.md not archived during `/iterate` (kept as persistent project reference)
+- BRAINSTORM.md is archived during `/iterate` with the other phase documents
 - If .dev-doc/ doesn't exist, brainstorm will create it

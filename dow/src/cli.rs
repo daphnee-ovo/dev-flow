@@ -311,7 +311,7 @@ pub struct IssueCreateArgs {
     #[arg(long)]
     pub reproduce: Option<String>,
 
-    /// Issue source (test/devtest/audit/other)
+    /// Issue source (test/audit/other)
     #[arg(long)]
     pub source: Option<String>,
 

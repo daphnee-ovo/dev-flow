@@ -20,6 +20,7 @@
 
 | 值 | 说明 |
 |----|------|
+| BRAINSTORM | 头脑风暴探索阶段（可选） |
 | PRD | 需求阶段 |
 | SPEC | 技术规范阶段 |
 | TASK | 任务拆解阶段 |
@@ -27,7 +28,7 @@
 | TEST | 测试阶段 |
 | DONE | 迭代完成 |
 
-流转顺序：`PRD → SPEC → TASK → DEV → TEST → DONE`
+流转顺序：`[BRAINSTORM →] PRD → SPEC → TASK → DEV → TEST → DONE`
 
 ## mode 合法值
 

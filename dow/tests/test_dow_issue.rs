@@ -86,7 +86,7 @@ fn test_issue_create_with_stdin_json() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
 
-    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"devtest"}"#;
+    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"test"}"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "create"])

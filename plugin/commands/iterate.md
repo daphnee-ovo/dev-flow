@@ -48,7 +48,7 @@ dow iterate --topic <topic> --type <type> [--files f1 f2...] --confirm ITR-xxxxx
 Token from preview output, valid for 5 minutes. After confirmation executes in sequence:
 
 1. **preIterate CI** — if `.dev-doc/preIterate.ci` exists, execute its steps in order first; any step fails stops entire iterate, no archive, no commit, no tag, no bump
-2. **Archive** — parse task_*, done_task_*, closed_issue_*, PRD.md, SPEC.md, TEST.md, CHANGELOG.md and write to `.dev-doc/archive.db` (SQLite), then delete source files
+2. **Archive** — parse task_*, done_task_*, closed_issue_*, PRD.md, SPEC.md, BRAINSTORM.md, CHANGELOG.md and write to `.dev-doc/archive.db` (SQLite), then delete the archived source files
 3. **Reset CHANGELOG** — clear to `# Changelog\n`
 4. **git commit + tag** — `git add -u` + explicitly add specified files and archive.db, commit message format `<type>: Release v<version> <topic>`, CHANGELOG entries as commit body
 5. **bump version** — increment version number write to VERSION
@@ -133,7 +133,7 @@ When `mode` is `audit/xxx` format (i.e., entered audit mode via `/mode audit`):
 
 ## Notes
 
-- Archive written to SQLite (`.dev-doc/archive.db`), source files deleted, no PRD/SPEC/TEST/CHANGELOG remains in .dev-doc/ after iterate
+- Archive written to SQLite (`.dev-doc/archive.db`); PRD.md, SPEC.md, and BRAINSTORM.md source files are deleted after archiving, while CHANGELOG.md is reset for the next session
 - If SQLite already has same version record, means duplicate operation, INSERT OR IGNORE skips
 - `git add -u` handles tracked file modifications/deletions; `--files` and preIterate-produced files explicitly added to commit
 - Query historical archives use `dow archive` subcommands (list/show/tasks/issues/doc/stats)

@@ -48,7 +48,7 @@ Kiro CLI support is in testing.
 
 Known limitations:
 - Kiro support has less validation coverage than Claude Code and Codex CLI.
-- `dow self-check` and plugin integrity checks are stronger for Claude/Codex than Kiro today.
+- `dow doctor` performs the unified project and installation checks; Kiro has less plugin-integrity coverage than Claude/Codex today.
 - Users may need to run `/agent set-default dev-flow` after setup.
 
 ## Shared Workflow Surface
@@ -56,10 +56,10 @@ Known limitations:
 All supported agents use the same `dow` CLI backend:
 
 - `dow init`
-- `dow status`
-- `dow doc`
+- `dow status` and `dow status set ...`
+- `dow doctor`
+- `dow task/issue/prd/spec/brainstorm/changelog schema`
 - `dow hooks ...`
-- `dow devtest`
 - `dow test`
 - `dow iterate`
 - `dow archive ...`

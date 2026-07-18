@@ -90,7 +90,7 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 | 能力 | Claude Code | Codex CLI | Kiro |
 |------|:-----------:|:---------:|:----:|
 | `dow setup` 注册 | Yes | Yes | Yes |
-| `dow self-check` 检测 | Yes | Yes | Yes |
+| `dow doctor` 检测 | Yes | Yes | Yes |
 | 插件清单 | `plugin.json` | `plugin.json` | `config.json` |
 | 项目指令文件 | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
 
@@ -126,10 +126,9 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 
 | 能力 | Claude Code | Codex CLI | Kiro |
 |------|:-----------:|:---------:|:----:|
-| PRD agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| SPEC agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TASK agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| TEST agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| 审计 agent（PRD/SPEC/brainstorm） | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| Task challenger agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| Test agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 
 #### Kiro：启用 Hooks
 
@@ -173,9 +172,9 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 |------|------|
 | `/init` | 初始化项目（创建 .dev-doc、选择模式、规范校验） |
 | `/brainstorm` | 实现前的协作式需求探索与设计 |
-| `/prd` | 启动 PRD agent，产出 PRD.md |
-| `/spec` | 启动 SPEC agent，产出 SPEC.md |
-| `/task` | 启动 TASK agent，产出任务文件 |
+| `/prd` | PRD 阶段 — 主 agent 产出 PRD.md，审计 agent 审核 |
+| `/spec` | SPEC 阶段 — 主 agent 产出 SPEC.md，审计 agent 审核 |
+| `/task` | TASK 阶段 — 拆解任务文件（复杂情况由 challenger agent 辅助） |
 | `/issue` | 手动创建 issue 文件 |
 | `/test` | 执行 dow test 全量测试 |
 | `/fix` | 自动读取未关闭 issue 并修复 |
@@ -203,15 +202,16 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 ### 角色隔离
 
-每个阶段由独立 agent 执行，避免思维定势：
+主 agent 驱动各阶段，独立审计/挑战子 agent 审核产出：
 
-| 阶段 | 角色 |
-|------|------|
-| PRD | 懂技术的高级产品经理 |
-| SPEC | 资深架构师 |
-| TASK | 经验丰富的技术主管 |
-| DEV | 主 agent 直接执行 |
-| TEST | 严格的 QA 工程师 |
+| 阶段 | 执行 | 审核 |
+|------|------|------|
+| BRAINSTORM | 主 agent | brainstorm-audit-agent |
+| PRD | 主 agent | prd-audit-agent |
+| SPEC | 主 agent | spec-audit-agent |
+| TASK | 主 agent | task-challenger-agent（复杂情况） |
+| DEV | 主 agent | — |
+| TEST | `dow test` CLI | test-agent（失败分析） |
 
 ### 自动化 Hooks
 
@@ -237,7 +237,6 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
     ├── BRAINSTORM.md      # 头脑风暴
     ├── PRD.md             # 产品需求
     ├── SPEC.md            # 技术规范
-    ├── TEST.md            # 测试报告
     ├── task/              # 任务文件（task_<日期>_<序号>.md）
     └── issue/             # 问题追踪（issue_<来源>_<日期>_<序号>.md）
 ```
@@ -259,9 +258,9 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 `dow dashboard` 启动本地 web 看板，包含：
 
-- **看板视图** — 按状态（Open、In Progress、Pending、Closed、Done）分组的任务和 issue
-- **依赖图** — 使用 D3 + dagre 可视化显式和隐式任务/issue 依赖。隐式依赖基于任务间文件交集推断。进行中的节点闪烁。
-- **文档查看器** — 内联浏览 PRD、SPEC、TEST 文档
+- **看板视图** — 任务按 In Progress / Pending / Done 分组，issue 按 In Progress / Open / Closed 分组
+- **依赖图** — 使用 D3 force simulation 可视化显式和隐式任务/issue 依赖。隐式依赖基于任务间文件交集推断。进行中的节点闪烁。
+- **文档查看器** — 内联浏览 BRAINSTORM、PRD、SPEC 文档
 - **筛选** — 按优先级（P0/P1/P2）和状态过滤
 - **状态概览** — 当前阶段、模式和迭代状态
 
@@ -318,7 +317,6 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 |------|------|
 | `dow setup [--agent claude\|codex\|all]` | 注册插件到 agent（交互式 TUI） |
 | `dow update` | 自更新二进制 + 插件 |
-| `dow self-check` | 查看安装状态 |
 | `dow doctor [--fix]` | 诊断 .dev-doc 结构和规范一致性 |
 | `dow status` | 读写 STATUS.yaml |
 | `dow claim <TASK-ID\|ISSUE-ID>` | 认领 task 或 issue（含依赖检查） |
@@ -331,9 +329,8 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | `dow version [--set X.Y.Z] [--bump patch]` | 读写多分支 VERSION |
 | `dow iterate [--confirm]` | 交付：归档 + commit + tag + bump |
 | `dow rollback --version <v>` | 回滚迭代：从归档恢复任务/issue/文档 |
-| `dow doc <type>` | 生成/查询文档模板 |
-| `dow dashboard [--port PORT]` | 启动本地 web 看板（依赖图 + 看板 + 文档） |
-| `dow mod` | 设置开发模式 |
+| `dow task/issue/prd/spec/brainstorm/changelog schema` | 获取对应文档 schema |
+| `dow dashboard [--port PORT] [--no-open]` | 启动本地 web 看板（依赖图 + 看板 + 文档） |
 | `dow hooks ...` | Hook 调度（context, guard, post-write） |
 | `dow archive list/show/tasks/issues/doc` | 从 archive.db 查询历史迭代 |
 
@@ -383,7 +380,7 @@ dev-flow/
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── cli.rs
-│   │   ├── commands/              # 26 个子命令实现
+│   │   ├── commands/              # 24 个子命令模块
 │   │   │   ├── setup.rs          # dow setup
 │   │   │   ├── doctor.rs         # dow doctor
 │   │   │   ├── claim.rs          # dow claim

@@ -1,5 +1,5 @@
 // dow/src/commands/
-// ├── info.rs  -- dow info context (Generate project context summary for agent subagents)
+// ├── inbox.rs  -- dow inbox context (Generate project context summary for agent subagents)
 
 use crate::error::DowError;
 use std::fs;

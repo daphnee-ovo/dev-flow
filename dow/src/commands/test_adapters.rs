@@ -261,24 +261,38 @@ fn go_plan(project_root: &Path, path: &Path, display_file: &str) -> TestPlan {
 }
 
 fn python_plan(project_root: &Path, file: Option<&String>, label: &str) -> TestPlan {
+    let python = resolve_python(project_root);
     let command = match file {
-        Some(file) => format!("python -m pytest {}", shell_quote(file)),
-        None => "python -m pytest".to_string(),
+        Some(file) => format!("{} -m pytest {}", shell_quote(&python), shell_quote(file)),
+        None => format!("{} -m pytest", shell_quote(&python)),
     };
     let files = file.into_iter().cloned().collect::<Vec<_>>();
-    let mut plan = command_plan(label, &command, project_root, files, "python");
-    if plan.precondition.is_none() && !python_pytest_available() {
-        plan.precondition = Some("pytest is not available to python".to_string());
+    let mut plan = command_plan(label, &command, project_root, files, &python);
+    if plan.precondition.is_none() && !python_pytest_available(&python) {
+        plan.precondition = Some(format!("pytest is not available via {}", python));
     }
     plan
 }
 
-fn python_pytest_available() -> bool {
-    Command::new("python")
+fn python_pytest_available(python: &str) -> bool {
+    Command::new(python)
         .args(["-c", "import pytest"])
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+/// Resolve the best available Python interpreter for a project.
+/// Priority: .venv/bin/python (project-local) > python3 (system) > python (fallback).
+fn resolve_python(project_root: &Path) -> String {
+    let venv_python = project_root.join(".venv/bin/python");
+    if venv_python.exists() {
+        return venv_python.to_string_lossy().to_string();
+    }
+    if command_exists("python3") {
+        return "python3".to_string();
+    }
+    "python".to_string()
 }
 
 fn javascript_full_plan(project_root: &Path) -> TestPlan {
