@@ -81,72 +81,27 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
 | **Codex CLI** | Supported | `dow setup --agent codex` |
-| **Kiro** | Testing | `dow setup --agent kiro` |
+| **Kiro** | Supported | `dow setup --agent kiro` |
 
-### Agent Compatibility Matrix
+### Agent Compatibility
 
-#### Install & Setup
+All three agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
 
-| Capability | Claude Code | Codex CLI | Kiro |
-|------------|:-----------:|:---------:|:----:|
-| `dow setup` registration | Yes | Yes | Yes |
-| `dow doctor` validation | Yes | Yes | Yes |
-| Plugin manifest | `plugin.json` | `plugin.json` | `config.json` |
-| Project instructions file | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
-
-#### Hook Support
-
-| Hook | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| UserPromptSubmit (context injection) | Yes | Yes | Yes |
-| PreToolUse — Write/Edit guard | Yes | Yes | Yes |
-| PreToolUse — Bash guard | Yes | Yes | Yes |
-| PostToolUse — Write/Edit sync | Yes | Yes | Yes |
-| PostToolUse — Bash sync | Yes | Yes | Yes |
-| Stop (changelog save) | Yes | Yes | Yes |
-
-#### Command Support
-
-| Command | Claude Code | Codex CLI | Kiro |
-|---------|:-----------:|:---------:|:----:|
-| `/init` | Slash command | Skill | Agent command |
-| `/brainstorm` | Slash command | Skill | Agent command |
-| `/prd` | Slash command | Skill | Agent command |
-| `/spec` | Slash command | Skill | Agent command |
-| `/task` | Slash command | Skill | Agent command |
-| `/issue` | Slash command | Skill | Agent command |
-| `/fix` | Slash command | Skill | Agent command |
-| `/test` | Slash command | Skill | Agent command |
-| `/status` | Slash command | Skill | Agent command |
-| `/check` | Slash command | Skill | Agent command |
-| `/iterate` | Slash command | Skill | Agent command |
-| `/mode` | Slash command | Skill | Agent command |
-
-#### Sub-Agent Support
-
-| Capability | Claude Code | Codex CLI | Kiro |
-|------------|:-----------:|:---------:|:----:|
-| Audit agents (PRD/SPEC/brainstorm) | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| Task challenger agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| Test agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
+| Aspect | Claude Code | Codex CLI / App | Kiro |
+|--------|-------------|-----------------|------|
+| Command interface | Slash commands | Skill commands | Skill commands |
+| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
 
 #### Kiro: Enabling Hooks
 
-Kiro's default agent (`kiro-default`) does not support hook configuration. To use dev-flow's hooks (context injection, file guards, changelog save), you must set the `dev-flow` agent as default:
+Kiro's default agent does not support hook configuration. After setup, set the dev-flow agent as default:
 
 ```bash
 kiro-cli agent set-default --name dev-flow
 ```
 
-`dow setup --agent kiro` will remind you about this step after registration completes. Without it, dev-flow installs correctly but hooks will not fire — significantly reducing workflow enforcement.
-
-#### Known Limitations
-
-| Agent | Limitations |
-|-------|-------------|
-| **Claude Code** | None known |
-| **Codex CLI** | No native slash commands — commands are exposed as skills (`SKILL.md`). Hook protocol uses JSON envelope (`--codex-hook`). |
-| **Kiro** | Requires `kiro-cli agent set-default --name dev-flow` to enable hooks (kiro-default does not support hook config). No native slash commands — commands are handled through agent configuration. Hook protocol uses `--kiro-hook` flag. |
+`dow setup --agent kiro` reminds you of this step. Without it, hooks will not fire.
 
 ---
 

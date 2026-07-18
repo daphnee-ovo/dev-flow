@@ -81,72 +81,27 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 |-------|------|------|
 | **Claude Code** | 已支持 | `dow setup --agent claude` |
 | **Codex CLI** | 已支持 | `dow setup --agent codex` |
-| **Kiro** | 测试中 | `dow setup --agent kiro` |
+| **Kiro** | 已支持 | `dow setup --agent kiro` |
 
-### Agent 兼容性矩阵
+### Agent 兼容性
 
-#### 安装与设置
+三个 agent 提供完全一致的工作流体验 — 命令、hooks、子 agent、状态管理均相同。唯一差异是平台实现方式：
 
-| 能力 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| `dow setup` 注册 | Yes | Yes | Yes |
-| `dow doctor` 检测 | Yes | Yes | Yes |
-| 插件清单 | `plugin.json` | `plugin.json` | `config.json` |
+| 方面 | Claude Code | Codex CLI / App | Kiro |
+|------|-------------|-----------------|------|
+| 命令接口 | Slash commands | Skill commands | Skill commands |
+| 子 agent 调用 | `Agent` tool | `spawn_agent` | subagent |
 | 项目指令文件 | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
-
-#### Hook 支持
-
-| Hook | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| UserPromptSubmit（上下文注入） | Yes | Yes | Yes |
-| PreToolUse — Write/Edit 守护 | Yes | Yes | Yes |
-| PreToolUse — Bash 守护 | Yes | Yes | Yes |
-| PostToolUse — Write/Edit 同步 | Yes | Yes | Yes |
-| PostToolUse — Bash 同步 | Yes | Yes | Yes |
-| Stop（保存 changelog） | Yes | Yes | Yes |
-
-#### 命令支持
-
-| 命令 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| `/init` | Slash command | Skill | Agent command |
-| `/brainstorm` | Slash command | Skill | Agent command |
-| `/prd` | Slash command | Skill | Agent command |
-| `/spec` | Slash command | Skill | Agent command |
-| `/task` | Slash command | Skill | Agent command |
-| `/issue` | Slash command | Skill | Agent command |
-| `/fix` | Slash command | Skill | Agent command |
-| `/test` | Slash command | Skill | Agent command |
-| `/status` | Slash command | Skill | Agent command |
-| `/check` | Slash command | Skill | Agent command |
-| `/iterate` | Slash command | Skill | Agent command |
-| `/mode` | Slash command | Skill | Agent command |
-
-#### Sub-Agent 支持
-
-| 能力 | Claude Code | Codex CLI | Kiro |
-|------|:-----------:|:---------:|:----:|
-| 审计 agent（PRD/SPEC/brainstorm） | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| Task challenger agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
-| Test agent | Yes (`Agent`) | Yes (`spawn_agent`) | Yes (subagent) |
 
 #### Kiro：启用 Hooks
 
-Kiro 的默认 agent（`kiro-default`）不支持 hook 配置。要使用 dev-flow 的 hooks（上下文注入、文件守护、changelog 保存），需要将 `dev-flow` agent 设为默认：
+Kiro 的默认 agent 不支持 hook 配置。安装后需将 dev-flow agent 设为默认：
 
 ```bash
 kiro-cli agent set-default --name dev-flow
 ```
 
-`dow setup --agent kiro` 注册完成后会提示此步骤。不执行的话，dev-flow 可以正常安装但 hooks 不会触发 — 流程约束将大幅削弱。
-
-#### 已知限制
-
-| Agent | 限制 |
-|-------|------|
-| **Claude Code** | 无已知限制 |
-| **Codex CLI** | 无原生 slash command — 命令通过 skill（`SKILL.md`）暴露。Hook 协议使用 JSON envelope（`--codex-hook`）。 |
-| **Kiro** | 需执行 `kiro-cli agent set-default --name dev-flow` 启用 hooks（kiro-default 不支持 hook 配置）。无原生 slash command — 命令通过 agent 配置处理。Hook 协议使用 `--kiro-hook` 标志。 |
+`dow setup --agent kiro` 会在注册完成后提醒此步骤。不执行的话 hooks 不会触发。
 
 ---
 
