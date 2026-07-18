@@ -10,6 +10,21 @@ use crate::error::DowError;
 pub fn run(_human: bool) -> Result<i32, DowError> {
     eprintln!("[dow] Checking for updates...");
 
+    if let Some(method) = detect_install_method() {
+        eprintln!("[dow] Detected installation via {}.", method);
+        eprintln!("[dow] Please update through your package manager:");
+        match method {
+            "npm" => eprintln!("  npm update -g @xin_yue/dev-flow"),
+            "cargo" => eprintln!("  cargo install dev-flow"),
+            _ => {}
+        }
+        return Ok(0);
+    }
+
+    do_update()
+}
+
+fn do_update() -> Result<i32, DowError> {
     let current_version = env!("DOW_VERSION");
     let release = github::check_latest_version()
         .map_err(|e| DowError::new(&format!("Update check failed: {}", e), 1))?;
@@ -60,17 +75,7 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         eprintln!("[dow] Bundle updated");
     }
 
-    let config = DowConfig::load();
-    let bundle_dir = platform::bundle_dir();
-    for agent in &config.registered_agents {
-        match agent_registry::deploy_plugin(agent, &bundle_dir) {
-            Ok(()) => {
-                refresh_agent_plugin(agent);
-                eprintln!("[dow] ✓ {} plugin updated", agent);
-            }
-            Err(e) => eprintln!("[dow] ⚠ {} plugin update failed: {}", agent, e),
-        }
-    }
+    sync_agents()?;
 
     let mut config = DowConfig::load();
     config.last_version_check = Some(chrono::Utc::now().to_rfc3339());
@@ -86,6 +91,36 @@ pub fn run(_human: bool) -> Result<i32, DowError> {
         release.version
     );
     Ok(0)
+}
+
+fn sync_agents() -> Result<(), DowError> {
+    let config = DowConfig::load();
+    let bundle_dir = platform::bundle_dir();
+    for agent in &config.registered_agents {
+        match agent_registry::deploy_plugin(agent, &bundle_dir) {
+            Ok(()) => eprintln!("[dow]   {} plugin deployed", agent),
+            Err(e) => eprintln!("[dow] ⚠ {} plugin deploy failed: {}", agent, e),
+        }
+        match agent_registry::inject_global_instructions(agent) {
+            Ok(true) => eprintln!("[dow]   {} global instructions updated", agent),
+            Ok(false) => {}
+            Err(e) => eprintln!("[dow] ⚠ {} instructions update failed: {}", agent, e),
+        }
+        refresh_agent_plugin(agent);
+    }
+    Ok(())
+}
+
+fn detect_install_method() -> Option<&'static str> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_str = exe.to_string_lossy();
+    if exe_str.contains("node_modules") || exe_str.contains("dow-bin") {
+        return Some("npm");
+    }
+    if exe_str.contains(".cargo") {
+        return Some("cargo");
+    }
+    None
 }
 
 fn refresh_agent_plugin(agent: &str) {

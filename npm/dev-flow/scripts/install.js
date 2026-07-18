@@ -128,11 +128,12 @@ async function install() {
 
   console.log(`[dev-flow] Installed dow ${VERSION} for ${getPlatformKey()}`);
 
-  // Register with coding agents
+  // Register with coding agents (interactive — may fail in non-TTY environments)
   try {
     execSync(`"${dstPath}" setup`, { stdio: "inherit" });
   } catch (e) {
-    throw new Error(`dow setup failed: ${e.message}`);
+    console.log(`[dev-flow] Skipped interactive setup (${e.message.split("\n")[0]})`);
+    console.log("[dev-flow] Run 'dow setup' manually to register with your coding agent.");
   }
 }
 

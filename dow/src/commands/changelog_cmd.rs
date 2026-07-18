@@ -37,24 +37,35 @@ fn list(human: bool) -> Result<i32, DowError> {
 
     let content = fs::read_to_string(&path).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    let entries: Vec<serde_json::Value> = content
-        .lines()
-        .filter(|line| line.starts_with("- "))
-        .map(|line| {
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+    let mut current_date: Option<&str> = None;
+    for line in content.lines() {
+        if line.starts_with("## ") {
+            let header = line.strip_prefix("## ").unwrap_or("").trim();
+            if header.len() >= 10
+                && header.as_bytes()[4] == b'-'
+                && header.as_bytes()[7] == b'-'
+            {
+                current_date = Some(&line[3..13]);
+            }
+            continue;
+        }
+        if line.starts_with("- ") {
             let text = line.strip_prefix("- ").unwrap_or(line).trim();
-            // Try to split "YYYY-MM-DD rest..." into date + message
             if text.len() >= 10
                 && text.chars().nth(4) == Some('-')
                 && text.chars().nth(7) == Some('-')
             {
                 let (date_part, rest) = text.split_at(10);
                 let message = rest.trim();
-                json!({ "date": date_part, "text": message })
+                entries.push(json!({ "date": date_part, "text": message }));
+            } else if let Some(date) = current_date {
+                entries.push(json!({ "date": date, "text": text }));
             } else {
-                json!({ "date": null, "text": text })
+                entries.push(json!({ "date": null, "text": text }));
             }
-        })
-        .collect();
+        }
+    }
 
     if human {
         if entries.is_empty() {
