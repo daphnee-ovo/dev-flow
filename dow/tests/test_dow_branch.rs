@@ -502,6 +502,118 @@ fn test_guard_allows_task_create_metadata_paths_without_claim() {
 }
 
 #[test]
+fn test_guard_allows_flow_create_with_prose_metadata() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --title 'fix example' --refs 'GitHub issue prose: tee cp mv sed perl dd and > are data' --files-modify 'dow/src/hooks/guard.rs' --files-create '' --files-test 'dow/tests/test_dow_branch.rs' --complexity M --done-when 'criterion one,criterion two'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "flow metadata must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_issue_create_prose_metadata_without_claim() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow issue create --title 'guard issue' --severity P1 --location 'dow/src/hooks/guard.rs' --desc 'The prose contains tee cp mv sed perl dd and > as ordinary text.' --reproduce 'Run the command and observe the guard.' --source other --files-modify 'dow/src/hooks/guard.rs' --files-create ''"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "issue metadata must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_github_issue_body_prose_without_filesystem_target() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "gh issue create --title 'guard issue' --body '## Summary\n> ordinary prose mentions tee cp mv sed perl dd and a path-like word to\n'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "GitHub issue prose must not be treated as a write: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_blocks_known_filesystem_commands() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let commands = [
+        "cp source.txt output.txt",
+        "mv source.txt output.txt",
+        "sed -i 's/old/new/' src/main.rs",
+        "perl -i -pe 's/old/new/' src/main.rs",
+        "dd if=source.bin of=output.bin",
+    ];
+
+    for command in commands {
+        let tool_input = serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": command}
+        });
+        let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+            .args(["hooks", "guard", "--codex-hook"])
+            .env("TOOL_INPUT", tool_input.to_string())
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("\"permissionDecision\":\"deny\""),
+            "known filesystem command was not blocked: {command}\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+}
+
+#[test]
 fn test_guard_apply_patch_reads_only_file_markers() {
     let dir = create_test_dir();
     setup_branch_env(&dir);
@@ -582,7 +694,7 @@ fn test_guard_allows_stdin_json_task_create_metadata_paths_without_claim() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
 
-    let command = "printf '%s' '{\"title\":\"fix example\",\"files_modify\":[\"src/example.rs\"],\"files_create\":[],\"files_test\":[]}' | dow task create";
+    let command = "printf '%s' '{\"title\":\"fix example\",\"refs\":\"issue prose: tee cp mv sed perl dd and > are data\",\"files_modify\":[\"src/example.rs\"],\"files_create\":[],\"files_test\":[]}' | dow task create";
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {"command": command}

@@ -880,18 +880,17 @@ fn extract_apply_patch_targets(tool_input: &serde_json::Value) -> Vec<String> {
 /// Extract actual write targets from a Bash hook command while keeping dev-flow
 /// metadata arguments out of the path scanner.
 fn extract_command_targets(cmd: &str) -> Vec<String> {
-    let write_targets = extract_write_targets_from_command(cmd);
-
     // A trusted flow-management command may contain values such as
     // `src/example.rs` in --files-modify, --files-create, refs, or stdin JSON.
     // Those values describe the task; they are not writes performed by Bash.
-    // Check for shell writes first so `dow task create ... > output` is still
-    // guarded.
-    if write_targets.is_empty() && is_trusted_flow_command(cmd) {
+    // Classify this command before scanning metadata so prose cannot create
+    // fake targets. Shell operators make the command ineligible for trust and
+    // are handled by the write scanner below.
+    if is_trusted_flow_command(cmd) {
         return vec![];
     }
 
-    write_targets
+    extract_write_targets_from_command(cmd)
 }
 
 /// Return true only for the trusted `dow` executable and known metadata
@@ -1004,6 +1003,12 @@ fn split_shell_pipeline(cmd: &str) -> Option<Vec<String>> {
             continue;
         }
         if let Some(active_quote) = quote {
+            if active_quote == '"' && ch == '$' && chars.get(index + 1) == Some(&'(') {
+                return None;
+            }
+            if active_quote != '\'' && ch == '`' {
+                return None;
+            }
             current.push(ch);
             if ch == active_quote {
                 quote = None;
@@ -1043,6 +1048,146 @@ fn split_shell_pipeline(cmd: &str) -> Option<Vec<String>> {
         return None;
     }
     Some(segments)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ShellToken {
+    Word(String),
+    Pipe,
+    And,
+    Or,
+    Semicolon,
+    Redirect { append: bool },
+    InputRedirect,
+}
+
+fn flush_shell_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
+    if !current.is_empty() {
+        tokens.push(ShellToken::Word(std::mem::take(current)));
+    }
+}
+
+/// Tokenize shell syntax without treating operators inside quoted arguments as
+/// shell operators. Unsupported shell constructs return `None` so callers can
+/// conservatively keep the command guarded instead of silently allowing it.
+fn tokenize_shell(cmd: &str) -> Option<Vec<ShellToken>> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    let chars: Vec<char> = cmd.chars().collect();
+    let mut index = 0;
+
+    while index < chars.len() {
+        let ch = chars[index];
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+
+        if let Some(active_quote) = quote {
+            if active_quote == '"' && ch == '$' && chars.get(index + 1) == Some(&'(') {
+                return None;
+            }
+            if active_quote != '\'' && ch == '`' {
+                return None;
+            }
+            if ch == active_quote {
+                quote = None;
+                index += 1;
+                continue;
+            }
+            if ch == '\\' && active_quote != '\'' {
+                escaped = true;
+                index += 1;
+                continue;
+            }
+            current.push(ch);
+            index += 1;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            index += 1;
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            index += 1;
+            continue;
+        }
+        if ch.is_whitespace() {
+            flush_shell_word(&mut tokens, &mut current);
+            index += 1;
+            continue;
+        }
+
+        match ch {
+            '|' => {
+                flush_shell_word(&mut tokens, &mut current);
+                if chars.get(index + 1) == Some(&'|') {
+                    tokens.push(ShellToken::Or);
+                    index += 2;
+                } else {
+                    tokens.push(ShellToken::Pipe);
+                    index += 1;
+                }
+            }
+            '&' => {
+                if chars.get(index + 1) == Some(&'&') {
+                    flush_shell_word(&mut tokens, &mut current);
+                    tokens.push(ShellToken::And);
+                    index += 2;
+                } else if matches!(tokens.last(), Some(ShellToken::Redirect { .. })) {
+                    // Handle the common `2>&1`/`2>&2` descriptor form as a
+                    // redirect target that should not become a filesystem path.
+                    current.push(ch);
+                    index += 1;
+                    while chars.get(index).is_some_and(char::is_ascii_digit) {
+                        current.push(chars[index]);
+                        index += 1;
+                    }
+                } else {
+                    return None;
+                }
+            }
+            ';' => {
+                flush_shell_word(&mut tokens, &mut current);
+                tokens.push(ShellToken::Semicolon);
+                index += 1;
+            }
+            '>' => {
+                flush_shell_word(&mut tokens, &mut current);
+                let append = chars.get(index + 1) == Some(&'>');
+                tokens.push(ShellToken::Redirect { append });
+                index += if append { 2 } else { 1 };
+            }
+            '<' => {
+                if chars.get(index + 1) == Some(&'<') {
+                    return None;
+                }
+                flush_shell_word(&mut tokens, &mut current);
+                tokens.push(ShellToken::InputRedirect);
+                index += 1;
+            }
+            '`' => return None,
+            '$' if chars.get(index + 1) == Some(&'(') => return None,
+            '(' | ')' => return None,
+            _ => {
+                current.push(ch);
+                index += 1;
+            }
+        }
+    }
+
+    if quote.is_some() || escaped {
+        return None;
+    }
+    flush_shell_word(&mut tokens, &mut current);
+    Some(tokens)
 }
 
 fn shell_words(segment: &str) -> Vec<String> {
@@ -1089,118 +1234,185 @@ fn shell_words(segment: &str) -> Vec<String> {
 }
 
 fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
+    let Some(tokens) = tokenize_shell(cmd) else {
+        return vec![cmd.to_string()];
+    };
+
+    extract_write_targets_from_tokens(&tokens)
+}
+
+fn extract_write_targets_from_tokens(tokens: &[ShellToken]) -> Vec<String> {
     let mut targets = Vec::new();
 
-    // Redirect write: > file, >> file
-    let redirect_parts: Vec<&str> = cmd.split('>').collect();
-    for (i, part) in redirect_parts.iter().enumerate().skip(1) {
-        if part.is_empty() {
-            continue;
-        }
-        let prev = redirect_parts[i - 1];
-        let prev_trimmed = prev.trim_end();
-        if prev_trimmed.ends_with('&') {
-            continue;
-        }
-        if let Some(last_char) = prev_trimmed.chars().last() {
-            if last_char.is_ascii_digit() {
-                let before_digit = &prev_trimmed[..prev_trimmed.len() - 1];
-                if before_digit.is_empty() || before_digit.ends_with(char::is_whitespace) {
-                    continue;
-                }
-            }
-        }
-        let after = part.trim_start_matches('>').trim();
-        if let Some(path) = after.split_whitespace().next() {
-            let clean = path.trim_matches('"').trim_matches('\'');
-            if matches!(clean, "/dev/null" | "&1" | "&2" | "&&" | "||") {
-                continue;
-            }
-            // A redirect target does not need a slash or extension to be a
-            // real write target (for example, `> output`).
-            targets.push(clean.to_string());
-        }
-    }
-
-    // tee write: match the executable token exactly so metadata such as
-    // `steer` in --refs cannot be split into a false `tee` command.
-    let tokens = shell_words(cmd);
     for (index, token) in tokens.iter().enumerate() {
-        if token != "tee" && !token.ends_with("/tee") {
+        if !matches!(token, ShellToken::Redirect { .. }) {
             continue;
         }
-        for target in tokens.iter().skip(index + 1) {
-            if matches!(target.as_str(), "|" | ";" | "&&" | "||" | ">" | ">>") {
-                break;
-            }
-            if target == "-a" || target == "--append" || target.starts_with('-') {
-                continue;
-            }
-            if target != "/dev/null" && !target.is_empty() {
-                targets.push(target.clone());
-                break;
-            }
+        let Some(ShellToken::Word(target)) = tokens.get(index + 1) else {
+            continue;
+        };
+        if !matches!(target.as_str(), "/dev/null" | "&1" | "&2") {
+            targets.push(target.clone());
         }
     }
 
-    // cp/mv target
-    for prefix in &["cp ", "mv "] {
-        if let Some(pos) = cmd.find(prefix) {
-            let args_str = &cmd[pos + prefix.len()..];
-            let args_end = args_str
-                .find(';')
-                .or_else(|| args_str.find("&&"))
-                .or_else(|| args_str.find('|'))
-                .unwrap_or(args_str.len());
-            let tokens: Vec<&str> = args_str[..args_end]
-                .split_whitespace()
-                .filter(|t| !t.starts_with('-'))
-                .collect();
-            if let Some(dest) = tokens.last() {
-                let clean = dest.trim_matches('"').trim_matches('\'');
-                if !clean.is_empty() && clean != "/dev/null" && !clean.starts_with('-') {
-                    targets.push(clean.to_string());
-                }
-            }
-        }
-    }
+    for segment in shell_command_segments(tokens) {
+        let words = simple_command_words(segment);
+        let Some(command_index) = find_command_index(&words) else {
+            continue;
+        };
+        let command = executable_name(&words[command_index]);
+        let args = &words[command_index + 1..];
 
-    // sed -i / perl -i
-    for prefix in &["sed ", "perl "] {
-        if let Some(pos) = cmd.find(prefix) {
-            let args_str = &cmd[pos + prefix.len()..];
-            let tokens: Vec<&str> = args_str.split_whitespace().collect();
-            let has_inplace = tokens.iter().any(|t| {
-                *t == "-i"
-                    || t.starts_with("-i.")
-                    || t.starts_with("-i'")
-                    || *t == "-pi"
-                    || *t == "-pie"
-            });
-            if has_inplace {
-                if let Some(last) = tokens.last() {
-                    let clean = last.trim_matches('"').trim_matches('\'');
-                    if looks_like_path(clean) {
-                        targets.push(clean.to_string());
+        match command {
+            "tee" => {
+                if let Some(target) = first_positional_arg(args) {
+                    if target != "/dev/null" {
+                        targets.push(target.to_string());
                     }
                 }
             }
-        }
-    }
-
-    // dd of=<file>
-    if cmd.contains("dd ") || cmd.starts_with("dd ") {
-        for token in cmd.split_whitespace() {
-            if let Some(stripped) = token.strip_prefix("of=") {
-                let clean = stripped.trim_matches('"').trim_matches('\'');
-                if !clean.is_empty() && clean != "/dev/null" {
-                    targets.push(clean.to_string());
+            "cp" | "mv" => {
+                if let Some(target) = positional_args(args).last() {
+                    if *target != "/dev/null" {
+                        targets.push((*target).to_string());
+                    }
                 }
             }
+            "sed" | "perl" => {
+                let has_inplace = args.iter().any(|arg| {
+                    arg == "-i"
+                        || arg.starts_with("-i.")
+                        || arg.starts_with("-i'")
+                        || arg == "-pi"
+                        || arg == "-pie"
+                });
+                if has_inplace {
+                    if let Some(target) = args.last() {
+                        if looks_like_path(target) {
+                            targets.push(target.clone());
+                        }
+                    }
+                }
+            }
+            "dd" => {
+                for arg in args {
+                    if let Some(target) = arg.strip_prefix("of=") {
+                        if !target.is_empty() && target != "/dev/null" {
+                            targets.push(target.to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
     targets
+}
+
+fn shell_command_segments(tokens: &[ShellToken]) -> Vec<&[ShellToken]> {
+    let mut segments = Vec::new();
+    let mut start = 0;
+
+    for (index, token) in tokens.iter().enumerate() {
+        if !matches!(
+            token,
+            ShellToken::Pipe | ShellToken::And | ShellToken::Or | ShellToken::Semicolon
+        ) {
+            continue;
+        }
+        if start < index {
+            segments.push(&tokens[start..index]);
+        }
+        start = index + 1;
+    }
+    if start < tokens.len() {
+        segments.push(&tokens[start..]);
+    }
+
+    segments
+}
+
+fn simple_command_words(tokens: &[ShellToken]) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut skip_next = false;
+
+    for token in tokens {
+        match token {
+            ShellToken::Redirect { .. } | ShellToken::InputRedirect => {
+                skip_next = true;
+            }
+            ShellToken::Word(word) => {
+                if skip_next {
+                    skip_next = false;
+                } else {
+                    words.push(word.clone());
+                }
+            }
+            ShellToken::Pipe | ShellToken::And | ShellToken::Or | ShellToken::Semicolon => {}
+        }
+    }
+
+    words
+}
+
+fn executable_name(word: &str) -> &str {
+    word.rsplit('/').next().unwrap_or(word)
+}
+
+fn find_command_index(words: &[String]) -> Option<usize> {
+    let mut index = 0;
+    while let Some(word) = words.get(index) {
+        match executable_name(word) {
+            "command" | "exec" | "builtin" => index += 1,
+            "env" => {
+                index += 1;
+                while let Some(argument) = words.get(index) {
+                    if argument.starts_with('-') || argument.contains('=') {
+                        index += 1;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            "sudo" if index == 0 => index += 1,
+            _ => return Some(index),
+        }
+    }
+
+    None
+}
+
+fn first_positional_arg(args: &[String]) -> Option<&str> {
+    let mut options_ended = false;
+    for arg in args {
+        if !options_ended && arg == "--" {
+            options_ended = true;
+            continue;
+        }
+        if !options_ended && arg.starts_with('-') {
+            continue;
+        }
+        return Some(arg);
+    }
+    None
+}
+
+fn positional_args(args: &[String]) -> Vec<&String> {
+    let mut values = Vec::new();
+    let mut options_ended = false;
+    for arg in args {
+        if !options_ended && arg == "--" {
+            options_ended = true;
+            continue;
+        }
+        if !options_ended && arg.starts_with('-') {
+            continue;
+        }
+        values.push(arg);
+    }
+    values
 }
 
 fn looks_like_path(s: &str) -> bool {
