@@ -127,7 +127,7 @@ issue/
 
 **行为**：
 - 进入 audit 模式时：保存当前 mode 至 `audit/<当前mode>`，将 phase 强制设为 DEV
-- audit 模式下 DEV 阶段提示 `issue → /fix → /iterate 恢复原模式`
+- audit 模式下 DEV 阶段提示 `issue → 用户显式调用 /fix → /iterate 恢复原模式`
 - `/iterate` 时跳过 task 完成度检查（因为 audit 模式可能没有 task）
 - `/iterate` 完成后自动恢复为 `audit/` 后的原模式（如 `audit/quick` → 恢复为 `quick`）
 - 恢复后 phase 按原模式规则重置（full→PRD, quick/mvp→SPEC, fast→TASK）
@@ -174,7 +174,7 @@ DEV 阶段无活跃 task 且无 open issue 时，输出 `{blocked: true, reasons
 | PRD.md | `/prd` | 用户反馈修改 | `dow iterate` 时归档 |
 | SPEC.md | `/spec` | 用户反馈修改 | `dow iterate` 时归档 |
 | task/*.md | `/task` | 开发中勾选、`dow hooks post-write` 自动重命名 | `dow iterate` 时归档 done_task_* 和 task_*（iterate 前阻断保证已全完成） |
-| issue/*.md | `dow test` `/issue` | `/fix` 修复后 `dow hooks post-write` 自动重命名 | 已关闭的归档，未关闭的保留 |
+| issue/*.md | `dow test` `/issue` | 用户显式调用 `/fix` 后，使用 `dow issue update --fix` 记录修复，再用 `dow issue close` 完成验证、自动重命名并撤销 claim；禁止手动修改 checkbox 或文件名 | 已关闭的归档，未关闭的保留 |
 
 ## 初始化
 
@@ -250,7 +250,7 @@ tests/
 |------|----------|
 | `dow test TASK-ID` | 运行 Task 关联的 files.test |
 | `dow test` | 运行项目全量测试 |
-| `/fix` | 修复后运行相关测试验证 |
+| `/fix` | 仅在用户显式调用后运行；修复后运行相关测试，记录 fix，并使用 `dow issue close` 关闭 |
 
 ### 测试文件创建时机
 

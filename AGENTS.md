@@ -24,7 +24,7 @@
 | `/spec` | 启动 SPEC agent，进入技术规范阶段 |
 | `/task` | 启动 TASK agent，进入任务拆解阶段 |
 | `/issue` | 手动创建 issue 文件 |
-| `/fix` | 自动读取未关闭 issue 并修复 |
+| `/fix` | User-triggered workflow: read, claim, fix, verify, and close open issues |
 | `/test` | 执行 `dow test` 全量测试 |
 | `/status` | 报告当前项目状态和进度 |
 | `/check` | 执行 `dow doctor` 检查文档和项目状态 |

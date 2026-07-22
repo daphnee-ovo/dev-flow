@@ -132,7 +132,7 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 | `/task` | TASK 阶段 — 拆解任务文件（复杂情况由 challenger agent 辅助） |
 | `/issue` | 手动创建 issue 文件 |
 | `/test` | 执行 dow test 全量测试 |
-| `/fix` | 自动读取未关闭 issue 并修复 |
+| `/fix` | 用户显式触发：读取、认领、修复、验证并关闭未关闭 issue |
 | `/status` | 查看当前项目状态和进度 |
 | `/check` | 检查开发工作是否已同步到 .dev-doc |
 | `/iterate` | 交付后启动新迭代（归档 + 重置） |
@@ -238,7 +238,7 @@ Issue 支持完整的生命周期：
 - **关闭强制**：关闭时必须填写非空 fix 字段
 - **增量文件更新**：`dow issue update I001 --file '{"modify":["+src/foo.rs","-src/bar.rs"]}'`
 - **输出契约**：JSON detail 输出使用嵌套 `files`；issue Markdown 继续保持 `files_modify`/`files_create` 格式。
-- **修复流程**：`/fix` 读取未关闭 issue 并系统化修复
+- **修复流程**：只有用户显式调用 `/fix` 后才运行。它会读取并认领未关闭 issue，执行范围明确的修复，使用 `dow issue update --fix` 记录结果，完成验证后使用 `dow issue close` 关闭 issue。
 
 ### 多分支 VERSION
 

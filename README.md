@@ -132,7 +132,7 @@ Core principles:
 | `/task` | TASK phase — decompose into task files (challenger agent for complex cases) |
 | `/issue` | Manually create issue files |
 | `/test` | Run dow test for full project verification |
-| `/fix` | Auto-read open issues and fix them |
+| `/fix` | User-triggered workflow to read, claim, fix, verify, and close open issues |
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with .dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
@@ -240,7 +240,7 @@ Issues support a full lifecycle beyond tasks:
 - **Close enforcement**: closing requires a non-empty fix field
 - **Incremental file updates**: `dow issue update I001 --file '{"modify":["+src/foo.rs","-src/bar.rs"]}'`
 - **Output contract**: JSON detail output uses nested `files`; issue Markdown keeps its existing `files_modify`/`files_create` representation.
-- **Fix workflow**: `/fix` reads open issues and resolves them systematically
+- **Fix workflow**: `/fix` runs only after explicit user invocation. It reads and claims open issues, applies scoped fixes, records each fix with `dow issue update --fix`, verifies the result, and closes the issue with `dow issue close`.
 
 ### Multi-Branch VERSION
 
