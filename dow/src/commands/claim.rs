@@ -41,7 +41,11 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     }
 
     if !args.ids.is_empty() {
-        let normalized: Vec<String> = args.ids.iter().map(|id| item_id::normalize_short(id)).collect();
+        let normalized: Vec<String> = args
+            .ids
+            .iter()
+            .map(|id| item_id::normalize_short(id))
+            .collect();
 
         // Validate whether each ID corresponds to an incomplete task/issue
         let (invalid, duplicates) = validate_claim_ids(&doc_root_path, &normalized);
@@ -136,7 +140,6 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
 
     Ok(0)
 }
-
 
 /// Validate claim IDs: returns (invalid_ids, duplicate_ids)
 /// invalid = completed or non-existent; duplicate = same ID appears in multiple files
@@ -327,7 +330,7 @@ fn check_issue_files(doc_root: &std::path::Path, ids: &[String]) -> Result<(), D
         let has_files = check_issue_has_files(&issue_dir, &full_id);
         if !has_files {
             errors.push(format!(
-                "cannot claim {}: no files declared. Use `dow issue update {} --files-modify \"path/to/file\"` first.",
+                "cannot claim {}: no files declared. Use `dow issue update {} --file '{{\"modify\":[\"path/to/file\"]}}'` first.",
                 full_id, full_id
             ));
         }

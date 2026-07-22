@@ -13,7 +13,7 @@
 | `/prd` | PRD | Write requirements |
 | `/spec` | SPEC | Technical design |
 | `/task` | TASK | Decompose into tasks |
-| `/fix` | DEV | Fix open issues |
+| `/fix` | DEV | User-triggered workflow to read, claim, fix, verify, and close open issues |
 | `/test` | TEST | Full project test; Task tests use dow test TASK-ID |
 | `/iterate` | ITERATE | Archive + commit + tag + bump |
 
@@ -26,6 +26,7 @@
   3. Run `dow claim <TASK-ID or ISSUE-ID>` to declare your work target.
   4. Only then start writing code.
 - Claims expire after 5 minutes — re-claim if still working.
+- `/fix` is user-triggered. Do not start it automatically from hooks, tests, checks, task completion, or issue creation.
 - Only claim tasks/issues directly related to the current user request. Do NOT claim unrelated items — if the user's request doesn't map to an existing task/issue, create a new one instead of claiming an irrelevant one.
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
@@ -78,28 +79,32 @@ Replace `task` with `issue` for issue operations (same pattern).
 
 #### update — incremental array syntax
 
-Array fields (`files_modify`, `files_create`, `files_test`, `depends_on`, `done_when`) support incremental operations:
+Nested `files` arrays, `depends_on`, and `done_when` support incremental operations:
 - `+item` → append (deduplicated)
 - `-item` → remove
 
 ```bash
-dow task update T001 --files-modify "+new.rs,-old.rs"   # append new.rs, remove old.rs
+dow task update T001 --file '{"modify":["+new.rs","-old.rs"]}'   # append new.rs, remove old.rs
 dow task update T001 --done-when "+新验收标准"            # append criterion
 ```
 
 If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing prefixed and unprefixed in one list is not supported — either all incremental or all full replace.
 
-#### task create — all fields required
+#### task create — nested file scope
 
 ```json
-{"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files_modify":[], "files_create":[], "files_test":[], "depends_on":[], "parallel":false, "complexity":"S|M|L", "done_when":["criterion"]}
+{"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files":{"create":[], "modify":["src/a.rs"], "test":[]}, "depends_on":[], "parallel":false, "complexity":"S|M|L", "done_when":["criterion"]}
 ```
+`files.create` and `files.modify` are individually optional, but at least one
+must contain a non-empty path. CLI input uses `--file '{"modify":["src/a.rs"]}'`.
 
-#### issue create — all fields required (except fix)
+#### issue create — nested file scope
 
 ```json
-{"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|audit|other", "files_modify":[], "files_create":[]}
+{"title":"string", "severity":"P0|P1|P2", "location":"file:line", "desc":"string", "reproduce":"string", "source":"test|audit|other", "files":{"create":[], "modify":["src/a.rs"]}}
 ```
+Issue `files` has no `test` category. Legacy flat file fields and `--files-*`
+flags are not accepted. CLI and stdin input cannot be combined.
 
 ### Feedback
 - If you encounter any issue while using dev-flow (unexpected behavior, command failure, documentation mismatch, etc.), and the user permits, create a GitHub issue directly in the dev-flow repository (`daphnee-ovo/dev-flow`) to report it. Use `gh issue create --repo daphnee-ovo/dev-flow --title "<title>" --body "<description>"`.

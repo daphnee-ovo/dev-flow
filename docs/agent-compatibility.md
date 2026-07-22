@@ -12,6 +12,15 @@ dev-flow provides identical workflow experience across all supported agents. The
 
 > Codex App tends to follow command instructions even more closely than Codex CLI.
 
+## Shared File-Scope Input
+
+All agents use the same nested file-scope contract for task and issue
+create/update commands. CLI calls pass one JSON object through `--file`, for
+example `--file '{"modify":["src/main.rs"]}'`; stdin JSON places the object
+under the top-level `files` key. The `create` and `modify` lists are
+individually optional, but at least one must contain a non-empty path. Legacy
+flat file fields and `--files-*` flags are not part of the shared contract.
+
 ## Implementation Differences
 
 These are not limitations — just how each agent platform surfaces the same capabilities:

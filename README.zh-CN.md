@@ -232,10 +232,12 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issue 支持完整的生命周期：
 
-- **字段**：description、reproduce、fix、priority、files_modify、files_create、refs、severity。创建支持单个 JSON 对象或批量 JSON 数组。
+- **嵌套文件范围**：create/update 使用 `--file '{"create":[],"modify":["src/a.rs"]}'`；stdin JSON 使用顶层 `files` 对象。`create`、`modify` 可分别省略，但至少一个必须包含非空路径。
+- **JSON 批量创建**：支持单个嵌套 JSON 对象或 JSON 数组。
 - **多行值**：description/reproduce/fix 支持 YAML 缩进续行格式
 - **关闭强制**：关闭时必须填写非空 fix 字段
-- **增量数组更新**：`--files +src/foo.rs -src/bar.rs` 增减特定项
+- **增量文件更新**：`dow issue update I001 --file '{"modify":["+src/foo.rs","-src/bar.rs"]}'`
+- **输出契约**：JSON detail 输出使用嵌套 `files`；issue Markdown 继续保持 `files_modify`/`files_create` 格式。
 - **修复流程**：`/fix` 读取未关闭 issue 并系统化修复
 
 ### 多分支 VERSION

@@ -234,10 +234,12 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issues support a full lifecycle beyond tasks:
 
-- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity. Creation accepts one JSON object or a batch JSON array.
+- **Nested file scope**: create/update use `--file '{"create":[],"modify":["src/a.rs"]}'`; stdin JSON uses a top-level `files` object. `create` and `modify` are individually optional, but at least one must contain a non-empty path.
+- **JSON batches**: creation accepts one nested JSON object or a batch JSON array.
 - **Multi-line values**: description/reproduce/fix support YAML indented continuation format
 - **Close enforcement**: closing requires a non-empty fix field
-- **Incremental array updates**: `--files +src/foo.rs -src/bar.rs` to add/remove specific items
+- **Incremental file updates**: `dow issue update I001 --file '{"modify":["+src/foo.rs","-src/bar.rs"]}'`
+- **Output contract**: JSON detail output uses nested `files`; issue Markdown keeps its existing `files_modify`/`files_create` representation.
 - **Fix workflow**: `/fix` reads open issues and resolves them systematically
 
 ### Multi-Branch VERSION

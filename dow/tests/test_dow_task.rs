@@ -63,12 +63,8 @@ fn test_task_create_with_flags() {
             "P0",
             "--refs",
             "user-request",
-            "--files-modify",
-            "",
-            "--files-create",
-            "",
-            "--files-test",
-            "",
+            "--file",
+            r#"{"modify":["src/login.rs"],"test":["tests/login.rs"]}"#,
             "--depends-on",
             "",
             "--complexity",
@@ -112,7 +108,7 @@ fn test_task_create_with_stdin_json_object() {
     let dir = create_test_dir();
     setup_env(&dir);
 
-    let json_input = r#"{"title": "Add auth middleware", "type": "feat", "priority": "P1", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["middleware added"]}"#;
+    let json_input = r#"{"title": "Add auth middleware", "type": "feat", "priority": "P1", "refs": "", "files": {"modify": ["src/auth.rs"]}, "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["middleware added"]}"#;
 
     let mut child = Command::new(dow_cmd())
         .args(["task", "create"])
@@ -155,8 +151,8 @@ fn test_task_create_with_stdin_json_array() {
     setup_env(&dir);
 
     let json_input = r#"[
-        {"title": "Task A", "type": "feat", "priority": "P0", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]},
-        {"title": "Task B", "type": "fix", "priority": "P1", "refs": "", "files_modify": [], "files_create": [], "files_test": [], "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]}
+        {"title": "Task A", "type": "feat", "priority": "P0", "refs": "", "files": {"modify": ["src/a.rs"]}, "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]},
+        {"title": "Task B", "type": "fix", "priority": "P1", "refs": "", "files": {"create": ["src/b.rs"]}, "depends_on": [], "parallel": false, "complexity": "S", "done_when": ["done"]}
     ]"#;
 
     let mut child = Command::new(dow_cmd())
@@ -222,12 +218,8 @@ fn test_task_create_increments_id() {
             "P1",
             "--refs",
             "",
-            "--files-modify",
-            "",
-            "--files-create",
-            "",
-            "--files-test",
-            "",
+            "--file",
+            r#"{"modify":["src/new.rs"]}"#,
             "--depends-on",
             "",
             "--complexity",
@@ -277,12 +269,8 @@ fn test_task_create_rejects_xl_complexity() {
             "P1",
             "--refs",
             "user-request",
-            "--files-modify",
-            "",
-            "--files-create",
-            "",
-            "--files-test",
-            "",
+            "--file",
+            r#"{"modify":["src/oversized.rs"]}"#,
             "--depends-on",
             "",
             "--complexity",
@@ -315,6 +303,172 @@ fn test_task_create_no_input_exits_2() {
         .unwrap();
 
     assert!(!output.status.success());
+}
+
+#[test]
+fn test_task_create_rejects_unscoped_files() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let output = Command::new(dow_cmd())
+        .args([
+            "task",
+            "create",
+            "--title",
+            "test-only scope",
+            "--task-type",
+            "test",
+            "--priority",
+            "P1",
+            "--refs",
+            "user-request",
+            "--file",
+            r#"{"test":["tests/task.rs"]}"#,
+            "--depends-on",
+            "",
+            "--complexity",
+            "S",
+            "--done-when",
+            "test scope",
+        ])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("files.create"));
+    let branch = default_branch(&dir);
+    assert_eq!(
+        fs::read_dir(dir.join(".dev-doc").join(branch).join("task"))
+            .unwrap()
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn test_task_create_rejects_legacy_flat_json() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let json_input = r#"{"title":"legacy","type":"feat","priority":"P1","refs":"","files_modify":["src/old.rs"],"files_create":[],"files_test":[],"depends_on":[],"parallel":false,"complexity":"S","done_when":["rejected"]}"#;
+    let mut child = Command::new(dow_cmd())
+        .args(["task", "create"])
+        .current_dir(&dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    let branch = default_branch(&dir);
+    assert_eq!(
+        fs::read_dir(dir.join(".dev-doc").join(branch).join("task"))
+            .unwrap()
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn test_task_create_rejects_mixed_cli_and_stdin() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let json_input = r#"{"title":"stdin task","type":"feat","priority":"P1","refs":"","files":{"modify":["src/a.rs"]},"depends_on":[],"parallel":false,"complexity":"S","done_when":["done"]}"#;
+    let mut child = Command::new(dow_cmd())
+        .args(["task", "create", "--title", "cli task"])
+        .current_dir(&dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot combine"));
+}
+
+#[test]
+fn test_task_update_nested_files_incremental() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+    let branch = default_branch(&dir);
+    let task_path = dir
+        .join(".dev-doc")
+        .join(&branch)
+        .join("task/task_2026-06-25_1.md");
+    fs::write(
+        &task_path,
+        "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Update scope\n  - type: feat\n  - priority: P1\n  - files:\n      create: []\n      modify: [old.rs]\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - updated\n",
+    )
+    .unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args([
+            "task",
+            "update",
+            "TASK-T001",
+            "--file",
+            r#"{"create":["src/new.rs"],"modify":["+new.rs","-old.rs"]}"#,
+        ])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let content = fs::read_to_string(task_path).unwrap();
+    assert!(content.contains("create: [\"src/new.rs\"]"));
+    assert!(content.contains("modify: [\"new.rs\"]"));
+    assert!(!content.contains("modify: [\"old.rs\"]"));
+}
+
+#[test]
+fn test_task_update_rejects_removing_last_scope() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+    let branch = default_branch(&dir);
+    let task_path = dir
+        .join(".dev-doc")
+        .join(&branch)
+        .join("task/task_2026-06-25_1.md");
+    let original = "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Keep scope\n  - type: feat\n  - priority: P1\n  - files:\n      create: []\n      modify: [old.rs]\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - unchanged\n";
+    fs::write(&task_path, original).unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args([
+            "task",
+            "update",
+            "TASK-T001",
+            "--file",
+            r#"{"modify":["-old.rs"]}"#,
+        ])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("last files"));
+    assert_eq!(fs::read_to_string(task_path).unwrap(), original);
 }
 
 // ─── List Tests ──────────────────────────────────────────────────────────────
@@ -796,8 +950,13 @@ fn test_task_show_accepts_short_id() {
         .current_dir(&dir)
         .output()
         .unwrap();
-    assert!(output.status.success(), "T001 failed: {}", String::from_utf8_lossy(&output.stderr));
-    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
+    assert!(
+        output.status.success(),
+        "T001 failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
     assert_eq!(json["id"], "TASK-T001");
 
     // T1 (short without padding)
@@ -806,8 +965,13 @@ fn test_task_show_accepts_short_id() {
         .current_dir(&dir)
         .output()
         .unwrap();
-    assert!(output.status.success(), "T1 failed: {}", String::from_utf8_lossy(&output.stderr));
-    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
+    assert!(
+        output.status.success(),
+        "T1 failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
     assert_eq!(json["id"], "TASK-T001");
 }
 
@@ -829,5 +993,9 @@ fn test_task_done_accepts_short_id() {
         .current_dir(&dir)
         .output()
         .unwrap();
-    assert!(output.status.success(), "T1 done failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "T1 done failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

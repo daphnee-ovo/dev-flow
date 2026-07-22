@@ -91,7 +91,7 @@ issue/
 └── closed_issue_other_2026-05-15_1.md      # 已关闭
 ```
 
-**创建新 issue 文件**：通过 `dow issue create`（JSON 或参数形式）创建，格式可先用 `dow issue schema` 查询。
+**创建新 issue 文件**：通过 `dow issue create`（JSON 或参数形式）创建，格式可先用 `dow issue schema` 查询。输入统一使用嵌套 `files` 对象：CLI 传 `--file '{"modify":["src/a.rs"]}'`，stdin JSON 将其放在顶层 `files` 下；`create`、`modify` 至少一个必须包含非空路径。生成的 Markdown 仍保持现有 `files_modify`/`files_create` 字段。
 
 **关闭 issue**：文件内所有 checkbox 勾选为 `[x]` 后，`dow hooks post-write` 自动重命名为 `closed_` 前缀。
 

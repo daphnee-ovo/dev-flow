@@ -123,9 +123,7 @@ TASK_JSON=$(cat <<'EOF'
   "type": "feat",
   "priority": "P1",
   "refs": "",
-  "files_modify": [],
-  "files_create": ["test.txt"],
-  "files_test": [],
+  "files": {"create": ["test.txt"], "modify": [], "test": []},
   "depends_on": [],
   "parallel": false,
   "complexity": "S",
@@ -172,7 +170,8 @@ ISSUE_JSON=$(cat <<'EOF'
   "location": "test.txt:1",
   "desc": "Test issue description",
   "reproduce": "run test",
-  "source": "test"
+  "source": "test",
+  "files": {"modify": ["test.txt"]}
 }
 EOF
 )

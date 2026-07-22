@@ -6,6 +6,14 @@
 
 完成标记：hook 自动重命名为 `done_task_<YYYY-MM-DD>_<seq>.md`
 
+## Public Input
+
+Task create/update accepts a nested file object via `--file`, for example
+`--file '{"modify":["src/main.rs"],"test":["tests/task.rs"]}'`. Stdin JSON
+places the same object under the top-level `files` key. `create` and `modify`
+are individually optional, but at least one must contain a non-empty path;
+`test` is optional.
+
 ## 模板
 
 ```markdown

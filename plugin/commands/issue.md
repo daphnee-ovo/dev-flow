@@ -33,26 +33,27 @@ dow issue list | grep 'other'
 ### 3. Create Issue
 
 ```bash
-dow issue create --title "..." --severity P1 --location "file:line" --desc "..." --source other
+dow issue create --title "..." --severity P1 --location "file:line" --desc "..." --source other \
+  --file '{"modify":["src/bug.rs"]}'
 ```
 
 Also supports stdin JSON. The input can be one object or an array; an array is
 created as one batch and receives IDs in input order:
 ```bash
-echo '{"title":"bug","severity":"P0","location":"main.rs:10","desc":"crash on startup","reproduce":"run command","source":"other"}' | dow issue create
-echo '[{"title":"bug 1","severity":"P1","location":"a.rs:1","desc":"...","reproduce":"...","source":"other"},{"title":"bug 2","severity":"P1","location":"b.rs:2","desc":"...","reproduce":"...","source":"other"}]' | dow issue create
+echo '{"title":"bug","severity":"P0","location":"main.rs:10","desc":"crash on startup","reproduce":"run command","source":"other","files":{"modify":["main.rs"]}}' | dow issue create
+echo '[{"title":"bug 1","severity":"P1","location":"a.rs:1","desc":"...","reproduce":"...","source":"other","files":{"modify":["a.rs"]}},{"title":"bug 2","severity":"P1","location":"b.rs:2","desc":"...","reproduce":"...","source":"other","files":{"create":["b.rs"]}}]' | dow issue create
 ```
 
-The required fields are `title`, `severity`, `location`, `desc`, `reproduce`
-and `source`. Creation also accepts optional string arrays `files_modify` and
-`files_create`, either as JSON fields or CLI flags:
+The required fields are `title`, `severity`, `location`, `desc`, `reproduce`,
+`source`, and `files`. Within `files`, `create` and `modify` are individually
+optional, but at least one must contain a non-empty path:
 
 ```bash
-dow issue create --files-modify "src/a.rs,src/b.rs" --files-create "tests/a.rs"
+dow issue create --file '{"modify":["src/a.rs","src/b.rs"],"create":["tests/a.rs"]}'
 ```
 
-Use `dow issue schema` for the authoritative field definition. `files_test`
-is a Task field and is not an ISSUE field.
+Use `dow issue schema` for the authoritative field definition. `files_test`,
+flat `files_modify`/`files_create`, and `--files-*` flags are not accepted.
 
 ### 4. Write Format
 
@@ -62,7 +63,7 @@ Execute `dow issue schema` to get structured format definition.
 
 ```
 [dev-flow] Issue created: .dev-doc/issue/<filename>
-Need to fix immediately? Execute /fix to auto-fix unclosed issues.
+To repair open issues, explicitly invoke /fix when ready.
 ```
 
 ## Append to Existing File
@@ -75,15 +76,16 @@ If appending to existing file:
 
 ## Updating Issues
 
-Array fields (`files_modify`, `files_create`) support incremental syntax:
+Nested `files` arrays support incremental syntax:
 ```bash
-dow issue update I001 --files-modify "+new.rs,-old.rs"
+dow issue update I001 --file '{"modify":["+new.rs","-old.rs"]}'
 ```
-Without `+`/`-` prefix = full replacement.
+Without `+`/`-` prefix = full replacement. An update cannot remove the last
+create/modify path.
 
 ## Notes
 
 - Main agent executes directly, doesn't launch subagent
 - Manual creation normally uses `source: other`; test failures use
   `source: test` and are created by `dow test`.
-- After creation doesn't auto-fix, user decides whether to /fix
+- Creation does not auto-fix; the user explicitly invokes /fix when repair is wanted.

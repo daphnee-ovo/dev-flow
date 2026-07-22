@@ -209,8 +209,8 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
             }
             return ask(
                 &format!(
-                "[dev-flow] Write target is outside project: {}. Please confirm if allowed.",
-                raw_target
+                    "[dev-flow] Write target is outside project: {}. Please confirm if allowed.",
+                    raw_target
                 ),
                 kiro_hook,
             );
@@ -621,7 +621,7 @@ fn check_claim_file_scope(
     } else {
         Some(format!(
             "[dev-flow] WARNING: writing to {} which is outside claimed task's declared files.\n\
-            → Consider `dow task update <ID> --files-modify \"{}\"` to declare this file.",
+            → Consider `dow task update <ID> --file '{{\"modify\":[\"{}\"]}}'` to declare this file.",
             path.display(),
             rel_str
         ))
@@ -881,7 +881,7 @@ fn extract_apply_patch_targets(tool_input: &serde_json::Value) -> Vec<String> {
 /// metadata arguments out of the path scanner.
 fn extract_command_targets(cmd: &str) -> Vec<String> {
     // A trusted flow-management command may contain values such as
-    // `src/example.rs` in --files-modify, --files-create, refs, or stdin JSON.
+    // `src/example.rs` in --file, refs, or stdin JSON.
     // Those values describe the task; they are not writes performed by Bash.
     // Classify this command before scanning metadata so prose cannot create
     // fake targets. Shell operators make the command ineligible for trust and
