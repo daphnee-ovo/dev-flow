@@ -80,8 +80,8 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 | Agent | Status | Manual setup |
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
-| **Codex CLI** | Supported | `dow setup --agent codex` |
-| **Kiro** | Supported | `dow setup --agent kiro` |
+| **Codex** | Supported | `dow setup --agent codex` |
+| **Kiro-Cli** | Supported | `dow setup --agent kiro` |
 
 ### Agent Compatibility
 

@@ -80,8 +80,8 @@ dev-flow 是有明确取舍的工具。单行修改、临时脚本、不希望�
 | Agent | 状态 | 手动 setup |
 |-------|------|------|
 | **Claude Code** | 已支持 | `dow setup --agent claude` |
-| **Codex CLI** | 已支持 | `dow setup --agent codex` |
-| **Kiro** | 已支持 | `dow setup --agent kiro` |
+| **Codex** | 已支持 | `dow setup --agent codex` |
+| **Kiro-cli** | 已支持 | `dow setup --agent kiro` |
 
 ### Agent 兼容性
 
