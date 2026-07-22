@@ -2,6 +2,13 @@
 
 项目全流程管理插件，从需求探索到交付的完整生命周期管理。
 
+## Language Policy
+
+- Use English consistently for default workflow prompts, skill metadata,
+  generated artifacts, build output, and new user-facing messages.
+- Keep non-English text only in explicitly localized files, such as
+  `README.zh-CN.md`, or when preserving user-provided content.
+
 ## 注意事项
 - 禁止直接在开发环境测试导致开发环境的流程管理被污染。如需测试，需要在./tmp/test_target_project 中进行测试
 - 严禁更新 A agent 相关内容的时候导致 B agent的支持被破坏

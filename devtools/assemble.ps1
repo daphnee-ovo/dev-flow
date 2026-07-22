@@ -1,5 +1,5 @@
-# Windows 原生插件组装器：生成 dist/<agent>/ 产物
-# 用法: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|all>
+# Native Windows plugin assembler: generate dist/<agent>/ artifacts.
+# Usage: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|pi|all>
 
 [CmdletBinding()]
 param(
@@ -11,12 +11,12 @@ $ErrorActionPreference = "Stop"
 $validAgents = @("claude", "codex", "kiro", "pi", "all")
 
 if ([string]::IsNullOrWhiteSpace($Agent)) {
-    throw "用法: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|pi|all>"
+    throw "Usage: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|pi|all>"
 }
 
 $Agent = $Agent.ToLowerInvariant()
 if ($validAgents -notcontains $Agent) {
-    throw "未知 agent: $Agent（可选: claude, codex, kiro, pi, all）"
+    throw "Unknown agent: $Agent (expected: claude, codex, kiro, pi, or all)"
 }
 
 $scriptDir = if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
@@ -57,7 +57,7 @@ function Copy-DirectoryContents {
     )
 
     if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
-        throw "找不到源目录: $Source"
+        throw "Source directory not found: $Source"
     }
 
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
@@ -121,10 +121,10 @@ function Install-CommandSkills {
         $parsed = Split-FrontMatter (Read-Utf8Text $commandFile.FullName)
         $description = $parsed.Fields["description"]
         if ([string]::IsNullOrWhiteSpace($description)) {
-            $description = "执行 dev-flow /$commandName 流程"
+            $description = "Run the dev-flow /$commandName workflow"
         }
 
-        $skillDescription = "$description。当用户要求执行 dev-flow $commandName 流程，或表达对应流程意图时使用。"
+        $skillDescription = "$description. Use this skill when the user requests the dev-flow $commandName workflow or expresses that intent."
         $descriptionJson = ConvertTo-Json -InputObject $skillDescription -Compress
         $skillDir = Join-Path $skillsDir $commandName
         $skillFile = Join-Path $skillDir "SKILL.md"
@@ -255,7 +255,7 @@ function Assemble-Agent {
             Install-CommandSkills -TargetDir $targetDir -ManagedMarker $false
         }
         default {
-            throw "未知 agent: $AgentName"
+            throw "Unknown agent: $AgentName"
         }
     }
 
@@ -279,7 +279,7 @@ try {
     }
 
     $agentsToAssemble = if ($Agent -eq "all") {
-        @("claude", "codex", "kiro")
+        @("claude", "codex", "kiro", "pi")
     } else {
         @($Agent)
     }
@@ -288,6 +288,6 @@ try {
         Assemble-Agent -AgentName $agentName -Version $version
     }
 } catch {
-    Write-Host "[assemble] ✗ 组装失败: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[assemble] ✗ Assembly failed: $($_.Exception.Message)" -ForegroundColor Red
     throw
 }

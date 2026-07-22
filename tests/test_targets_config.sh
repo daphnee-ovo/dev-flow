@@ -123,6 +123,74 @@ for skill in "${TEST_SKILLS[@]}"; do
   fi
 done
 
+echo ""
+echo "--- Verifying user-only /fix invocation gate in assembled outputs ---"
+FIX_SKILLS=(
+  "dist/claude/commands/fix.md"
+  "dist/codex/skills/fix/SKILL.md"
+  "dist/kiro/skills/fix/SKILL.md"
+  "dist/pi/skills/fix/SKILL.md"
+)
+
+for skill in "${FIX_SKILLS[@]}"; do
+  if grep -q 'Only run this workflow when the user explicitly invokes `/fix`.' "$skill"; then
+    echo "✓ $skill requires explicit /fix invocation"
+  else
+    echo "❌ FAIL: $skill is missing the explicit /fix invocation gate"
+    FAILED=1
+  fi
+done
+
+if grep -q '^disable-model-invocation: true$' "dist/claude/commands/fix.md"; then
+  echo "✓ Claude /fix disables model invocation"
+else
+  echo "❌ FAIL: Claude /fix is missing disable-model-invocation"
+  FAILED=1
+fi
+
+if grep -q '^user_only:' plugin/commands/fix.md; then
+  echo "❌ FAIL: shared /fix command still declares unsupported user_only metadata"
+  FAILED=1
+else
+  echo "✓ shared /fix command has no unsupported user_only metadata"
+fi
+
+for skill in "dist/codex/skills/fix/SKILL.md" "dist/kiro/skills/fix/SKILL.md" "dist/pi/skills/fix/SKILL.md"; do
+  if ! grep -q '^user_only:' "$skill"; then
+    echo "✓ $skill does not emit unsupported user_only metadata"
+  else
+    echo "❌ FAIL: $skill emits unsupported user_only metadata"
+    FAILED=1
+  fi
+done
+
+echo ""
+echo "--- Verifying English skill metadata and cross-platform assembler parity ---"
+DEFAULT_SKILLS=(
+  "dist/codex/skills/status/SKILL.md"
+  "dist/kiro/skills/status/SKILL.md"
+  "dist/pi/skills/status/SKILL.md"
+)
+
+for skill in "${DEFAULT_SKILLS[@]}"; do
+  if grep -q 'Use this skill when the user requests the dev-flow status workflow or expresses that intent.' "$skill" && \
+     ! grep -q '当用户要求执行\|或表达对应流程意图' "$skill"; then
+    echo "✓ $skill uses English skill metadata"
+  else
+    echo "❌ FAIL: $skill contains non-English or stale skill metadata"
+    FAILED=1
+  fi
+done
+
+if grep -q 'Use this skill when the user requests the dev-flow' devtools/assemble.ps1 && \
+   grep -q '@("claude", "codex", "kiro", "pi")' devtools/assemble.ps1 && \
+   ! grep -q 'user_only\|执行 dev-flow\|当用户要求执行\|未知 agent' devtools/assemble.ps1; then
+  echo "✓ PowerShell assembler matches English and Pi assembly rules"
+else
+  echo "❌ FAIL: PowerShell assembler is out of sync"
+  FAILED=1
+fi
+
 if [[ $FAILED -eq 0 ]]; then
   echo ""
   echo "✅ All targets config and assemble tests PASSED"
