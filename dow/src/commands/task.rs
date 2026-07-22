@@ -16,7 +16,7 @@ use crate::cli::{
     TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs,
 };
 use crate::commands::test_runner;
-use crate::core::{doc_root, task_store};
+use crate::core::{doc_root, item_id, task_store};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -144,12 +144,27 @@ pub(crate) fn apply_incremental(input: Vec<String>, existing: Vec<String>) -> Ve
 pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
     match command {
         TaskCommands::Create(args) => create(args, human),
-        TaskCommands::Update(args) => update(args),
-        TaskCommands::Remove(args) => remove(args, human),
+        TaskCommands::Update(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            update(args)
+        }
+        TaskCommands::Remove(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            remove(args, human)
+        }
         TaskCommands::List(args) => list(args, human),
-        TaskCommands::Show { id } => show(&id, human),
-        TaskCommands::Done { ids } => done_multi(&ids),
-        TaskCommands::Reopen(args) => reopen(args, human),
+        TaskCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        TaskCommands::Done { ids } => {
+            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
+            done_multi(&ids)
+        }
+        TaskCommands::Reopen(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            reopen(args, human)
+        }
         TaskCommands::Schema => schema(human),
     }
 }
@@ -356,28 +371,17 @@ pub(crate) fn all_task_files_including_done(task_dir: &Path) -> Vec<PathBuf> {
 }
 
 fn extract_task_id(line: &str) -> Option<String> {
-    let trimmed = line.trim();
-    // Pattern: "- [ ] TASK-T###: ..." or "- [x] TASK-T###: ..."
-    if trimmed.starts_with("- [") {
-        let after_bracket = if trimmed.starts_with("- [ ] ") {
-            &trimmed[6..]
-        } else if trimmed.starts_with("- [x] ") {
-            &trimmed[6..]
-        } else {
-            return None;
-        };
-        if let Some(colon_pos) = after_bracket.find(':') {
-            let id = after_bracket[..colon_pos].trim().to_string();
-            if id.starts_with("TASK-T") {
-                return Some(id);
-            }
-        }
+    let parsed = item_id::extract_from_line(line)?;
+    if parsed.kind == item_id::ItemKind::Task {
+        Some(parsed.full())
+    } else {
+        None
     }
-    None
 }
 
 fn parse_task_num(id: &str) -> Option<usize> {
-    id.strip_prefix("TASK-T")?.parse().ok()
+    let parsed = item_id::parse(id)?;
+    Some(parsed.num() as usize)
 }
 
 fn find_or_create_batch_file(task_dir: &Path, today: &str) -> Result<PathBuf, DowError> {

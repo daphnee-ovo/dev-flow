@@ -774,3 +774,60 @@ fn test_task_schema_outputs_json() {
     );
     assert!(json["file_format"]["name_pattern"].is_string());
 }
+
+// ─── Short ID Tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_task_show_accepts_short_id() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    fs::write(
+        task_dir.join("task_2026-07-22_1.md"),
+        "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Short ID test\n  - type: feat\n  - priority: P1\n  - refs:\n  - files:\n      create: []\n      modify: []\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - works\n",
+    )
+    .unwrap();
+
+    // T001 (short with padding)
+    let output = Command::new(dow_cmd())
+        .args(["task", "show", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "T001 failed: {}", String::from_utf8_lossy(&output.stderr));
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
+    assert_eq!(json["id"], "TASK-T001");
+
+    // T1 (short without padding)
+    let output = Command::new(dow_cmd())
+        .args(["task", "show", "T1"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "T1 failed: {}", String::from_utf8_lossy(&output.stderr));
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout)).unwrap();
+    assert_eq!(json["id"], "TASK-T001");
+}
+
+#[test]
+fn test_task_done_accepts_short_id() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let branch = default_branch(&dir);
+    let task_dir = dir.join(".dev-doc").join(&branch).join("task");
+    fs::write(
+        task_dir.join("task_2026-07-22_1.md"),
+        "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Done short\n  - type: feat\n  - priority: P1\n  - refs:\n  - files:\n      create: []\n      modify: []\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - works\n",
+    )
+    .unwrap();
+
+    let output = Command::new(dow_cmd())
+        .args(["task", "done", "T1"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "T1 done failed: {}", String::from_utf8_lossy(&output.stderr));
+}

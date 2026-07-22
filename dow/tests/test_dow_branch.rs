@@ -80,8 +80,8 @@ fn test_context_doc_root_matches_branch() {
         .unwrap();
 
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let doc_root = json["doc_root"].as_str().unwrap();
-    assert_eq!(doc_root, format!(".dev-doc/{}", branch));
+    // doc_root removed from output; verify branch is correct instead
+    assert_eq!(json["branch"], branch);
 }
 
 #[test]
@@ -175,7 +175,6 @@ fn test_auto_creates_branch_dir_on_new_branch() {
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["branch"], "feat-new");
-    assert_eq!(json["doc_root"], ".dev-doc/feat-new");
 
     // 目录应该被自动创建
     assert!(&dir.join(".dev-doc/feat-new/STATUS.yaml").exists());

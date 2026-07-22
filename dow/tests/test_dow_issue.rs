@@ -829,3 +829,58 @@ fn test_issue_list_all() {
     let open = json["open"].as_array().unwrap();
     assert_eq!(open.len(), 2, "should show both open and closed files");
 }
+
+// ─── Short ID Tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_issue_show_accepts_short_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let issue_dir = doc.join("issue");
+    fs::write(
+        issue_dir.join("issue_test_2026-07-22_1.md"),
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：Short ID bug\n  - severity: P1\n  - location：src/lib.rs:10\n  - description：test short id\n  - reproduce：use I1\n",
+    )
+    .unwrap();
+
+    // I001 (short with padding)
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "show", "I001"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "I001 failed: {}", String::from_utf8_lossy(&output.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "ISSUE-I001");
+
+    // I1 (short without padding)
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "show", "I1"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "I1 failed: {}", String::from_utf8_lossy(&output.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "ISSUE-I001");
+}
+
+#[test]
+fn test_issue_close_accepts_short_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let issue_dir = doc.join("issue");
+    fs::write(
+        issue_dir.join("issue_test_2026-07-22_1.md"),
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：Close short\n  - severity: P1\n  - location：a.rs:1\n  - description：close with short\n  - reproduce：use I1\n  - fix：patched\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "close", "I1"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "I1 close failed: {}", String::from_utf8_lossy(&output.stderr));
+}

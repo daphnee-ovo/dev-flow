@@ -21,7 +21,7 @@ use crate::cli::{
     IssueUpdateArgs,
 };
 use crate::commands::task::{expand_file_list, parse_inline_list};
-use crate::core::{doc_root, doc_validator};
+use crate::core::{doc_root, doc_validator, item_id};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -130,12 +130,27 @@ struct IssueCreateGroup {
 pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
     match command {
         IssueCommands::Create(args) => create(args, human),
-        IssueCommands::Update(args) => update(args),
-        IssueCommands::Remove(args) => remove(args, human),
+        IssueCommands::Update(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            update(args)
+        }
+        IssueCommands::Remove(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            remove(args, human)
+        }
         IssueCommands::List(args) => list(args, human),
-        IssueCommands::Show { id } => show(&id, human),
-        IssueCommands::Close { ids } => close_multi(&ids),
-        IssueCommands::Reopen(args) => reopen(args, human),
+        IssueCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        IssueCommands::Close { ids } => {
+            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
+            close_multi(&ids)
+        }
+        IssueCommands::Reopen(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            reopen(args, human)
+        }
         IssueCommands::Schema => schema(human),
     }
 }
@@ -612,7 +627,7 @@ fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    let target_num = extract_issue_id_num(&parsed.id).unwrap_or(0);
+    let target_num = item_id::parse(&parsed.id).map(|id| id.num()).unwrap_or(0);
 
     // Collect higher issue IDs for renumbering
     let mut higher_nums: Vec<u32> = Vec::new();
@@ -628,12 +643,9 @@ fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [") {
-                            let title = line[5..].trim();
-                            if let Some(num) = extract_issue_id_num(title) {
-                                if num > target_num {
-                                    higher_nums.push(num);
-                                }
+                        if let Some(parsed) = item_id::extract_from_line(line) {
+                            if parsed.kind == item_id::ItemKind::Issue && parsed.num() > target_num {
+                                higher_nums.push(parsed.num());
                             }
                         }
                     }
@@ -1232,14 +1244,7 @@ fn find_issue_by_id(
     let entries = fs::read_dir(issue_dir)
         .map_err(|e| DowError::new(format!("Failed to read issue directory: {}", e), 1))?;
 
-    // Normalize ID: accept both "ISSUE-I001" and "I001" shorthand
-    let normalized_id = if id.starts_with("ISSUE-I") {
-        id.to_string()
-    } else if id.starts_with("I") && id[1..].chars().all(|c| c.is_ascii_digit()) {
-        format!("ISSUE-{}", id)
-    } else {
-        format!("ISSUE-I{}", id)
-    };
+    let normalized_id = item_id::normalize_full(id);
 
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -1404,12 +1409,9 @@ fn next_issue_id(issue_dir: &PathBuf) -> u32 {
             }
             if let Ok(content) = fs::read_to_string(entry.path()) {
                 for line in content.lines() {
-                    if line.starts_with("- [") {
-                        let title = line[5..].trim();
-                        if let Some(num) = extract_issue_id_num(title) {
-                            if num > max_id {
-                                max_id = num;
-                            }
+                    if let Some(parsed) = item_id::extract_from_line(line) {
+                        if parsed.kind == item_id::ItemKind::Issue && parsed.num() > max_id {
+                            max_id = parsed.num();
                         }
                     }
                 }
@@ -1418,17 +1420,6 @@ fn next_issue_id(issue_dir: &PathBuf) -> u32 {
     }
 
     max_id + 1
-}
-
-/// Extract numeric ID from issue title (e.g. "ISSUE-I003：title" -> 3)
-fn extract_issue_id_num(title: &str) -> Option<u32> {
-    let prefix = "ISSUE-I";
-    if !title.starts_with(prefix) {
-        return None;
-    }
-    let rest = &title[prefix.len()..];
-    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
 }
 
 /// Get next file sequence number for a given source + date combination

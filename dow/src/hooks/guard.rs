@@ -577,25 +577,29 @@ fn check_claim_file_scope(
     let mut allowed_files: Vec<String> = Vec::new();
 
     for cid in &claimed_ids {
-        if cid.starts_with("T") {
-            let full_id = format!("TASK-{}", cid);
-            if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
-                for f in task
-                    .files
-                    .create
-                    .iter()
-                    .chain(task.files.modify.iter())
-                    .chain(task.files.test.iter())
-                {
-                    if !f.is_empty() {
-                        allowed_files.push(f.clone());
+        let full_id = crate::core::item_id::normalize_full(cid);
+        if let Some(parsed) = crate::core::item_id::parse(cid) {
+            match parsed.kind {
+                crate::core::item_id::ItemKind::Task => {
+                    if let Some(task) = all_tasks.iter().find(|t| t.id == full_id) {
+                        for f in task
+                            .files
+                            .create
+                            .iter()
+                            .chain(task.files.modify.iter())
+                            .chain(task.files.test.iter())
+                        {
+                            if !f.is_empty() {
+                                allowed_files.push(f.clone());
+                            }
+                        }
                     }
                 }
+                crate::core::item_id::ItemKind::Issue => {
+                    let issue_files = get_issue_files(doc_root, &full_id);
+                    allowed_files.extend(issue_files);
+                }
             }
-        } else if cid.starts_with("I") {
-            let full_id = format!("ISSUE-{}", cid);
-            let issue_files = get_issue_files(doc_root, &full_id);
-            allowed_files.extend(issue_files);
         }
     }
 

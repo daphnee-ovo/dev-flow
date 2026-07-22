@@ -23,6 +23,7 @@ pub mod config;
 pub mod doc_root;
 pub mod doc_validator;
 pub mod github;
+pub mod item_id;
 pub mod platform;
 pub mod task_store;
 pub mod version;

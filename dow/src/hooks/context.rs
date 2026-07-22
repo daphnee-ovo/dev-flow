@@ -5,7 +5,7 @@
 // - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
 // - [CODEX_HOOK_ISSUE.md](../../../CODEX_HOOK_ISSUE.md)
 
-use crate::core::{doc_root, version, yaml};
+use crate::core::{claim, doc_root, version, yaml};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -17,11 +17,11 @@ use std::process::Command;
 struct ContextOutput {
     branch: String,
     version: String,
-    version_tag: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version_tag: Option<String>,
     mode: String,
     phase: String,
     exec_mode: String,
-    doc_root: String,
     tasks: TaskStats,
     issues: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -78,6 +78,8 @@ struct CurrentItems {
     severity: Option<String>,
     #[serde(rename = "type")]
     item_type: String,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    claimed: bool,
     items: Vec<String>,
 }
 
@@ -143,8 +145,13 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
         }
     }
 
-    // Get current items (issues take priority over tasks)
-    let current_items = get_current_items(&doc_root_path, open_issues);
+    // Get current items: claimed items take priority, then issues, then tasks
+    let active_claims = claim::get_active_claims(&doc_root_path);
+    let current_items = if !active_claims.is_empty() {
+        get_claimed_items(&doc_root_path, &active_claims)
+    } else {
+        get_current_items(&doc_root_path, open_issues)
+    };
 
     // Last CHANGELOG entry
     let last_changelog = get_last_changelog(&doc_root_path);
@@ -160,18 +167,19 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
     let blocked = guard_notice.is_some();
     let reason = guard_notice.clone();
 
+    let version_tag_opt = if version_tag == "tagged" {
+        Some(version_tag)
+    } else {
+        None
+    };
+
     let output_data = ContextOutput {
         branch,
         version,
-        version_tag,
+        version_tag: version_tag_opt,
         mode,
         phase,
         exec_mode,
-        doc_root: doc_root_path
-            .strip_prefix(doc_root::project_root())
-            .unwrap_or(&doc_root_path)
-            .to_string_lossy()
-            .to_string(),
         tasks: task_stats,
         issues: open_issues,
         goals_minor,
@@ -295,6 +303,125 @@ fn count_undone_in_active_tasks(doc_root: &Path) -> u32 {
     crate::core::task_store::count_undone_items(&task_dir)
 }
 
+fn get_claimed_items(doc_root: &Path, claim_ids: &[String]) -> Option<CurrentItems> {
+    use crate::core::item_id;
+
+    let mut task_items = Vec::new();
+    let mut issue_items = Vec::new();
+
+    let task_dir = doc_root.join("task");
+    if task_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&task_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.ends_with(".md") || name.starts_with("done_") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    let mut matched = false;
+                    let mut title = String::new();
+                    let mut task_complexity: Option<String> = None;
+                    let mut task_refs: Option<String> = None;
+                    for line in content.lines() {
+                        if item_id::is_undone_line(line) {
+                            if matched {
+                                task_items.push(format_task_item(
+                                    &title,
+                                    &task_complexity,
+                                    &task_refs,
+                                ));
+                            }
+                            matched = false;
+                            task_complexity = None;
+                            task_refs = None;
+                            if let Some(parsed) = item_id::extract_from_line(line) {
+                                if claim_ids.contains(&parsed.short()) {
+                                    matched = true;
+                                    title = line.trim_start_matches("- [ ] ").to_string();
+                                }
+                            }
+                        } else if item_id::is_done_line(line) {
+                            if matched {
+                                task_items.push(format_task_item(
+                                    &title,
+                                    &task_complexity,
+                                    &task_refs,
+                                ));
+                            }
+                            matched = false;
+                            task_complexity = None;
+                            task_refs = None;
+                        } else if matched {
+                            if line.contains("complexity:") {
+                                task_complexity = extract_complexity(line);
+                            } else if line.contains("refs:") {
+                                task_refs = extract_refs(line);
+                            }
+                        }
+                    }
+                    if matched {
+                        task_items.push(format_task_item(&title, &task_complexity, &task_refs));
+                    }
+                }
+            }
+        }
+    }
+
+    let issue_dir = doc_root.join("issue");
+    if issue_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&issue_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with("issue_") || !name.ends_with(".md") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(entry.path()) {
+                    let mut in_open = false;
+                    let mut title = String::new();
+                    let mut current_id = String::new();
+                    for line in content.lines() {
+                        if item_id::is_undone_line(line) {
+                            in_open = false;
+                            if let Some(parsed) = item_id::extract_from_line(line) {
+                                if claim_ids.contains(&parsed.short()) {
+                                    in_open = true;
+                                    title = line.trim_start_matches("- [ ] ").to_string();
+                                    current_id = parsed.short();
+                                }
+                            }
+                        } else if item_id::is_done_line(line) {
+                            in_open = false;
+                        }
+                    }
+                    if in_open && !current_id.is_empty() {
+                        issue_items.push(title);
+                    }
+                }
+            }
+        }
+    }
+
+    let has_issues = !issue_items.is_empty();
+    let mut all_items = task_items;
+    all_items.extend(issue_items);
+
+    if all_items.is_empty() {
+        return None;
+    }
+
+    Some(CurrentItems {
+        priority: None,
+        severity: None,
+        item_type: if has_issues && all_items.len() == 1 {
+            "issue".to_string()
+        } else {
+            "task".to_string()
+        },
+        claimed: true,
+        items: all_items,
+    })
+}
+
 fn get_current_items(doc_root: &Path, open_issues: u32) -> Option<CurrentItems> {
     if open_issues > 0 {
         // show highest priority issues
@@ -340,6 +467,7 @@ fn get_current_issues(doc_root: &Path) -> Option<CurrentItems> {
                 priority: None,
                 severity: Some(severity.to_string()),
                 item_type: "issue".to_string(),
+                claimed: false,
                 items,
             });
         }
@@ -406,6 +534,7 @@ fn get_current_tasks(doc_root: &Path) -> Option<CurrentItems> {
                 priority: Some(priority.to_string()),
                 severity: None,
                 item_type: "task".to_string(),
+                claimed: false,
                 items,
             });
         }
@@ -506,14 +635,18 @@ fn print_human(data: &ContextOutput) {
 }
 
 fn format_human_context(data: &ContextOutput) -> String {
+    let version_str = match &data.version_tag {
+        Some(tag) => format!("v{} ({})", data.version, tag),
+        None => format!("v{}", data.version),
+    };
     let mut lines = vec![
         format!(
-            "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | v{} ({})",
-            data.branch, data.phase, data.mode, data.exec_mode, data.version, data.version_tag
+            "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | {}",
+            data.branch, data.phase, data.mode, data.exec_mode, version_str
         ),
         format!(
-            "doc_root:{} | tasks:{}/{} | issues:{}",
-            data.doc_root, data.tasks.done, data.tasks.total, data.issues
+            "tasks:{}/{} | issues:{}",
+            data.tasks.done, data.tasks.total, data.issues
         ),
     ];
 
@@ -539,7 +672,13 @@ fn format_human_context(data: &ContextOutput) -> String {
     }
 
     if let Some(ref items) = data.current_items {
-        let label = if items.item_type == "issue" {
+        let label = if items.claimed {
+            if items.item_type == "issue" {
+                "current issues [claimed]".to_string()
+            } else {
+                "current tasks [claimed]".to_string()
+            }
+        } else if items.item_type == "issue" {
             format!(
                 "current issues [{}]",
                 items.severity.as_deref().unwrap_or("?")
