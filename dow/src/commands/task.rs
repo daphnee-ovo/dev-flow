@@ -16,7 +16,7 @@ use crate::cli::{
     TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs,
 };
 use crate::commands::test_runner;
-use crate::core::{doc_root, item_id, task_store};
+use crate::core::{claim, doc_root, item_id, task_store};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -1316,6 +1316,14 @@ fn done_multi(ids: &[String]) -> Result<i32, DowError> {
     for id in ids {
         done_single(id)?;
     }
+
+    // Auto-revoke claims for completed tasks
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    for id in ids {
+        let normalized = item_id::normalize_short(id);
+        let _ = claim::revoke_claims(&doc_root_path, Some(&normalized));
+    }
+
     Ok(0)
 }
 

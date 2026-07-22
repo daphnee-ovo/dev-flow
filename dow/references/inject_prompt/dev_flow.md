@@ -27,16 +27,14 @@
   4. Only then start writing code.
 - Claims expire after 5 minutes — re-claim if still working.
 - Only claim tasks/issues directly related to the current user request. Do NOT claim unrelated items — if the user's request doesn't map to an existing task/issue, create a new one instead of claiming an irrelevant one.
-- After completing the task, run `dow claim --revoke` to release.
-
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - **Completion sequence (MUST execute immediately, no delay):**
-  - Task done: `dow task done <ID>` runs `dow test <ID>` before changing the Task; then `dow claim --revoke`
-  - Issue fixed: `dow issue close <ID>` → `dow claim --revoke`
+  - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success)
+  - Issue fixed: `dow issue close <ID>` (auto-revokes claim on success)
   - Do NOT defer these commands. Execute them as soon as the work is verified complete — before moving to the next task, before responding to the user, before any other action.
 - After all tasks complete, auto-enter `/test`.
 

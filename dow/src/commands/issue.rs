@@ -21,7 +21,7 @@ use crate::cli::{
     IssueUpdateArgs,
 };
 use crate::commands::task::{expand_file_list, parse_inline_list};
-use crate::core::{doc_root, doc_validator, item_id};
+use crate::core::{claim, doc_root, doc_validator, item_id};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -955,6 +955,14 @@ fn close_multi(ids: &[String]) -> Result<i32, DowError> {
     for id in ids {
         close(id)?;
     }
+
+    // Auto-revoke claims for closed issues
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    for id in ids {
+        let normalized = item_id::normalize_short(id);
+        let _ = claim::revoke_claims(&doc_root_path, Some(&normalized));
+    }
+
     Ok(0)
 }
 

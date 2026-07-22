@@ -29,7 +29,7 @@ doc_root obtained via `dow status --field doc_root` (no need to manually detect 
 
 6. After fix complete, verify and close issue
 
-7. Release claim: `dow claim --revoke`
+7. `dow issue close` auto-revokes claim on success — no manual revoke needed
 
 ## Agent Dispatch (Isolation Template)
 

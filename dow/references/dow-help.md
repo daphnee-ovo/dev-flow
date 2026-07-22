@@ -17,8 +17,7 @@ DEV phase rules:
   - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min).
   - Use `dow task show <ID>` for context (done_when, files, refs) before coding.
   - Only do tasks listed in `dow task list` — no more, no less.
-  - `dow task done <ID>` automatically runs `dow test <ID>` before closing the Task. After all tasks, run `dow test`.
-  - After completing, run `dow claim --revoke` to release.
+  - `dow task done <ID>` auto-runs tests and auto-revokes claim on success. After all tasks, run `dow test`.
 
 .dev-doc management:
   Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands.
