@@ -133,8 +133,9 @@ dow changelog schema   # 获取 CHANGELOG 格式定义
 - Codex 不支持直接注册 slash command；`assemble.sh codex` 会把 `plugin/commands/<command>.md` 转换为 `skills/<command>/SKILL.md`，并使用 skill 语义的触发描述
 - Kiro 同样不支持 slash command；`assemble.sh kiro` 会转换为 `skills/dev-flow-<command>/SKILL.md`，agents 转为 JSON 格式
 - Kiro hooks 内嵌于 agent config（`targets/kiro/agents/dev-flow/config.json`），格式为 `{name, when: {type, toolTypes?}, then: {type: "runCommand", command}}`
+- Pi 使用 TypeScript extension（`targets/pi/extension.ts`），通过 `pi.on()` 事件 + `pi.exec("dow", [...])` 调用 dow CLI；部署到 `~/.pi/agent/extensions/dev-flow/`
 - 命令中要求独立 agent 时，Codex 使用 `spawn_agent`，Claude Code 使用 `Agent`，Kiro 使用 subagent
-- `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`，Kiro 优先写 `.kiro/steering/`
+- `/init` 更新项目级指令时，Codex 优先写 `AGENTS.md`，Claude Code 优先写 `CLAUDE.md`，Kiro 优先写 `.kiro/steering/`，Pi 优先写 `.pi/AGENTS.md`
 
 ## 开发辅助工具（devtools/）
 

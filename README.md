@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-The install scripts run `dow setup` automatically. For Cargo and Homebrew installs, `dow setup` registers dev-flow with your preferred agent (Claude Code, Codex, or Kiro). Project initialization happens later with `/init` inside the target project.
+The install scripts run `dow setup` automatically. For Cargo and Homebrew installs, `dow setup` registers dev-flow with your preferred agent (Claude Code, Codex, Kiro, or Pi). Project initialization happens later with `/init` inside the target project.
 
 ### First Run
 

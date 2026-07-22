@@ -8,15 +8,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$validAgents = @("claude", "codex", "kiro", "all")
+$validAgents = @("claude", "codex", "kiro", "pi", "all")
 
 if ([string]::IsNullOrWhiteSpace($Agent)) {
-    throw "用法: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|all>"
+    throw "用法: powershell -ExecutionPolicy Bypass -File devtools/assemble.ps1 <claude|codex|kiro|pi|all>"
 }
 
 $Agent = $Agent.ToLowerInvariant()
 if ($validAgents -notcontains $Agent) {
-    throw "未知 agent: $Agent（可选: claude, codex, kiro, all）"
+    throw "未知 agent: $Agent（可选: claude, codex, kiro, pi, all）"
 }
 
 $scriptDir = if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
@@ -209,7 +209,7 @@ function Assemble-Agent {
     New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
     $sharedAgentsDir = Join-Path $projectRoot "plugin\agents"
-    if ($AgentName -ne "kiro") {
+    if ($AgentName -ne "kiro" -and $AgentName -ne "pi") {
         Copy-DirectoryContents -Source $sharedAgentsDir -Destination (Join-Path $targetDir "agents")
     }
 
@@ -248,6 +248,11 @@ function Assemble-Agent {
                 $jsonFile = Join-Path $agentsDir ($_.BaseName + ".json")
                 Convert-AgentMarkdownToJson -MarkdownFile $_.FullName -JsonFile $jsonFile -HooksSource (Join-Path $projectRoot "targets\kiro\agents\dev-flow\config.json")
             }
+        }
+        "pi" {
+            # Pi uses TypeScript extension + skills (same format as Codex)
+            Copy-Item -LiteralPath (Join-Path $projectRoot "targets\pi\extension.ts") -Destination (Join-Path $targetDir "index.ts") -Force
+            Install-CommandSkills -TargetDir $targetDir -ManagedMarker $false
         }
         default {
             throw "未知 agent: $AgentName"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # 组装各 agent 插件目录到 dist/
-# 用法: bash devtools/assemble.sh <claude|codex|kiro|all>
+# 用法: bash devtools/assemble.sh <claude|codex|kiro|pi|all>
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -126,8 +126,8 @@ assemble_agent() {
   mkdir -p "$target_dir"
 
   # 复制共享插件内容
-  # kiro 的 agents 需要转为 JSON，不复制 md
-  if [ "$agent" != "kiro" ]; then
+  # kiro 的 agents 需要转为 JSON，不复制 md；pi 使用 prompts 目录
+  if [ "$agent" != "kiro" ] && [ "$agent" != "pi" ]; then
     cp -r "$PROJECT_ROOT/plugin/agents" "$target_dir/agents"
   fi
 
@@ -164,6 +164,12 @@ assemble_agent() {
       local aname="$(basename "$agent_md" .md)"
       convert_agent_md_to_json "$agent_md" "$target_dir/agents/$aname.json"
     done
+  elif [ "$agent" = "pi" ]; then
+    # Pi uses TypeScript extensions loaded from ~/.pi/agent/extensions/dev-flow/
+    # The extension entry point is index.ts
+    cp "$PROJECT_ROOT/targets/pi/extension.ts" "$target_dir/index.ts"
+    # Skills (same format as Codex: skills/<name>/SKILL.md)
+    install_command_skills "$target_dir" false
   else
     echo "[assemble] 未知 agent: $agent" >&2
     exit 1
@@ -187,13 +193,17 @@ case "$1" in
   kiro)
     assemble_agent kiro
     ;;
+  pi)
+    assemble_agent pi
+    ;;
   all)
     assemble_agent claude
     assemble_agent codex
     assemble_agent kiro
+    assemble_agent pi
     ;;
   *)
-    echo "[assemble] 未知参数: $1（可选: claude, codex, kiro, all）" >&2
+    echo "[assemble] 未知参数: $1（可选: claude, codex, kiro, pi, all）" >&2
     exit 1
     ;;
 esac
