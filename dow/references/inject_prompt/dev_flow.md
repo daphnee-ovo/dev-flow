@@ -36,7 +36,7 @@
   - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success)
   - Issue fixed: `dow issue close <ID>` (auto-revokes claim on success)
   - Do NOT defer these commands. Execute them as soon as the work is verified complete — before moving to the next task, before responding to the user, before any other action.
-- After all tasks complete, auto-enter `/test`.
+- After all tasks complete, ask whether the user wants to enter `/test`. Never enter TEST or launch the TEST agent without an explicit user request.
 
 ### Handling ad-hoc requests during DEV
 When receiving a new user message during DEV, assess its relationship to the current task before acting:
@@ -107,7 +107,7 @@ If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
 - TASK: main agent decomposes (low complexity) or spawns adversarial subagents (high complexity).
-- TEST: runs in independent agent with strict isolation. Each agent only receives minimal input for that phase.
+- TEST: runs in an independent agent with strict isolation, but only after the user explicitly invokes `/test` or asks to enter the TEST phase. 
 
 {CODEX DEV FLOW Discipline}
 

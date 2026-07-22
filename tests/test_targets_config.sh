@@ -56,10 +56,12 @@ for agent in "${OLD_AGENTS[@]}"; do
   fi
 done
 
-# Test assemble for codex
+# Test assemble for codex, kiro, and pi
 echo ""
-echo "--- Testing assemble for codex ---"
+echo "--- Testing assemble for codex, kiro, and pi ---"
 bash devtools/assemble.sh codex > /dev/null 2>&1
+bash devtools/assemble.sh kiro > /dev/null 2>&1
+bash devtools/assemble.sh pi > /dev/null 2>&1
 
 if [[ ! -d "dist/codex" ]]; then
   echo "❌ FAIL: dist/codex not created"
@@ -86,9 +88,9 @@ else
   echo "✓ No references to old agents in dist/"
 fi
 
-# SPEC-AC-006: Verify test-agent unchanged
+# Verify TEST agent remains packaged
 echo ""
-echo "--- Verifying test-agent unchanged ---"
+echo "--- Verifying test-agent packaging ---"
 if [[ -f "plugin/agents/test-agent.md" ]]; then
   echo "✓ plugin/agents/test-agent.md still exists"
 else
@@ -102,6 +104,24 @@ else
   echo "❌ FAIL: dist/claude/agents/test-agent.md missing"
   FAILED=1
 fi
+
+echo ""
+echo "--- Verifying explicit TEST agent gate in assembled outputs ---"
+TEST_SKILLS=(
+  "dist/claude/commands/test.md"
+  "dist/codex/skills/test/SKILL.md"
+  "dist/kiro/skills/test/SKILL.md"
+  "dist/pi/skills/test/SKILL.md"
+)
+
+for skill in "${TEST_SKILLS[@]}"; do
+  if grep -q "explicitly requests TEST phase" "$skill"; then
+    echo "✓ $skill requires explicit TEST entry"
+  else
+    echo "❌ FAIL: $skill is missing the explicit TEST entry gate"
+    FAILED=1
+  fi
+done
 
 if [[ $FAILED -eq 0 ]]; then
   echo ""

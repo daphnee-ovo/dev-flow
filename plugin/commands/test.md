@@ -1,12 +1,14 @@
 ---
-description: Run complete project or Task-scoped tests
+description: Enter TEST phase and run full-project tests only when the user explicitly requests TEST phase
 allowed-tools: Bash, Read
 ---
 
 # TEST — Test execution
 
-`/test` is the workflow entry. The `dow test` CLI is the only test executor and
-the only component that creates test-failure ISSUE files.
+`/test` is the explicit TEST-phase workflow entry. Do not invoke it from Task
+completion or a hook reminder; ask the user to enter TEST instead. The `dow test`
+CLI is the only test executor and the only component that creates test-failure
+ISSUE files.
 
 ## Commands
 

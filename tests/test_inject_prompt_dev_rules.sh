@@ -104,6 +104,34 @@ else
   FAILED=1
 fi
 
+echo ""
+echo "--- Checking explicit TEST phase gate ---"
+if grep -q 'auto-enter `/test`' "$INJECT_FILE"; then
+  echo "❌ FAIL: Inject prompt still auto-enters /test"
+  FAILED=1
+elif grep -q "Never enter TEST or launch the TEST agent without an explicit user request" "$INJECT_FILE"; then
+  echo "✓ TEST agent requires explicit user entry"
+else
+  echo "❌ FAIL: Missing explicit TEST agent gate"
+  FAILED=1
+fi
+
+if grep -q 'Task-scoped verification (`dow test TASK-ID` and `dow task done TASK-ID`) never launches the TEST agent' "$INJECT_FILE"; then
+  echo "✓ Task-scoped verification does not launch the TEST agent"
+else
+  echo "❌ FAIL: Missing Task-scoped TEST agent exclusion"
+  FAILED=1
+fi
+
+POST_WRITE_FILE="dow/src/hooks/post_write.rs"
+if grep -q "Ask the user whether to enter /test for full validation" "$POST_WRITE_FILE" && \
+   ! grep -q "Immediately run /test for full validation" "$POST_WRITE_FILE"; then
+  echo "✓ Task completion hook prompts instead of auto-entering TEST"
+else
+  echo "❌ FAIL: Task completion hook can still auto-enter TEST"
+  FAILED=1
+fi
+
 if [[ $FAILED -eq 0 ]]; then
   echo ""
   echo "✅ All inject prompt DEV rules tests PASSED"

@@ -152,7 +152,7 @@ fn check_task_completion(doc_root: &Path, status_file: &Path, codex_hook: bool) 
         );
         emit_message(
             codex_hook,
-            "→ Immediately run /test for full validation.".to_string(),
+            "→ Ask the user whether to enter /test for full validation. Do not enter TEST or launch the TEST agent without an explicit user request.".to_string(),
         );
     } else {
         // Check exec_mode
