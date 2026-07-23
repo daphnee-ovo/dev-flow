@@ -44,9 +44,14 @@ function showConfirmModal({ title, message, confirmLabel, danger, onConfirm }) {
 }
 
 // ─── Action API ───
-async function performAction(url, { successMsg } = {}) {
+async function performAction(url, { successMsg, body } = {}) {
   try {
-    const resp = await fetch(url, { method: 'POST' });
+    const opts = { method: 'POST' };
+    if (body) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify(body);
+    }
+    const resp = await fetch(url, opts);
     const data = await resp.json();
     if (!data.ok) {
       showToast(data.error || 'Action failed', 'error');
@@ -320,9 +325,9 @@ function renderTasks(data) {
         </div>
       </div>
       <div class="meta">
-        <span class="badge badge-${(t.priority||'P1').toLowerCase()}">${t.priority}</span>
-        <span class="badge" style="background:var(--color-surface-alt)">${t.complexity || 'S'}</span>
-        <span class="badge" style="background:var(--color-surface-alt)">${t.type || 'feat'}</span>
+        ${renderEditableBadge(t.id, 'task', 'priority', t.priority || 'P1', ['P0', 'P1', 'P2'])}
+        ${renderEditableBadge(t.id, 'task', 'complexity', t.complexity || 'S', ['S', 'M', 'L'])}
+        ${renderEditableBadge(t.id, 'task', 'type', t.type || 'feat', ['feat', 'fix', 'refactor', 'docs', 'perf', 'test', 'style'])}
       </div>
       ${t.refs ? `<div class="refs">refs: ${esc(t.refs)}</div>` : ''}
       ${(t.depends_on||[]).length ? `<div class="deps">← ${t.depends_on.map(esc).join(', ')}</div>` : ''}
@@ -421,7 +426,7 @@ function renderIssues(data) {
         </div>
       </div>
       <div class="meta">
-        <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
+        ${renderEditableBadge(i.id, 'issue', 'severity', i.severity || 'P1', ['P0', 'P1', 'P2'])}
       </div>
       ${i.description ? `<div class="docs-content" style="font-size:13px;margin-top:8px;color:var(--color-text);">${marked.parse(i.description)}</div>` : ''}
       ${renderIssueFiles(i)}
@@ -539,6 +544,15 @@ function bindActionButtons(container) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const { id, kind, action } = btn.dataset;
+
+      // Issue close: may need fix input
+      if (kind === 'issue' && action === 'close') {
+        // Find the issue data to check if fix field exists
+        const issue = appData && appData.issues.find(i => i.id === id);
+        showIssueCloseModal(id, issue);
+        return;
+      }
+
       const actionLabels = {
         done: { title: 'Mark as Done', msg: `Mark ${id} as done?`, label: 'Done', danger: false },
         reopen: { title: 'Reopen', msg: `Reopen ${id}? This will move it back to pending/open.`, label: 'Reopen', danger: true },
@@ -559,4 +573,105 @@ function bindActionButtons(container) {
       });
     });
   });
+
+  // Editable badge click
+  container.querySelectorAll('.editable-badge').forEach(badge => {
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const { id, kind, field } = badge.dataset;
+      const wrapper = badge.closest('.editable-badge-wrapper');
+      const picker = wrapper.querySelector('.badge-picker');
+      // Toggle picker
+      const wasOpen = picker.classList.contains('visible');
+      // Close all other pickers first
+      document.querySelectorAll('.badge-picker.visible').forEach(p => p.classList.remove('visible'));
+      if (!wasOpen) picker.classList.add('visible');
+    });
+  });
+
+  // Badge picker option click
+  container.querySelectorAll('.badge-picker-option').forEach(opt => {
+    opt.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const { id, kind, field, value } = opt.dataset;
+      const picker = opt.closest('.badge-picker');
+      picker.classList.remove('visible');
+      const url = `/api/${kind}/${encodeURIComponent(id)}/update`;
+      await performAction(url, {
+        successMsg: `${id} ${field} updated to ${value}`,
+        body: { field, value },
+      });
+    });
+  });
+
+  // Close pickers when clicking elsewhere
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.badge-picker.visible').forEach(p => p.classList.remove('visible'));
+  });
+}
+
+function showIssueCloseModal(id, issue) {
+  const existing = document.querySelector('.confirm-modal-backdrop');
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'confirm-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="confirm-modal">
+      <h4 class="confirm-modal-title">Close Issue</h4>
+      <p class="confirm-modal-message">Describe how ${esc(id)} was fixed:</p>
+      <textarea class="confirm-modal-input" placeholder="Fix description..." rows="3"></textarea>
+      <div class="confirm-modal-actions">
+        <button class="confirm-modal-btn cancel">Cancel</button>
+        <button class="confirm-modal-btn confirm">Close Issue</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  requestAnimationFrame(() => backdrop.classList.add('visible'));
+
+  const textarea = backdrop.querySelector('textarea');
+  textarea.focus();
+
+  const close = () => {
+    backdrop.classList.remove('visible');
+    setTimeout(() => backdrop.remove(), 200);
+  };
+
+  backdrop.querySelector('.cancel').addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('.confirm').addEventListener('click', async () => {
+    const fixText = textarea.value.trim();
+    if (!fixText) {
+      textarea.classList.add('input-error');
+      textarea.placeholder = 'Fix description is required';
+      return;
+    }
+    close();
+    const url = `/api/issue/${encodeURIComponent(id)}/close`;
+    await performAction(url, {
+      successMsg: `${id} closed`,
+      body: { fix: fixText },
+    });
+  });
+
+  const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+}
+
+function renderEditableBadge(id, kind, field, current, options) {
+  const badgeClass = field === 'priority' || field === 'severity'
+    ? `badge badge-${(current || 'P1').toLowerCase()} editable-badge`
+    : 'badge editable-badge';
+  const style = field === 'priority' || field === 'severity' ? '' : 'style="background:var(--color-surface-alt)"';
+
+  const optionsHtml = options.map(opt => {
+    const activeClass = opt === current ? 'active' : '';
+    return `<button class="badge-picker-option ${activeClass}" data-id="${id}" data-kind="${kind}" data-field="${field}" data-value="${opt}">${opt}</button>`;
+  }).join('');
+
+  return `<span class="editable-badge-wrapper">
+    <span class="${badgeClass}" ${style} data-id="${id}" data-kind="${kind}" data-field="${field}">${current} ▾</span>
+    <span class="badge-picker">${optionsHtml}</span>
+  </span>`;
 }
