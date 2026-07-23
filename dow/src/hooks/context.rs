@@ -15,6 +15,7 @@ use std::process::Command;
 
 #[derive(Serialize)]
 struct ContextOutput {
+    name: &'static str,
     branch: String,
     version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,11 +117,10 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
 
         if undone_items == 0 && open_issues == 0 {
             let reason =
-                "[dev-flow] DEV phase has no pending tasks or open issues, development not allowed. Please choose:\n\
-                → `dow task create` to create new task\n\
-                → `dow issue create` to create issue\n\
-                → /test to enter test phase\n\
-                → `dow status set --phase <PHASE>` to switch phase (PRD/SPEC/TASK/TEST/ITERATE)\n\
+                "[dev-flow BLOCKED] You are in DEV phase, but there are no pending tasks or open issues. \
+                Writing code or modifying source files is prohibited. \
+                You may still edit documentation (docs/) or continue discussion (create auxiliary files under tmp/).\n\
+                To proceed: create a task/issue, or switch phase.\n\
                 IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.";
             if human {
                 println!("{}", reason);
@@ -174,6 +174,7 @@ pub fn run(human: bool, codex_hook: bool, kiro_hook: bool) -> Result<i32, DowErr
     };
 
     let output_data = ContextOutput {
+        name: "dev-flow status",
         branch,
         version,
         version_tag: version_tag_opt,
@@ -641,7 +642,7 @@ fn format_human_context(data: &ContextOutput) -> String {
     };
     let mut lines = vec![
         format!(
-            "[dev-flow] branch:{} | phase:{} | mode:{} | exec:{} | {}",
+            "[dev-flow status] branch:{} | phase:{} | mode:{} | exec:{} | {}",
             data.branch, data.phase, data.mode, data.exec_mode, version_str
         ),
         format!(
