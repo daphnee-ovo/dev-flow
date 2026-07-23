@@ -4,7 +4,7 @@ disable-model-invocation: true
 allowed-tools: Agent, Bash, Read, Write, Edit
 ---
 
-# FIX — User-triggered automatic issue repair
+# FIX — **User-triggered** automatic issue repair
 
 Only run this workflow when the user explicitly invokes `/fix`. Do not invoke
 it automatically from hooks, `/test`, `/check`, task completion, or issue
