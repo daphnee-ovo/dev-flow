@@ -20,14 +20,14 @@ Includes all responsibilities of original `/done` (delivery check) and original 
 
 ## Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--topic` | Archive topic (for archive directory naming) | Required |
-| `--type` | commit type (feat/fix/refactor/docs/perf/test/style/workflow) | Required |
-| `--files` | Additional source code files/directories to commit (space-separated). **No need to pass .dev-doc/ files** — they're auto-managed by iterate (archive delete + `git add -u`) | Optional |
-| `-v`/`--bump` | Version increment type: major/minor/patch | patch |
-| `--tag` | Force create git tag for patch bump (minor/major always create tag) | - |
-| `--confirm` | Confirmation token (`ITR-xxxxxx`, from preview output) | - |
+| Parameter     | Description                                                                                                                                                                 | Default  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `--topic`     | Archive topic (for archive directory naming)                                                                                                                                | Required |
+| `--type`      | commit type (feat/fix/refactor/docs/perf/test/style/workflow)                                                                                                               | Required |
+| `--files`     | Additional source code files/directories to commit (space-separated). **No need to pass .dev-doc/ files** — they're auto-managed by iterate (archive delete + `git add -u`) | Optional |
+| `-v`/`--bump` | Version increment type: major/minor/patch                                                                                                                                   | patch    |
+| `--tag`       | Force create git tag for patch bump                                                                                                                                         | -        |
+| `--confirm`   | Confirmation token (`ITR-xxxxxx`, from preview output)                                                                                                                      | -        |
 
 ## Execution Flow
 
@@ -67,17 +67,17 @@ run: npm run build
 
 Supports two step types:
 
-| Step | Description |
-|------|-------------|
+| Step                   | Description                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
 | `sync-version: <path>` | Sync explicitly declared Cargo, npm, uv/pyproject manifest version to this delivery version |
-| `run: <command>` | Execute command in project root; exit code non-0 blocks entire iterate |
+| `run: <command>`       | Execute command in project root; exit code non-0 blocks entire iterate                      |
 
 preIterate always executes before `git commit`. File changes produced by steps go into same iterate commit. `dow` doesn't auto-scan or guess which manifests, lockfiles, artifacts need syncing; project-specific syncing must be explicitly written in `preIterate.ci`.
 
 ## Commit Message Format
 
 ```
-<type>: Release v<version> <topic>
+<type>: v<version> <topic>
 
 - <CHANGELOG entry 1>
 - <CHANGELOG entry 2>
@@ -94,7 +94,7 @@ The agent MUST evaluate bump level by comparing delivered scope against project 
    - If delivered work **fulfills or substantially completes** a `goals_major` → recommend `major`
    - If delivered work is incremental progress toward goals (partial, not a milestone) → `patch`
 3. Also consider overall change magnitude:
-   - Patch: ≤5 tasks, no new user-facing features, docs/fix/style only
+   - Patch: ≤20 tasks, no new user-facing features, docs/fix/style only
    - Minor: new features, behavioral changes, significant improvements
    - Major: breaking changes, architecture refactor, dependency overhaul
 4. Present the recommendation with reasoning to the user for confirmation
