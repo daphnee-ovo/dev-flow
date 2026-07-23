@@ -9,6 +9,7 @@ dev-flow provides identical workflow experience across all supported agents. The
 | Claude Code | Supported | `dow setup --agent claude` |
 | Codex CLI / Codex App | Supported | `dow setup --agent codex` |
 | Kiro | Supported | `dow setup --agent kiro` |
+| Pi | Testing | `dow setup --agent pi` |
 
 > Codex App tends to follow command instructions even more closely than Codex CLI.
 
@@ -25,12 +26,12 @@ flat file fields and `--files-*` flags are not part of the shared contract.
 
 These are not limitations — just how each agent platform surfaces the same capabilities:
 
-| Aspect | Claude Code | Codex | Kiro |
-|--------|-------------|-------|------|
-| Command interface | Slash commands (`/init`, `/spec`...) | Skill commands | Skill commands |
-| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent |
-| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
-| Hook config | `targets/claude/hooks.json` | `targets/codex/hooks.json` | `targets/kiro/agents/dev-flow/config.json` |
+| Aspect | Claude Code | Codex | Kiro | Pi |
+|--------|-------------|-------|------|----|
+| Command interface | Slash commands (`/init`, `/spec`...) | Skill commands | Skill commands | Skill commands |
+| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent | `Agent` tool |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` | `AGENTS.md` |
+| Hook config | `targets/claude/hooks.json` | `targets/codex/hooks.json` | `targets/kiro/agents/dev-flow/config.json` | Pi Extension |
 
 Assembly (`devtools/assemble.sh <agent>`) transforms shared `plugin/commands/*.md` into each agent's native format automatically.
 

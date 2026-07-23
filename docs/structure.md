@@ -20,11 +20,13 @@ dev-flow/
 ├── targets/              # agent 差异化配置
 │   ├── claude/           # Claude Code 专用（plugin.json、hooks.json）
 │   ├── codex/            # Codex 专用
-│   └── kiro/             # Kiro 专用
+│   ├── kiro/             # Kiro 专用
+│   └── pi/               # Pi 专用
 ├── dist/                 # 组装产物（assemble.sh 输出）
 │   ├── claude/
 │   ├── codex/
-│   └── kiro/
+│   ├── kiro/
+│   └── pi/
 ├── devtools/             # 开发辅助脚本（不随插件分发）
 ├── npm/                  # npm 包装（平台二进制分发）
 ├── docs/                 # 持久化项目文档

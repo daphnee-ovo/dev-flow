@@ -82,16 +82,17 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 | **Claude Code** | Supported | `dow setup --agent claude` |
 | **Codex** | Supported | `dow setup --agent codex` |
 | **Kiro-Cli** | Supported | `dow setup --agent kiro` |
+| **Pi** | Testing | `dow setup --agent pi` |
 
 ### Agent Compatibility
 
-All three agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
+All four agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
 
-| Aspect | Claude Code | Codex CLI / App | Kiro |
-|--------|-------------|-----------------|------|
-| Command interface | Slash commands | Skill commands | Skill commands |
-| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent |
-| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
+| Aspect | Claude Code | Codex CLI / App | Kiro | Pi |
+|--------|-------------|-----------------|------|----|
+| Command interface | Slash commands | Skill commands | Skill commands | Skill commands |
+| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent | `Agent` tool |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` | `AGENTS.md` |
 
 #### Kiro: Enabling Hooks
 
