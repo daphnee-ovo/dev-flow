@@ -143,7 +143,7 @@ fn detect_tty() -> Option<String> {
 
 /// Add claim (merge into existing list, update timestamp if already exists)
 pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
-    add_claims_with_agent(doc_root, ids, detect_agent_id())
+    add_claims_with_options(doc_root, ids, detect_agent_id(), None)
 }
 
 pub fn add_claims_with_agent(
@@ -151,8 +151,21 @@ pub fn add_claims_with_agent(
     ids: &[String],
     agent_id: Option<String>,
 ) -> std::io::Result<()> {
+    add_claims_with_options(doc_root, ids, agent_id, None)
+}
+
+pub fn add_claims_with_options(
+    doc_root: &Path,
+    ids: &[String],
+    agent_id: Option<String>,
+    ttl_override: Option<u64>,
+) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);
     let ts = now_ts();
+
+    if let Some(ttl) = ttl_override {
+        lock.ttl = ttl;
+    }
 
     for id in ids {
         if let Some(existing) = lock.claims.iter_mut().find(|c| &c.id == id) {

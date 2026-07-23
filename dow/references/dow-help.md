@@ -14,7 +14,7 @@ Modes:
 
 DEV phase rules:
   - When hook output contains [BLOCKED], stop all dev operations.
-  - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min).
+  - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min; use `--timeout <secs>` for longer tasks, max 600).
   - Use `dow task show <ID>` for context (done_when, files, refs) before coding.
   - Only do tasks listed in `dow task list` — no more, no less.
   - `dow task done <ID>` auto-runs tests and auto-revokes claim on success. After all tasks, run `dow test`.

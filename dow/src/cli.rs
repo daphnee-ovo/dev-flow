@@ -555,6 +555,10 @@ pub struct ClaimArgs {
     /// Release claim (release all if no ID provided)
     #[arg(long)]
     pub revoke: bool,
+
+    /// Claim duration in seconds (max 600, default 300)
+    #[arg(long)]
+    pub timeout: Option<u64>,
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────

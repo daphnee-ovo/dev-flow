@@ -47,6 +47,24 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
             .map(|id| item_id::normalize_short(id))
             .collect();
 
+        // Validate --timeout
+        let ttl_override = match args.timeout {
+            Some(t) if t > 600 => {
+                return Err(DowError::new(
+                    "--timeout must be <= 600 seconds".to_string(),
+                    1,
+                ));
+            }
+            Some(0) => {
+                return Err(DowError::new(
+                    "--timeout must be > 0".to_string(),
+                    1,
+                ));
+            }
+            Some(t) => Some(t),
+            None => None,
+        };
+
         // Validate whether each ID corresponds to an incomplete task/issue
         let (invalid, duplicates) = validate_claim_ids(&doc_root_path, &normalized);
         if !duplicates.is_empty() {
@@ -71,7 +89,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         // Check issue files requirement
         check_issue_files(&doc_root_path, &normalized)?;
 
-        claim::add_claims(&doc_root_path, &normalized)
+        claim::add_claims_with_options(&doc_root_path, &normalized, claim::detect_agent_id(), ttl_override)
             .map_err(|e| DowError::new(format!("Failed to add claim: {}", e), 1))?;
 
         // Silent on success — operator knows what they claimed

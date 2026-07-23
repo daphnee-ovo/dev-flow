@@ -25,7 +25,7 @@
   2. Create a task (`dow task create`) or issue (`dow issue create`) that matches the request.
   3. Run `dow claim <TASK-ID or ISSUE-ID>` to declare your work target.
   4. Only then start writing code.
-- Claims expire after 5 minutes — re-claim if still working.
+- Claims expire after 5 minutes (default) — re-claim if still working. Use `--timeout <secs>` (max 600) for longer tasks.
 - `/fix` is user-triggered. Do not start it automatically from hooks, tests, checks, task completion, or issue creation.
 - Only claim tasks/issues directly related to the current user request. Do NOT claim unrelated items — if the user's request doesn't map to an existing task/issue, create a new one instead of claiming an irrelevant one.
 ### DEV phase rules
