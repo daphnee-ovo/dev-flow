@@ -4,6 +4,77 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ─── Confirmation Modal ───
+function showConfirmModal({ title, message, confirmLabel, danger, onConfirm }) {
+  const existing = document.querySelector('.confirm-modal-backdrop');
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'confirm-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="confirm-modal">
+      <h4 class="confirm-modal-title">${esc(title)}</h4>
+      <p class="confirm-modal-message">${esc(message)}</p>
+      <div class="confirm-modal-actions">
+        <button class="confirm-modal-btn cancel">Cancel</button>
+        <button class="confirm-modal-btn confirm ${danger ? 'danger' : ''}">${esc(confirmLabel)}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  // Animate in
+  requestAnimationFrame(() => backdrop.classList.add('visible'));
+
+  const close = () => {
+    backdrop.classList.remove('visible');
+    setTimeout(() => backdrop.remove(), 200);
+  };
+
+  backdrop.querySelector('.cancel').addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('.confirm').addEventListener('click', () => {
+    close();
+    onConfirm();
+  });
+
+  // Escape key
+  const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+}
+
+// ─── Action API ───
+async function performAction(url, { successMsg } = {}) {
+  try {
+    const resp = await fetch(url, { method: 'POST' });
+    const data = await resp.json();
+    if (!data.ok) {
+      showToast(data.error || 'Action failed', 'error');
+      return false;
+    }
+    if (successMsg) showToast(successMsg, 'success');
+    return true;
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'error');
+    return false;
+  }
+}
+
+function showToast(message, type) {
+  const existing = document.querySelectorAll('.toast');
+  existing.forEach(t => t.remove());
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 200);
+  }, 3000);
+}
+
 // ─── Home View ───
 let homeInitialized = false;
 let selectedItemId = null;
@@ -239,7 +310,15 @@ function renderTasks(data) {
   const sortedTasks = [...tasks].sort(sortById);
   const detailHtml = sortedTasks.map(t => `
     <div class="detail-item ${t.status === 'done' ? 'status-done' : ''}" id="detail-${t.id}">
-      <h4><span class="task-id">${t.id}</span>${esc(t.title)}</h4>
+      <div class="detail-header">
+        <h4><span class="task-id">${t.id}</span>${esc(t.title)}</h4>
+        <div class="detail-actions">
+          ${t.status === 'done'
+            ? `<button class="action-btn action-reopen" data-id="${t.id}" data-kind="task" data-action="reopen">Reopen</button>`
+            : `<button class="action-btn action-done" data-id="${t.id}" data-kind="task" data-action="done">Done</button>`
+          }
+        </div>
+      </div>
       <div class="meta">
         <span class="badge badge-${(t.priority||'P1').toLowerCase()}">${t.priority}</span>
         <span class="badge" style="background:var(--color-surface-alt)">${t.complexity || 'S'}</span>
@@ -277,6 +356,7 @@ function renderTasks(data) {
   });
 
   bindKanbanToggles(el);
+  bindActionButtons(el);
 }
 
 // ─── Issues View ───
@@ -331,7 +411,15 @@ function renderIssues(data) {
   const sortedIssues = [...issues].sort(sortById);
   const detailHtml = sortedIssues.map(i => `
     <div class="detail-item ${i.status === 'closed' ? 'status-done' : ''}" id="detail-${i.id}">
-      <h4><span class="task-id">${i.id}</span>${esc(i.title)}</h4>
+      <div class="detail-header">
+        <h4><span class="task-id">${i.id}</span>${esc(i.title)}</h4>
+        <div class="detail-actions">
+          ${i.status === 'closed'
+            ? `<button class="action-btn action-reopen" data-id="${i.id}" data-kind="issue" data-action="reopen">Reopen</button>`
+            : `<button class="action-btn action-close" data-id="${i.id}" data-kind="issue" data-action="close">Close</button>`
+          }
+        </div>
+      </div>
       <div class="meta">
         <span class="badge badge-${(i.severity||'P1').toLowerCase()}">${i.severity}</span>
       </div>
@@ -365,6 +453,7 @@ function renderIssues(data) {
   });
 
   bindKanbanToggles(el);
+  bindActionButtons(el);
 }
 
 // ─── Helpers ───
@@ -441,6 +530,33 @@ function bindKanbanToggles(container) {
       const isExpanded = col.classList.toggle('kanban-col-expanded');
       const count = col.querySelectorAll('.kanban-card-hidden').length;
       btn.textContent = isExpanded ? 'Show less ▴' : `Show ${count} more ▾`;
+    });
+  });
+}
+
+function bindActionButtons(container) {
+  container.querySelectorAll('.action-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const { id, kind, action } = btn.dataset;
+      const actionLabels = {
+        done: { title: 'Mark as Done', msg: `Mark ${id} as done?`, label: 'Done', danger: false },
+        reopen: { title: 'Reopen', msg: `Reopen ${id}? This will move it back to pending/open.`, label: 'Reopen', danger: true },
+        close: { title: 'Close Issue', msg: `Close ${id}?`, label: 'Close', danger: false },
+      };
+      const cfg = actionLabels[action];
+      if (!cfg) return;
+
+      showConfirmModal({
+        title: cfg.title,
+        message: cfg.msg,
+        confirmLabel: cfg.label,
+        danger: cfg.danger,
+        onConfirm: async () => {
+          const url = `/api/${kind}/${encodeURIComponent(id)}/${action}`;
+          await performAction(url, { successMsg: `${id} ${action} successful` });
+        },
+      });
     });
   });
 }
