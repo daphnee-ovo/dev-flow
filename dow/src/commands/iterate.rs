@@ -1055,7 +1055,7 @@ fn format_commit_message(
     commit_type: &str,
     changelog: &[String],
 ) -> String {
-    let mut msg = format!("{}: Release v{} {}", commit_type, version, topic);
+    let mut msg = format!("{}: v{} {}", commit_type, version, topic);
     if !changelog.is_empty() {
         msg.push_str("\n\n");
         for entry in changelog {

@@ -201,7 +201,7 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
             if is_dangerous_system_path(&path) {
                 return deny(
                     &format!(
-                        "[dev-flow] BLOCKED: writing to system-sensitive path is prohibited: {}",
+                        "[dev-flow BLOCKED] writing to system-sensitive path is prohibited: {}",
                         raw_target
                     ),
                     kiro_hook,
@@ -219,7 +219,7 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
         // 2. VERSION protection
         if path.is_exact(&ctx.version_file) {
             return deny(
-                "[dev-flow] BLOCKED: direct modification of VERSION file is prohibited. Use `dow version --set X.Y.Z` or `dow version --bump minor`.",
+                "[dev-flow BLOCKED] direct modification of VERSION file is prohibited. Use `dow version --set X.Y.Z` or `dow version --bump minor`.",
                 kiro_hook,
             );
         }
@@ -227,7 +227,7 @@ pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
         // 3. STATUS.yaml protection
         if path.file_name() == Some("STATUS.yaml") && path.is_under(&ctx.devdoc_dir) {
             return deny(
-                "[dev-flow] BLOCKED: direct creation or modification of STATUS.yaml is prohibited. Use `dow status set --phase/--mode/--name` or `dow init`.",
+                "[dev-flow BLOCKED] direct creation or modification of STATUS.yaml is prohibited. Use `dow status set --phase/--mode/--name` or `dow init`.",
                 kiro_hook,
             );
         }
@@ -306,7 +306,7 @@ fn check_cross_branch(path: &GuardPath, ctx: &GuardContext) -> Option<String> {
         let branch_path = ctx.devdoc_dir.join(&candidate);
         if branch_path.join("STATUS.yaml").exists() {
             return Some(format!(
-                "[dev-flow] BLOCKED: current branch is `{}`, writing to another branch's doc directory is prohibited: {}\n→ Please confirm you have switched to the correct branch, or use `git checkout {}` to switch.",
+                "[dev-flow BLOCKED] current branch is `{}`, writing to another branch's doc directory is prohibited: {}\n→ Please confirm you have switched to the correct branch, or use `git checkout {}` to switch.",
                 current, path.display(), candidate
             ));
         }
@@ -347,7 +347,7 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
         // TEST phase: deny all source code writes
         if phase == "TEST" {
             return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] BLOCKED: TEST phase only allows test execution, not source code modification. If a fix is needed:\n\
+                "[dev-flow BLOCKED] TEST phase only allows test execution, not source code modification. If a fix is needed:\n\
                 → `dow status set --phase DEV` to switch to DEV phase\n\
                 → `dow task create` or `dow issue create` to track the work\n\
                 Attempted write: {}",
@@ -374,13 +374,13 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                 let expired = crate::core::claim::has_expired_claims(&doc_root);
                 let msg = if expired {
                     format!(
-                        "[dev-flow] BLOCKED: claim expired, writing to {} not allowed. Please:\n\
+                        "[dev-flow BLOCKED] claim expired, writing to {} not allowed. Please:\n\
                         → `dow claim <TASK_ID>` to re-claim your task",
                         path.display()
                     )
                 } else {
                     format!(
-                        "[dev-flow] BLOCKED: DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
+                        "[dev-flow BLOCKED] DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
                         → `dow claim <TASK_ID>` to claim a task to work on",
                         path.display()
                     )
@@ -388,11 +388,10 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                 return Some(PhaseDecision::Deny(msg));
             } else {
                 return Some(PhaseDecision::Deny(format!(
-                    "[dev-flow] BLOCKED: DEV phase has no pending tasks or open issues, writing to {} not allowed. Please choose:\n\
-                    → `dow task create` to create new task\n\
-                    → `dow issue create` to create issue\n\
-                    → /test to enter test phase\n\
-                    → `dow status set --phase <PHASE>` to switch phase (PRD/SPEC/TASK/TEST/ITERATE)\n\
+                    "[dev-flow BLOCKED] You are in DEV phase, but there are no pending tasks or open issues. \
+                    Writing code or modifying source files is prohibited (attempted: {}). \
+                    You may still edit documentation (docs/) or continue discussion (create auxiliary files under tmp/).\n\
+                    To proceed: create a task/issue, or switch phase.\n\
                     IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.",
                     path.display()
                 )));
@@ -431,7 +430,7 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
     if path.is_under(&ctx.docs_dir) {
         if is_code_file(path) {
             return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] BLOCKED: current phase is {}, writing code files under docs/ is not allowed: {}. Code files should be created in DEV phase.",
+                "[dev-flow BLOCKED] current phase is {}, writing code files under docs/ is not allowed: {}. Code files should be created in DEV phase.",
                 phase, path.display()
             )));
         }
@@ -447,7 +446,7 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             .unwrap_or(false)
         {
             return Some(PhaseDecision::Deny(format!(
-                "[dev-flow] BLOCKED: STATUS.yaml cannot be manually edited, please use `dow status` command."
+                "[dev-flow BLOCKED] STATUS.yaml cannot be manually edited, please use `dow status` command."
             )));
         }
         if path.exists() || path.is_dir() {
@@ -457,14 +456,14 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
             return None;
         }
         return Some(PhaseDecision::Deny(format!(
-            "[dev-flow] BLOCKED: creating non-workflow files under .dev-doc/ is not allowed: {}. Valid files: PRD.md, SPEC.md, TEST.md, BRAINSTORM.md, CHANGELOG.md, task/task_*.md, issue/issue_*.md, STATUS.yaml",
+            "[dev-flow BLOCKED] creating non-workflow files under .dev-doc/ is not allowed: {}. Valid files: PRD.md, SPEC.md, TEST.md, BRAINSTORM.md, CHANGELOG.md, task/task_*.md, issue/issue_*.md, STATUS.yaml",
             path.display()
         )));
     }
 
     // Everything else → deny
     Some(PhaseDecision::Deny(format!(
-        "[dev-flow] BLOCKED: current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase:\n\
+        "[dev-flow BLOCKED] current phase is {}, only .dev-doc/, docs/, and tmp/ writes are allowed. To write to {} please complete planning and enter DEV phase:\n\
         → `dow task create` to create task and enter DEV\n\
         → `dow issue create` to create issue and enter DEV\n\
         → `dow status set --phase DEV` to switch to DEV phase directly\n\
@@ -493,7 +492,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         if rel_str == *filename {
             if !path.exists() {
                 return Some(format!(
-                    "[dev-flow] BLOCKED: manual creation of {} is prohibited, please use `dow {} create`",
+                    "[dev-flow BLOCKED] manual creation of {} is prohibited, please use `dow {} create`",
                     path.display(),
                     cmd
                 ));
@@ -506,7 +505,7 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
     // Structural-type files: always block (create AND edit)
     if rel_str == "CHANGELOG.md" {
         return Some(format!(
-            "[dev-flow] BLOCKED: direct modification of CHANGELOG.md is prohibited. Use `dow changelog add --text \"...\"`"
+            "[dev-flow BLOCKED] direct modification of CHANGELOG.md is prohibited. Use `dow changelog add --text \"...\"`"
         ));
     }
 
@@ -516,11 +515,11 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         if name.starts_with("task_") || name.starts_with("done_task_") {
             if !path.exists() {
                 return Some(format!(
-                    "[dev-flow] BLOCKED: manual creation of task files is prohibited, please use `dow task create`"
+                    "[dev-flow BLOCKED] manual creation of task files is prohibited, please use `dow task create`"
                 ));
             }
             return Some(format!(
-                "[dev-flow] BLOCKED: direct modification of task files is prohibited. Use `dow task done <ID>` or `dow task reopen <ID>`"
+                "[dev-flow BLOCKED] direct modification of task files is prohibited. Use `dow task done <ID>` or `dow task reopen <ID>`"
             ));
         }
     }
@@ -531,11 +530,11 @@ fn check_devdoc_direct_create(path: &GuardPath, ctx: &GuardContext) -> Option<St
         if name.starts_with("issue_") || name.starts_with("closed_issue_") {
             if !path.exists() {
                 return Some(format!(
-                    "[dev-flow] BLOCKED: manual creation of issue files is prohibited, please use `dow issue create`"
+                    "[dev-flow BLOCKED] manual creation of issue files is prohibited, please use `dow issue create`"
                 ));
             }
             return Some(format!(
-                "[dev-flow] BLOCKED: direct modification of issue files is prohibited. Use `dow issue close <ID>` or `dow issue reopen <ID>`"
+                "[dev-flow BLOCKED] direct modification of issue files is prohibited. Use `dow issue close <ID>` or `dow issue reopen <ID>`"
             ));
         }
     }
@@ -555,7 +554,7 @@ fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
     let current_agent = crate::core::claim::detect_agent_id()?;
     if claim_agent != current_agent {
         Some(format!(
-            "[dev-flow] WARNING: another agent ({}) holds the claim. You may be modifying files owned by a different session.",
+            "[dev-flow WARNING] another agent ({}) holds the claim. You may be modifying files owned by a different session.",
             claim_agent
         ))
     } else {
@@ -620,7 +619,7 @@ fn check_claim_file_scope(
         None
     } else {
         Some(format!(
-            "[dev-flow] WARNING: writing to {} which is outside claimed task's declared files.\n\
+            "[dev-flow WARNING] writing to {} which is outside claimed task's declared files.\n\
             → Consider `dow task update <ID> --file '{{\"modify\":[\"{}\"]}}'` to declare this file.",
             path.display(),
             rel_str

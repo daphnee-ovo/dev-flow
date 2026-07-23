@@ -33,6 +33,7 @@
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
 - Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
+- Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --file ...`).
 - **Completion sequence (MUST execute immediately, no delay):**
   - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success)
   - Issue fixed: `dow issue close <ID>` (auto-revokes claim on success)
