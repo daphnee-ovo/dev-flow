@@ -1,12 +1,13 @@
 // dow/src/hooks/
-// ├── save_changelog.rs  -- dow hooks save-changelog (append record at session end)
-//    topic inference: open issue → open task → new commit (deduplicated)
+// ├── session_stop.rs  -- dow hooks session-stop (unified session end handler)
+//    1. Revoke claims held by current agent
+//    2. Append CHANGELOG record (topic inference: open issue → open task → new commit)
 //
 // Related Docs:
-// - [CLAUDE.md - Hooks](../../../CLAUDE.md#hooks)
+// - [Claim Core](../core/claim.rs)
 // - [CHANGELOG specification](../../../references/.dev-doc/CHANGELOG.md)
 
-use crate::core::doc_root;
+use crate::core::{claim, doc_root};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -25,16 +26,40 @@ pub fn run(codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
     }
 
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
-    let changelog = doc_root_path.join("CHANGELOG.md");
+
+    // Phase 1: Revoke claims held by current agent
+    revoke_agent_claims(&doc_root_path, codex_hook);
+
+    // Phase 2: Save changelog
+    save_changelog(&doc_root_path, codex_hook)?;
+
+    print_codex_stop(codex_hook);
+    Ok(0)
+}
+
+/// Revoke all claims belonging to the current agent.
+/// If agent_id is undetectable, revoke all claims as fallback.
+fn revoke_agent_claims(doc_root: &Path, codex_hook: bool) {
+    let agent_id = claim::detect_agent_id();
+    let revoked = claim::revoke_by_agent(doc_root, agent_id.as_deref()).unwrap_or_default();
+
+    if !revoked.is_empty() && !codex_hook {
+        println!(
+            "[dev-flow] Claims revoked on session stop: {}",
+            revoked.join(", ")
+        );
+    }
+}
+
+/// Append a CHANGELOG entry based on inferred topic.
+fn save_changelog(doc_root: &Path, codex_hook: bool) -> Result<(), DowError> {
+    let changelog = doc_root.join("CHANGELOG.md");
     let date = Local::now().format("%Y-%m-%d").to_string();
     let time = Local::now().format("%H:%M").to_string();
 
-    let topic = match infer_topic(&doc_root_path, &changelog) {
+    let topic = match infer_topic(doc_root, &changelog) {
         Some(t) => t,
-        None => {
-            print_codex_stop(codex_hook);
-            return Ok(0);
-        }
+        None => return Ok(()),
     };
 
     if !changelog.exists() {
@@ -46,8 +71,7 @@ pub fn run(codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
 
     // Deduplicate: skip if topic already exists in CHANGELOG
     if content.contains(&topic) {
-        print_codex_stop(codex_hook);
-        return Ok(0);
+        return Ok(());
     }
 
     let date_header = format!("## {}", date);
@@ -62,12 +86,10 @@ pub fn run(codex_hook: bool, _kiro_hook: bool) -> Result<i32, DowError> {
     content.push_str(&format!("{}\n", entry));
     fs::write(&changelog, content).map_err(|e| DowError::new(e.to_string(), 1))?;
 
-    if codex_hook {
-        print_codex_stop(true);
-    } else {
+    if !codex_hook {
         println!("[dev-flow] CHANGELOG updated: {} {}", time, topic);
     }
-    Ok(0)
+    Ok(())
 }
 
 fn print_codex_stop(codex_hook: bool) {
@@ -132,7 +154,7 @@ fn get_task_topic(doc_root: &Path) -> Option<(String, String)> {
         return None;
     }
 
-    let mut best: Option<(u8, String, String)> = None; // (rank, type, title)
+    let mut best: Option<(u8, String, String)> = None;
 
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {

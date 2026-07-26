@@ -7,7 +7,7 @@
 //     ├── input event         → dow hooks context -H (context injection)
 //     ├── tool_call event     → dow hooks guard (write guardian)
 //     ├── tool_result event   → dow hooks post-write / post-bash
-//     └── session_shutdown    → dow hooks save-changelog
+//     └── session_shutdown    → dow hooks session-stop (revoke claims + save changelog)
 //
 // Related Docs:
 // - [CLAUDE.md - Hooks](../../CLAUDE.md#hooks)
@@ -85,10 +85,10 @@ export default function devFlowExtension(pi: ExtensionAPI) {
 		return undefined;
 	});
 
-	// ─── Save changelog at session end (equivalent to Stop) ──────────────────────
+	// ─── Unified session end handler (revoke claims + save changelog) ────────────
 
 	pi.on("session_shutdown", async (_event, _ctx) => {
-		await pi.exec("dow", ["hooks", "save-changelog"]);
+		await pi.exec("dow", ["hooks", "session-stop"]);
 	});
 }
 

@@ -129,9 +129,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             ));
         }
     } else {
-        // Trigger save_changelog before preview to ensure current session activity is recorded
-        if let Err(e) = crate::hooks::save_changelog::run(false, false) {
-            eprintln!("[dev-flow] save_changelog warning: {}", e.message);
+        // Trigger session_stop before preview to ensure current session activity is recorded
+        if let Err(e) = crate::hooks::session_stop::run(false, false) {
+            eprintln!("[dev-flow] session_stop warning: {}", e.message);
         }
 
         // Generate token (preview mode)

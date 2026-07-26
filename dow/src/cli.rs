@@ -657,6 +657,6 @@ pub enum HooksCommands {
         command: Option<String>,
     },
 
-    /// Save CHANGELOG at session end
-    SaveChangelog,
+    /// Unified session end handler (revoke claims + save changelog)
+    SessionStop,
 }
