@@ -1124,7 +1124,11 @@ fn print_human_preview(result: &IterateOutput) {
         println!();
     }
     println!("Will execute:");
-    println!("  - git commit + tag: v{}", result.released_version);
+    if result.tag == "no-tag" {
+        println!("  - git commit: v{}", result.released_version);
+    } else {
+        println!("  - git commit + tag: v{}", result.released_version);
+    }
     if !result.pre_iterate.is_empty() {
         println!("  - preIterate: execute before git commit");
     }
