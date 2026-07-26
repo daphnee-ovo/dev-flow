@@ -68,6 +68,7 @@ pub fn agent_plugin_dir(agent: &str) -> Option<PathBuf> {
         "claude" => Some(home.join(".claude").join("plugins").join("dev-flow")),
         "codex" => Some(home.join(".codex").join("plugins").join("dev-flow")),
         "kiro" => Some(home.join(".kiro").join("skills")),
+        "pi" => Some(home.join(".pi").join("agent").join("extensions").join("dev-flow")),
         _ => None,
     }
 }
@@ -122,6 +123,7 @@ pub fn agent_global_instructions(agent: &str) -> Option<PathBuf> {
         "claude" => Some(home.join(".claude").join("CLAUDE.md")),
         "codex" => Some(home.join(".codex").join("AGENTS.md")),
         "kiro" => Some(home.join(".kiro").join("steering").join("steering.md")),
+        "pi" => Some(home.join(".pi").join("agent").join("AGENTS.md")),
         _ => None,
     }
 }
@@ -162,6 +164,7 @@ mod tests {
     fn test_agent_plugin_dir() {
         assert!(agent_plugin_dir("claude").is_some());
         assert!(agent_plugin_dir("codex").is_some());
+        assert!(agent_plugin_dir("pi").is_some());
         assert!(agent_plugin_dir("unknown").is_none());
     }
 

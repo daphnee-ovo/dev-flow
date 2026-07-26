@@ -61,7 +61,7 @@ fn main() {
             HooksCommands::PostBash { command } => {
                 hooks::post_bash::run(command, codex_hook, kiro_hook)
             }
-            HooksCommands::SaveChangelog => hooks::save_changelog::run(codex_hook, kiro_hook),
+            HooksCommands::SessionStop => hooks::session_stop::run(codex_hook, kiro_hook),
         },
         Commands::Rollback(args) => commands::rollback::run(args, human),
         Commands::Claim(args) => commands::claim::run(args, human),

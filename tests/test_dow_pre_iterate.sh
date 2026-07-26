@@ -26,7 +26,7 @@ setup_project() {
   git config user.email "test@test.com"
   git commit --allow-empty -m "init: test project" -q
   "$DOW" init --name "$name" --mode fast -H >/dev/null 2>&1
-  echo '{"title":"pre iterate test","type":"feat","priority":"P0","refs":"","files_modify":[],"files_create":[],"files_test":[],"depends_on":[],"parallel":false,"complexity":"S","done_when":["pass"]}' | "$DOW" task create >/dev/null 2>&1
+  echo '{"title":"pre iterate test","type":"feat","priority":"P0","refs":"","files":{"modify":["VERSION"],"test":[]},"depends_on":[],"parallel":false,"complexity":"S","done_when":["pass"]}' | "$DOW" task create >/dev/null 2>&1
   local branch
   branch="$(git branch --show-current)"
   local task_file

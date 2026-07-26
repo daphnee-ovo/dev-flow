@@ -109,7 +109,7 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     // 4. Calculate archive content
     let archive_base = archive_db::archive_base();
     let archive_db_path = format!("{}/archive.db", archive_base.to_string_lossy());
-    let archived_files = list_archive_files(&doc_root_path);
+    let archived_files = list_archive_files(&doc_root_path, mode.starts_with("audit/"));
 
     // --confirm mode: Execute after token verification
     if let Some(ref token) = args.confirm {
@@ -129,9 +129,9 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
             ));
         }
     } else {
-        // Trigger save_changelog before preview to ensure current session activity is recorded
-        if let Err(e) = crate::hooks::save_changelog::run(false, false) {
-            eprintln!("[dev-flow] save_changelog warning: {}", e.message);
+        // Trigger session_stop before preview to ensure current session activity is recorded
+        if let Err(e) = crate::hooks::session_stop::run(false, false) {
+            eprintln!("[dev-flow] session_stop warning: {}", e.message);
         }
 
         // Generate token (preview mode)
@@ -221,25 +221,36 @@ pub fn run(args: IterateArgs, human: bool) -> Result<i32, DowError> {
     )?;
 
     // Archive task files
+    // In audit mode, only archive completed tasks (done_task_*); preserve
+    // incomplete task_* files for the next iteration.
+    let is_audit = mode.starts_with("audit/");
     let task_dir = doc_root_path.join("task");
     if let Ok(entries) = fs::read_dir(&task_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(".md")
-                && (name.starts_with("done_task_") || name.starts_with("task_"))
-            {
-                if let Ok(content) = fs::read_to_string(entry.path()) {
-                    let tasks = archive_db::parse_task_file(&name, &content);
-                    for task in &tasks {
-                        archive_db::insert_task(&conn, &released_version, task)?;
-                    }
+            if !name.ends_with(".md") {
+                continue;
+            }
+            let is_done = name.starts_with("done_task_");
+            let is_pending = name.starts_with("task_");
+            if !is_done && !is_pending {
+                continue;
+            }
+            // In audit mode, skip incomplete task files
+            if is_audit && !is_done {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                let tasks = archive_db::parse_task_file(&name, &content);
+                for task in &tasks {
+                    archive_db::insert_task(&conn, &released_version, task)?;
                 }
-                if let Err(e) = fs::remove_file(entry.path()) {
-                    eprintln!(
-                        "[dev-flow] Warning: Failed to delete {} after archive: {}",
-                        name, e
-                    );
-                }
+            }
+            if let Err(e) = fs::remove_file(entry.path()) {
+                eprintln!(
+                    "[dev-flow] Warning: Failed to delete {} after archive: {}",
+                    name, e
+                );
             }
         }
     }
@@ -891,7 +902,7 @@ fn next_phase(effective_mode: &str, _full_mode: &str) -> String {
     .to_string()
 }
 
-fn list_archive_files(doc_root: &Path) -> Vec<String> {
+fn list_archive_files(doc_root: &Path, audit_mode: bool) -> Vec<String> {
     let mut files = Vec::new();
 
     let task_dir = doc_root.join("task");
@@ -899,6 +910,10 @@ fn list_archive_files(doc_root: &Path) -> Vec<String> {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if name.ends_with(".md") {
+                // In audit mode, only list done_task_* files
+                if audit_mode && !name.starts_with("done_task_") {
+                    continue;
+                }
                 files.push(name);
             }
         }
@@ -1055,7 +1070,7 @@ fn format_commit_message(
     commit_type: &str,
     changelog: &[String],
 ) -> String {
-    let mut msg = format!("{}: Release v{} {}", commit_type, version, topic);
+    let mut msg = format!("{}: v{} {}", commit_type, version, topic);
     if !changelog.is_empty() {
         msg.push_str("\n\n");
         for entry in changelog {
@@ -1109,7 +1124,11 @@ fn print_human_preview(result: &IterateOutput) {
         println!();
     }
     println!("Will execute:");
-    println!("  - git commit + tag: v{}", result.released_version);
+    if result.tag == "no-tag" {
+        println!("  - git commit: v{}", result.released_version);
+    } else {
+        println!("  - git commit + tag: v{}", result.released_version);
+    }
     if !result.pre_iterate.is_empty() {
         println!("  - preIterate: execute before git commit");
     }

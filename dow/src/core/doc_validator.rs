@@ -653,10 +653,9 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
                 all_errors.extend(validate_issue_file(&entry.path()));
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [") {
-                            let title = line[5..].trim();
-                            if let Some(num) = extract_issue_id_num(title) {
-                                all_issue_ids.push((num, name.clone()));
+                        if let Some(parsed) = super::item_id::extract_from_line(line) {
+                            if parsed.kind == super::item_id::ItemKind::Issue {
+                                all_issue_ids.push((parsed.num(), name.clone()));
                             }
                         }
                     }
@@ -705,15 +704,6 @@ pub fn validate_all_issues(doc_root: &Path) -> Vec<ValidationError> {
     all_errors
 }
 
-fn extract_issue_id_num(title: &str) -> Option<u32> {
-    let prefix = "ISSUE-I";
-    if !title.starts_with(prefix) {
-        return None;
-    }
-    let rest = &title[prefix.len()..];
-    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
-}
 
 /// Validate all task files in directory
 pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
@@ -735,10 +725,9 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
                 // collect all task IDs
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [") {
-                            let title = line[5..].trim();
-                            if let Some(num) = extract_task_id_num(title) {
-                                all_task_ids.push((num, name.clone()));
+                        if let Some(parsed) = super::item_id::extract_from_line(line) {
+                            if parsed.kind == super::item_id::ItemKind::Task {
+                                all_task_ids.push((parsed.num(), name.clone()));
                             }
                         }
                     }
@@ -789,15 +778,6 @@ pub fn validate_all_tasks(doc_root: &Path) -> Vec<ValidationError> {
     all_errors
 }
 
-fn extract_task_id_num(title: &str) -> Option<u32> {
-    let prefix = "TASK-T";
-    if !title.starts_with(prefix) {
-        return None;
-    }
-    let rest = &title[prefix.len()..];
-    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
-}
 
 /// Validate SPEC-AC sequence is monotonically increasing
 pub fn validate_spec(doc_root: &Path) -> Vec<ValidationError> {

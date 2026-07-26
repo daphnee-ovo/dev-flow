@@ -581,8 +581,19 @@ fn run_auto_fix(doc_root: &Path) -> (Vec<String>, Vec<String>) {
     // Fix task state consistency: add done_ prefix to fully checked task files
     fix_task_rename(&task_dir, &mut fixed);
 
+    // Fix task global sequence conflicts: renumber by file date
+    if let Ok(result) = crate::core::renumber::renumber(&task_dir, crate::core::item_id::ItemKind::Task) {
+        if result.changed > 0 {
+            fixed.push(format!("task global sequence renumbering: fixed {} items", result.changed));
+        }
+    }
+
     // Fix issue global sequence conflicts: renumber by file date
-    fix_issue_renumber(&issue_dir, &mut fixed);
+    if let Ok(result) = crate::core::renumber::renumber(&issue_dir, crate::core::item_id::ItemKind::Issue) {
+        if result.changed > 0 {
+            fixed.push(format!("issue global sequence renumbering: fixed {} items", result.changed));
+        }
+    }
 
     (fixed, unfixable)
 }
@@ -871,150 +882,6 @@ fn fix_task_rename(task_dir: &Path, fixed: &mut Vec<String>) {
     }
 }
 
-/// Fix issue global sequence conflicts: renumber by file date
-fn fix_issue_renumber(issue_dir: &Path, fixed: &mut Vec<String>) {
-    if !issue_dir.is_dir() {
-        return;
-    }
-
-    struct IssueItem {
-        file_path: PathBuf,
-        file_date: String,
-        file_seq: u32,
-        line_idx: usize,
-        current_num: u32,
-    }
-
-    let mut items: Vec<IssueItem> = Vec::new();
-    let mut seen_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    let mut has_conflict = false;
-
-    let entries: Vec<_> = match fs::read_dir(issue_dir) {
-        Ok(e) => e.flatten().collect(),
-        Err(_) => return,
-    };
-
-    for entry in &entries {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !name.ends_with(".md") {
-            continue;
-        }
-        if !name.starts_with("issue_") && !name.starts_with("closed_issue_") {
-            continue;
-        }
-
-        let (date, seq) = match parse_issue_file_date_seq(&name) {
-            Some(v) => v,
-            None => continue,
-        };
-
-        let content = match fs::read_to_string(entry.path()) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        for (line_idx, line) in content.lines().enumerate() {
-            if !line.starts_with("- [") {
-                continue;
-            }
-            let title = line[5..].trim();
-            if let Some(num) = extract_issue_num(title) {
-                if !seen_nums.insert(num) {
-                    has_conflict = true;
-                }
-                items.push(IssueItem {
-                    file_path: entry.path(),
-                    file_date: date.clone(),
-                    file_seq: seq,
-                    line_idx,
-                    current_num: num,
-                });
-            }
-        }
-    }
-
-    if !has_conflict {
-        if !items.is_empty() {
-            let mut nums: Vec<u32> = items.iter().map(|i| i.current_num).collect();
-            nums.sort();
-            let is_sequential = nums
-                .iter()
-                .enumerate()
-                .all(|(idx, &n)| n == (idx as u32 + 1));
-            if is_sequential {
-                return;
-            }
-        } else {
-            return;
-        }
-    }
-
-    // Sort by file date, file sequence, and line index
-    items.sort_by(|a, b| {
-        a.file_date
-            .cmp(&b.file_date)
-            .then(a.file_seq.cmp(&b.file_seq))
-            .then(a.line_idx.cmp(&b.line_idx))
-    });
-
-    // Assign new sequence numbers
-    let mut renames: std::collections::HashMap<PathBuf, Vec<(usize, u32, u32)>> =
-        std::collections::HashMap::new();
-    for (new_idx, item) in items.iter().enumerate() {
-        let new_num = (new_idx + 1) as u32;
-        if new_num != item.current_num {
-            renames.entry(item.file_path.clone()).or_default().push((
-                item.line_idx,
-                item.current_num,
-                new_num,
-            ));
-        }
-    }
-
-    if renames.is_empty() {
-        return;
-    }
-
-    // Apply replacements
-    let mut total_fixed = 0u32;
-    for (file_path, changes) in &renames {
-        let content = match fs::read_to_string(file_path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-        for &(line_idx, old_num, new_num) in changes {
-            if line_idx < lines.len() {
-                let old_id = format!("ISSUE-I{:03}", old_num);
-                let new_id = format!("ISSUE-I{:03}", new_num);
-                lines[line_idx] = lines[line_idx].replace(&old_id, &new_id);
-            }
-        }
-        let new_content = lines.join("\n");
-        let final_content = if content.ends_with('\n') && !new_content.ends_with('\n') {
-            format!("{}\n", new_content)
-        } else {
-            new_content
-        };
-        if let Err(e) = fs::write(file_path, &final_content) {
-            eprintln!(
-                "[dow doctor] warning: failed to write {}: {}",
-                file_path.display(),
-                e
-            );
-        } else {
-            total_fixed += changes.len() as u32;
-        }
-    }
-
-    if total_fixed > 0 {
-        fixed.push(format!(
-            "issue global sequence renumbering: fixed {} items",
-            total_fixed
-        ));
-    }
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Utility functions
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1044,49 +911,6 @@ fn insert_fm_field(content: &str, key: &str, value: &str) -> String {
     } else {
         content.to_string()
     }
-}
-
-fn parse_issue_file_date_seq(filename: &str) -> Option<(String, u32)> {
-    let stem = filename.strip_suffix(".md")?;
-    let rest = if stem.starts_with("closed_issue_") {
-        &stem["closed_issue_".len()..]
-    } else if stem.starts_with("issue_") {
-        &stem["issue_".len()..]
-    } else {
-        return None;
-    };
-    // Try format: "source_YYYY-MM-DD_seq" (4 parts with date having dashes)
-    // or fallback: "YYYY-MM-DD_seq" (missing source)
-    let parts: Vec<&str> = rest.split('_').collect();
-
-    // Detect date pattern (YYYY-MM-DD = 3 parts joined by -)
-    // Full format: source_YYYY_MM_DD_seq → split gives [source, YYYY, MM, DD, seq] (won't work)
-    // Actually dates use - not _: source_2026-06-25_seq → split('_') gives [source, 2026-06-25, seq]
-    // Missing source: 2026-06-25_seq → split('_') gives [2026-06-25, seq]
-
-    if parts.len() >= 3 && parts[1].contains('-') {
-        // Normal: source_date_seq
-        let date = parts[1].to_string();
-        let seq = parts[2].parse::<u32>().unwrap_or(0);
-        Some((date, seq))
-    } else if parts.len() >= 2 && parts[0].contains('-') {
-        // Missing source: date_seq
-        let date = parts[0].to_string();
-        let seq = parts[1].parse::<u32>().unwrap_or(0);
-        Some((date, seq))
-    } else {
-        None
-    }
-}
-
-fn extract_issue_num(title: &str) -> Option<u32> {
-    let prefix = "ISSUE-I";
-    if !title.starts_with(prefix) {
-        return None;
-    }
-    let rest = &title[prefix.len()..];
-    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

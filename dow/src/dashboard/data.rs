@@ -67,14 +67,14 @@ pub fn collect_project_data(doc_root: &Path) -> ProjectData {
     let mut issues = read_issues(doc_root);
 
     for t in &mut tasks {
-        let short = t.id.strip_prefix("TASK-").unwrap_or(&t.id);
-        if t.status == "pending" && active_claims.contains(&short.to_string()) {
+        let short = crate::core::item_id::normalize_short(&t.id);
+        if t.status == "pending" && active_claims.contains(&short) {
             t.status = "in_progress".to_string();
         }
     }
     for i in &mut issues {
-        let short = i.id.strip_prefix("ISSUE-").unwrap_or(&i.id);
-        if i.status == "open" && active_claims.contains(&short.to_string()) {
+        let short = crate::core::item_id::normalize_short(&i.id);
+        if i.status == "open" && active_claims.contains(&short) {
             i.status = "in_progress".to_string();
         }
     }

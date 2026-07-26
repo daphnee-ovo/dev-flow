@@ -1,3 +1,62 @@
+// FrameworkTree
+// task.rs
+// ├── struct TaskInput
+// ├── struct TaskCreatePayload
+// ├── struct TaskFilesInput
+// ├── struct TaskListItem
+// ├── struct TaskDetail
+// ├── struct TaskFiles
+// ├── struct ReopenImpact
+// ├── expand_braces()
+// ├── expand_file_list()
+// ├── apply_incremental()
+// ├── run()
+// ├── create()
+// ├── resolve_create_input()
+// ├── has_any_task_create_flag()
+// ├── read_stdin_if_available()
+// ├── parse_task_files_arg()
+// ├── normalize_task_files()
+// ├── validate_task_file_scope()
+// ├── task_input_from_payload()
+// ├── split_comma()
+// ├── validate_complexity()
+// ├── scan_next_id()
+// ├── all_task_files_including_done()
+// ├── extract_task_id()
+// ├── parse_task_num()
+// ├── find_or_create_batch_file()
+// ├── format_task_entry()
+// ├── format_string_list()
+// ├── count_tasks_in_content()
+// ├── update_frontmatter_nums()
+// ├── struct TaskUpdateInput
+// ├── update()
+// ├── resolve_update_input()
+// ├── has_any_task_update()
+// ├── replace_task_entry_in_content()
+// ├── struct RemoveImpact
+// ├── struct RenumberEntry
+// ├── remove()
+// ├── remove_task_entry()
+// ├── purge_id_from_depends_on()
+// ├── find_owning_task_id()
+// ├── generate_trm_token()
+// ├── list()
+// ├── parse_all_tasks_in_file()
+// ├── show()
+// ├── parse_task_detail()
+// ├── parse_inline_list()
+// ├── print_task_detail_human()
+// ├── done_multi()
+// ├── done_single()
+// ├── atomic_write()
+// ├── reopen()
+// ├── generate_tro_token()
+// ├── schema()
+// ├── resolve_task_dir()
+// └── get_all_task_details()
+
 // dow/src/commands/
 // ├── task.rs  -- dow task (task resource management)
 //    ├── run()
@@ -16,7 +75,7 @@ use crate::cli::{
     TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs,
 };
 use crate::commands::test_runner;
-use crate::core::{doc_root, task_store};
+use crate::core::{claim, doc_root, item_id, task_store};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -27,7 +86,7 @@ use std::path::{Path, PathBuf};
 
 // ─── Data Structures ─────────────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 struct TaskInput {
     title: String,
     r#type: String,
@@ -40,6 +99,29 @@ struct TaskInput {
     parallel: bool,
     complexity: String,
     done_when: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskCreatePayload {
+    title: String,
+    #[serde(rename = "type")]
+    task_type: String,
+    priority: String,
+    refs: String,
+    files: TaskFilesInput,
+    depends_on: Vec<String>,
+    parallel: bool,
+    complexity: String,
+    done_when: Vec<String>,
+}
+
+#[derive(Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
+struct TaskFilesInput {
+    create: Option<Vec<String>>,
+    modify: Option<Vec<String>>,
+    test: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -144,12 +226,27 @@ pub(crate) fn apply_incremental(input: Vec<String>, existing: Vec<String>) -> Ve
 pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
     match command {
         TaskCommands::Create(args) => create(args, human),
-        TaskCommands::Update(args) => update(args),
-        TaskCommands::Remove(args) => remove(args, human),
+        TaskCommands::Update(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            update(args)
+        }
+        TaskCommands::Remove(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            remove(args, human)
+        }
         TaskCommands::List(args) => list(args, human),
-        TaskCommands::Show { id } => show(&id, human),
-        TaskCommands::Done { ids } => done_multi(&ids),
-        TaskCommands::Reopen(args) => reopen(args, human),
+        TaskCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        TaskCommands::Done { ids } => {
+            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
+            done_multi(&ids)
+        }
+        TaskCommands::Reopen(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            reopen(args, human)
+        }
         TaskCommands::Schema => schema(human),
     }
 }
@@ -157,7 +254,7 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
-    let mut tasks = resolve_create_input(args)?;
+    let tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
         return Err(DowError::new(
             "no task input provided (use --title or pipe JSON to stdin)",
@@ -167,12 +264,6 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
 
     for task in &tasks {
         validate_complexity(&task.complexity)?;
-    }
-
-    for task in &mut tasks {
-        task.files_modify = expand_file_list(std::mem::take(&mut task.files_modify));
-        task.files_create = expand_file_list(std::mem::take(&mut task.files_create));
-        task.files_test = expand_file_list(std::mem::take(&mut task.files_test));
     }
 
     let task_dir = resolve_task_dir()?;
@@ -213,18 +304,30 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
 }
 
 fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError> {
-    // Check stdin for JSON
-    if let Some(stdin_data) = read_stdin_if_available(false) {
+    let has_flags = has_any_task_create_flag(&args);
+    let stdin_data = read_stdin_if_available();
+    if has_flags && stdin_data.is_some() {
+        return Err(DowError::new(
+            "cannot combine task CLI options with stdin JSON; use one input source",
+            2,
+        ));
+    }
+
+    if let Some(stdin_data) = stdin_data {
         let trimmed = stdin_data.trim();
         if trimmed.starts_with('[') {
-            let tasks: Vec<TaskInput> = serde_json::from_str(trimmed)
+            let tasks: Vec<TaskCreatePayload> = serde_json::from_str(trimmed)
                 .map_err(|e| DowError::new(format!("invalid JSON array from stdin: {}", e), 2))?;
-            return Ok(tasks);
+            return tasks.into_iter().map(task_input_from_payload).collect();
         } else if trimmed.starts_with('{') {
-            let task: TaskInput = serde_json::from_str(trimmed)
+            let task: TaskCreatePayload = serde_json::from_str(trimmed)
                 .map_err(|e| DowError::new(format!("invalid JSON object from stdin: {}", e), 2))?;
-            return Ok(vec![task]);
+            return Ok(vec![task_input_from_payload(task)?]);
         }
+        return Err(DowError::new(
+            "stdin input must be a JSON object or array",
+            2,
+        ));
     }
 
     // Use flags — all fields required
@@ -241,15 +344,9 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
     let refs = args
         .refs
         .ok_or_else(|| DowError::new("--refs is required", 2))?;
-    let files_modify = args
-        .files_modify
-        .ok_or_else(|| DowError::new("--files-modify is required", 2))?;
-    let files_create = args
-        .files_create
-        .ok_or_else(|| DowError::new("--files-create is required", 2))?;
-    let files_test = args
-        .files_test
-        .ok_or_else(|| DowError::new("--files-test is required", 2))?;
+    let file = args
+        .file
+        .ok_or_else(|| DowError::new("--file is required", 2))?;
     let depends_on = args
         .depends_on
         .ok_or_else(|| DowError::new("--depends-on is required", 2))?;
@@ -260,27 +357,34 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
         .done_when
         .ok_or_else(|| DowError::new("--done-when is required", 2))?;
 
-    let task = TaskInput {
+    let task = TaskCreatePayload {
         title,
-        r#type: task_type,
+        task_type,
         priority,
         refs,
-        files_modify: split_comma(&Some(files_modify)),
-        files_create: split_comma(&Some(files_create)),
-        files_test: split_comma(&Some(files_test)),
+        files: parse_task_files_arg(&file)?,
         depends_on: split_comma(&Some(depends_on)),
         parallel: args.parallel,
         complexity,
         done_when: split_comma(&Some(done_when)),
     };
 
-    Ok(vec![task])
+    Ok(vec![task_input_from_payload(task)?])
 }
 
-fn read_stdin_if_available(skip: bool) -> Option<String> {
-    if skip {
-        return None;
-    }
+fn has_any_task_create_flag(args: &TaskCreateArgs) -> bool {
+    args.title.is_some()
+        || args.task_type.is_some()
+        || args.priority.is_some()
+        || args.refs.is_some()
+        || args.file.is_some()
+        || args.depends_on.is_some()
+        || args.complexity.is_some()
+        || args.done_when.is_some()
+        || args.parallel
+}
+
+fn read_stdin_if_available() -> Option<String> {
     use std::io::IsTerminal;
 
     // If stdin is a terminal (interactive), no piped data
@@ -295,6 +399,64 @@ fn read_stdin_if_available(skip: bool) -> Option<String> {
     } else {
         Some(buf)
     }
+}
+
+fn parse_task_files_arg(value: &str) -> Result<TaskFilesInput, DowError> {
+    serde_json::from_str(value)
+        .map_err(|e| DowError::new(format!("invalid --file JSON object: {}", e), 2))
+}
+
+fn normalize_task_files(files: &mut TaskFilesInput) {
+    if let Some(values) = files.create.take() {
+        files.create = Some(expand_file_list(values));
+    }
+    if let Some(values) = files.modify.take() {
+        files.modify = Some(expand_file_list(values));
+    }
+    if let Some(values) = files.test.take() {
+        files.test = Some(expand_file_list(values));
+    }
+}
+
+fn validate_task_file_scope(files: &TaskFilesInput, operation: &str) -> Result<(), DowError> {
+    let has_create = files
+        .create
+        .as_ref()
+        .is_some_and(|values| !values.is_empty());
+    let has_modify = files
+        .modify
+        .as_ref()
+        .is_some_and(|values| !values.is_empty());
+    if has_create || has_modify {
+        return Ok(());
+    }
+
+    Err(DowError::new(
+        format!(
+            "{} requires at least one non-empty files.create or files.modify list",
+            operation
+        ),
+        2,
+    ))
+}
+
+fn task_input_from_payload(mut payload: TaskCreatePayload) -> Result<TaskInput, DowError> {
+    normalize_task_files(&mut payload.files);
+    validate_task_file_scope(&payload.files, "task create")?;
+
+    Ok(TaskInput {
+        title: payload.title,
+        r#type: payload.task_type,
+        priority: payload.priority,
+        refs: payload.refs,
+        files_modify: payload.files.modify.unwrap_or_default(),
+        files_create: payload.files.create.unwrap_or_default(),
+        files_test: payload.files.test.unwrap_or_default(),
+        depends_on: payload.depends_on,
+        parallel: payload.parallel,
+        complexity: payload.complexity,
+        done_when: payload.done_when,
+    })
 }
 
 fn split_comma(opt: &Option<String>) -> Vec<String> {
@@ -356,28 +518,17 @@ pub(crate) fn all_task_files_including_done(task_dir: &Path) -> Vec<PathBuf> {
 }
 
 fn extract_task_id(line: &str) -> Option<String> {
-    let trimmed = line.trim();
-    // Pattern: "- [ ] TASK-T###: ..." or "- [x] TASK-T###: ..."
-    if trimmed.starts_with("- [") {
-        let after_bracket = if trimmed.starts_with("- [ ] ") {
-            &trimmed[6..]
-        } else if trimmed.starts_with("- [x] ") {
-            &trimmed[6..]
-        } else {
-            return None;
-        };
-        if let Some(colon_pos) = after_bracket.find(':') {
-            let id = after_bracket[..colon_pos].trim().to_string();
-            if id.starts_with("TASK-T") {
-                return Some(id);
-            }
-        }
+    let parsed = item_id::extract_from_line(line)?;
+    if parsed.kind == item_id::ItemKind::Task {
+        Some(parsed.full())
+    } else {
+        None
     }
-    None
 }
 
 fn parse_task_num(id: &str) -> Option<usize> {
-    id.strip_prefix("TASK-T")?.parse().ok()
+    let parsed = item_id::parse(id)?;
+    Some(parsed.num() as usize)
 }
 
 fn find_or_create_batch_file(task_dir: &Path, today: &str) -> Result<PathBuf, DowError> {
@@ -501,15 +652,14 @@ fn update_frontmatter_nums(content: &str, new_count: usize) -> String {
 // ─── Update ─────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 struct TaskUpdateInput {
     title: Option<String>,
     #[serde(rename = "type")]
     task_type: Option<String>,
     priority: Option<String>,
     refs: Option<String>,
-    files_modify: Option<Vec<String>>,
-    files_create: Option<Vec<String>>,
-    files_test: Option<Vec<String>>,
+    files: Option<TaskFilesInput>,
     depends_on: Option<Vec<String>>,
     parallel: Option<bool>,
     complexity: Option<String>,
@@ -527,14 +677,9 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
         ));
     }
 
-    if let Some(files) = input.files_modify.take() {
-        input.files_modify = Some(expand_file_list(files));
-    }
-    if let Some(files) = input.files_create.take() {
-        input.files_create = Some(expand_file_list(files));
-    }
-    if let Some(files) = input.files_test.take() {
-        input.files_test = Some(expand_file_list(files));
+    if let Some(files) = input.files.as_mut() {
+        normalize_task_files(files);
+        validate_task_file_scope(files, "task update")?;
     }
 
     // Validate enum fields if provided
@@ -579,31 +724,45 @@ fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
                 }
 
                 // Merge (array fields use incremental logic)
-                let merged = TaskInput {
-                    title: input.title.unwrap_or(detail.title),
-                    r#type: input.task_type.unwrap_or(detail.r#type),
-                    priority: input.priority.unwrap_or(detail.priority),
-                    refs: input.refs.unwrap_or(detail.refs),
-                    files_modify: match input.files_modify {
-                        Some(v) => apply_incremental(v, detail.files.modify),
+                let new_files_modify =
+                    match input.files.as_ref().and_then(|files| files.modify.clone()) {
+                        Some(values) => apply_incremental(values, detail.files.modify),
                         None => detail.files.modify,
-                    },
-                    files_create: match input.files_create {
-                        Some(v) => apply_incremental(v, detail.files.create),
+                    };
+                let new_files_create =
+                    match input.files.as_ref().and_then(|files| files.create.clone()) {
+                        Some(values) => apply_incremental(values, detail.files.create),
                         None => detail.files.create,
-                    },
-                    files_test: match input.files_test {
-                        Some(v) => apply_incremental(v, detail.files.test),
+                    };
+                if input.files.is_some()
+                    && new_files_modify.is_empty()
+                    && new_files_create.is_empty()
+                {
+                    return Err(DowError::new(
+                        "task update cannot remove the last files.create/files.modify path",
+                        2,
+                    ));
+                }
+
+                let merged = TaskInput {
+                    title: input.title.clone().unwrap_or(detail.title),
+                    r#type: input.task_type.clone().unwrap_or(detail.r#type),
+                    priority: input.priority.clone().unwrap_or(detail.priority),
+                    refs: input.refs.clone().unwrap_or(detail.refs),
+                    files_modify: new_files_modify,
+                    files_create: new_files_create,
+                    files_test: match input.files.as_ref().and_then(|files| files.test.clone()) {
+                        Some(values) => apply_incremental(values, detail.files.test),
                         None => detail.files.test,
                     },
-                    depends_on: match input.depends_on {
-                        Some(v) => apply_incremental(v, detail.depends_on),
+                    depends_on: match input.depends_on.clone() {
+                        Some(values) => apply_incremental(values, detail.depends_on),
                         None => detail.depends_on,
                     },
                     parallel: input.parallel.unwrap_or(detail.parallel),
-                    complexity: input.complexity.unwrap_or(detail.complexity),
-                    done_when: match input.done_when {
-                        Some(v) => apply_incremental(v, detail.done_when),
+                    complexity: input.complexity.clone().unwrap_or(detail.complexity),
+                    done_when: match input.done_when.clone() {
+                        Some(values) => apply_incremental(values, detail.done_when),
                         None => detail.done_when,
                     },
                 };
@@ -624,21 +783,29 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         || args.task_type.is_some()
         || args.priority.is_some()
         || args.refs.is_some()
-        || args.files_modify.is_some()
-        || args.files_create.is_some()
-        || args.files_test.is_some()
+        || args.file.is_some()
         || args.depends_on.is_some()
         || args.parallel.is_some()
         || args.complexity.is_some()
         || args.done_when.is_some();
-    // Check stdin JSON
-    if let Some(stdin_data) = read_stdin_if_available(has_flags) {
+    let stdin_data = read_stdin_if_available();
+    if has_flags && stdin_data.is_some() {
+        return Err(DowError::new(
+            "cannot combine task update CLI options with stdin JSON; use one input source",
+            2,
+        ));
+    }
+    if let Some(stdin_data) = stdin_data {
         let trimmed = stdin_data.trim();
         if trimmed.starts_with('{') {
             let input: TaskUpdateInput = serde_json::from_str(trimmed)
                 .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
             return Ok(input);
         }
+        return Err(DowError::new(
+            "task update stdin input must be a JSON object",
+            2,
+        ));
     }
 
     Ok(TaskUpdateInput {
@@ -646,9 +813,10 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         task_type: args.task_type,
         priority: args.priority,
         refs: args.refs,
-        files_modify: args.files_modify.map(|s| split_comma(&Some(s))),
-        files_create: args.files_create.map(|s| split_comma(&Some(s))),
-        files_test: args.files_test.map(|s| split_comma(&Some(s))),
+        files: args
+            .file
+            .map(|value| parse_task_files_arg(&value))
+            .transpose()?,
         depends_on: args.depends_on.map(|s| split_comma(&Some(s))),
         parallel: args.parallel,
         complexity: args.complexity,
@@ -661,9 +829,7 @@ fn has_any_task_update(input: &TaskUpdateInput) -> bool {
         || input.task_type.is_some()
         || input.priority.is_some()
         || input.refs.is_some()
-        || input.files_modify.is_some()
-        || input.files_create.is_some()
-        || input.files_test.is_some()
+        || input.files.is_some()
         || input.depends_on.is_some()
         || input.parallel.is_some()
         || input.complexity.is_some()
@@ -789,8 +955,8 @@ fn remove(args: TaskRemoveArgs, human: bool) -> Result<i32, DowError> {
     let renumber: Vec<RenumberEntry> = higher_ids
         .iter()
         .map(|&n| RenumberEntry {
-        from: format!("TASK-T{:03}", n),
-        to: format!("TASK-T{:03}", n - 1),
+            from: format!("TASK-T{:03}", n),
+            to: format!("TASK-T{:03}", n - 1),
         })
         .collect();
 
@@ -933,26 +1099,26 @@ fn purge_id_from_depends_on(content: &str, removed_id: &str) -> String {
     content
         .lines()
         .map(|line| {
-        if !line.contains("depends_on:") || !line.contains(removed_id) {
-            return line.to_string();
-        }
-        // Parse the inline list and remove the target ID
-        if let Some(bracket_start) = line.find('[') {
-            if let Some(bracket_end) = line.find(']') {
-                let prefix = &line[..bracket_start + 1];
-                let inner = &line[bracket_start + 1..bracket_end];
+            if !line.contains("depends_on:") || !line.contains(removed_id) {
+                return line.to_string();
+            }
+            // Parse the inline list and remove the target ID
+            if let Some(bracket_start) = line.find('[') {
+                if let Some(bracket_end) = line.find(']') {
+                    let prefix = &line[..bracket_start + 1];
+                    let inner = &line[bracket_start + 1..bracket_end];
                     let items: Vec<&str> = inner
                         .split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| {
-                        let unquoted = s.trim_matches('"');
-                        unquoted != removed_id
-                    })
-                    .collect();
-                return format!("{}{}]", prefix, items.join(", "));
+                        .map(|s| s.trim())
+                        .filter(|s| {
+                            let unquoted = s.trim_matches('"');
+                            unquoted != removed_id
+                        })
+                        .collect();
+                    return format!("{}{}]", prefix, items.join(", "));
+                }
             }
-        }
-        line.to_string()
+            line.to_string()
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1312,6 +1478,14 @@ fn done_multi(ids: &[String]) -> Result<i32, DowError> {
     for id in ids {
         done_single(id)?;
     }
+
+    // Auto-revoke claims for completed tasks
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    for id in ids {
+        let normalized = item_id::normalize_short(id);
+        let _ = claim::revoke_claims(&doc_root_path, Some(&normalized));
+    }
+
     Ok(0)
 }
 
@@ -1550,6 +1724,7 @@ fn schema(_human: bool) -> Result<i32, DowError> {
             "files": {
                 "type": "object",
                 "required": true,
+                "at_least_one": ["create", "modify"],
                 "properties": {
                     "create": { "type": "array", "items": "string" },
                     "modify": { "type": "array", "items": "string" },

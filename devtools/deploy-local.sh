@@ -1,13 +1,13 @@
 #!/bin/bash
 # 本地开发部署：编译 + 组装 + 模拟安装 + dow setup
-# 用法: bash devtools/deploy-local.sh <claude|codex|kiro|all>
+# 用法: bash devtools/deploy-local.sh <claude|codex|kiro|pi|all>
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 if [ -z "$1" ]; then
-  echo "用法: bash devtools/deploy-local.sh <claude|codex|kiro|all>" >&2
+  echo "用法: bash devtools/deploy-local.sh <claude|codex|kiro|pi|all>" >&2
   exit 1
 fi
 
@@ -39,6 +39,7 @@ case "$1" in
     cp -r "$PROJECT_ROOT/dist/claude" "$BUNDLE_DIR/claude"
     cp -r "$PROJECT_ROOT/dist/codex" "$BUNDLE_DIR/codex"
     cp -r "$PROJECT_ROOT/dist/kiro" "$BUNDLE_DIR/kiro"
+    cp -r "$PROJECT_ROOT/dist/pi" "$BUNDLE_DIR/pi"
     ;;
   *)
     cp -r "$PROJECT_ROOT/dist/$1" "$BUNDLE_DIR/$1"

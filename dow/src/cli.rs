@@ -161,17 +161,9 @@ pub struct TaskCreateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// Files to modify (comma-separated)
+    /// File scope as a JSON object: {"create":[],"modify":[],"test":[]}
     #[arg(long)]
-    pub files_modify: Option<String>,
-
-    /// Files to create (comma-separated)
-    #[arg(long)]
-    pub files_create: Option<String>,
-
-    /// Test files (comma-separated)
-    #[arg(long)]
-    pub files_test: Option<String>,
+    pub file: Option<String>,
 
     /// Dependencies (comma-separated task IDs)
     #[arg(long)]
@@ -228,17 +220,9 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// Files to modify (comma-separated; +item to append, -item to remove)
+    /// File scope as a JSON object; array items support +item/-item updates
     #[arg(long)]
-    pub files_modify: Option<String>,
-
-    /// Files to create (comma-separated; +item to append, -item to remove)
-    #[arg(long)]
-    pub files_create: Option<String>,
-
-    /// Test files (comma-separated; +item to append, -item to remove)
-    #[arg(long)]
-    pub files_test: Option<String>,
+    pub file: Option<String>,
 
     /// Dependencies (comma-separated task IDs; +item to append, -item to remove)
     #[arg(long)]
@@ -315,13 +299,9 @@ pub struct IssueCreateArgs {
     #[arg(long)]
     pub source: Option<String>,
 
-    /// Files to modify (comma-separated)
+    /// File scope as a JSON object: {"create":[],"modify":[]}
     #[arg(long)]
-    pub files_modify: Option<String>,
-
-    /// Files to create (comma-separated)
-    #[arg(long)]
-    pub files_create: Option<String>,
+    pub file: Option<String>,
 }
 
 #[derive(clap::Args)]
@@ -370,13 +350,9 @@ pub struct IssueUpdateArgs {
     #[arg(long)]
     pub fix: Option<String>,
 
-    /// Files to modify (comma-separated; +item to append, -item to remove)
+    /// File scope as a JSON object; array items support +item/-item updates
     #[arg(long)]
-    pub files_modify: Option<String>,
-
-    /// Files to create (comma-separated; +item to append, -item to remove)
-    #[arg(long)]
-    pub files_create: Option<String>,
+    pub file: Option<String>,
 }
 
 #[derive(clap::Args)]
@@ -579,6 +555,10 @@ pub struct ClaimArgs {
     /// Release claim (release all if no ID provided)
     #[arg(long)]
     pub revoke: bool,
+
+    /// Claim duration in seconds (max 600, default 300)
+    #[arg(long)]
+    pub timeout: Option<u64>,
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
@@ -677,6 +657,6 @@ pub enum HooksCommands {
         command: Option<String>,
     },
 
-    /// Save CHANGELOG at session end
-    SaveChangelog,
+    /// Unified session end handler (revoke claims + save changelog)
+    SessionStop,
 }

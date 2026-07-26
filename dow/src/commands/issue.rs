@@ -1,3 +1,52 @@
+// FrameworkTree
+// issue.rs
+// ├── struct IssueListOutput
+// ├── struct IssueEntry
+// ├── struct IssueItem
+// ├── struct IssueFilesOutput
+// ├── struct IssueShowOutput
+// ├── struct IssueReopenPreview
+// ├── struct IssueFilesInput
+// ├── struct IssueCreateInput
+// ├── enum IssueCreatePayload
+// ├── struct IssueCreateRecord
+// ├── struct IssueCreateGroup
+// ├── run()
+// ├── create()
+// ├── validate_issue_create_input()
+// ├── normalize_issue_files()
+// ├── validate_issue_file_scope()
+// ├── parse_issue_files_arg()
+// ├── read_issue_stdin_if_available()
+// ├── render_issue_entry()
+// ├── create_issue_batch()
+// ├── write_issue_batch()
+// ├── struct IssueUpdateInput
+// ├── update()
+// ├── resolve_issue_update_input()
+// ├── has_any_issue_update()
+// ├── format_multiline_field()
+// ├── replace_issue_entry_in_content()
+// ├── struct IssueRemoveImpact
+// ├── struct IssueRenumberEntry
+// ├── remove()
+// ├── remove_issue_entry()
+// ├── update_issue_frontmatter_nums()
+// ├── generate_irm_token()
+// ├── list()
+// ├── show()
+// ├── close_multi()
+// ├── close()
+// ├── reopen()
+// ├── schema()
+// ├── struct ParsedIssueItem
+// ├── find_issue_by_id()
+// ├── next_issue_id()
+// ├── next_file_seq()
+// ├── generate_iro_token()
+// ├── read_stdin_json_or_flags()
+// └── parse_open_items()
+
 // dow/src/commands/
 // ├── issue.rs  -- dow issue (issue resource management)
 //    ├── run()             -- dispatch subcommands
@@ -21,7 +70,7 @@ use crate::cli::{
     IssueUpdateArgs,
 };
 use crate::commands::task::{expand_file_list, parse_inline_list};
-use crate::core::{doc_root, doc_validator};
+use crate::core::{claim, doc_root, doc_validator, item_id};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
@@ -49,6 +98,12 @@ struct IssueItem {
 }
 
 #[derive(Serialize)]
+struct IssueFilesOutput {
+    create: Vec<String>,
+    modify: Vec<String>,
+}
+
+#[derive(Serialize)]
 struct IssueShowOutput {
     id: String,
     title: String,
@@ -57,10 +112,8 @@ struct IssueShowOutput {
     description: String,
     reproduce: String,
     fix: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    files_modify: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    files_create: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<IssueFilesOutput>,
     status: String,
     file: String,
 }
@@ -73,24 +126,15 @@ struct IssueReopenPreview {
     command: String,
 }
 
-#[derive(Serialize)]
-struct IssueSchemaOutput {
-    fields: Vec<SchemaField>,
-    file_format: String,
-    id_format: String,
-}
-
-#[derive(Serialize)]
-struct SchemaField {
-    name: String,
-    required: bool,
-    r#type: String,
-    description: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    valid_values: Vec<String>,
+#[derive(Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
+struct IssueFilesInput {
+    create: Option<Vec<String>>,
+    modify: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct IssueCreateInput {
     title: Option<String>,
     severity: Option<String>,
@@ -100,8 +144,7 @@ struct IssueCreateInput {
     reproduce: Option<String>,
     #[serde(default)]
     fix: Option<String>,
-    files_modify: Option<Vec<String>>,
-    files_create: Option<Vec<String>>,
+    files: IssueFilesInput,
 }
 
 #[derive(Deserialize)]
@@ -130,12 +173,27 @@ struct IssueCreateGroup {
 pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
     match command {
         IssueCommands::Create(args) => create(args, human),
-        IssueCommands::Update(args) => update(args),
-        IssueCommands::Remove(args) => remove(args, human),
+        IssueCommands::Update(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            update(args)
+        }
+        IssueCommands::Remove(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            remove(args, human)
+        }
         IssueCommands::List(args) => list(args, human),
-        IssueCommands::Show { id } => show(&id, human),
-        IssueCommands::Close { ids } => close_multi(&ids),
-        IssueCommands::Reopen(args) => reopen(args, human),
+        IssueCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        IssueCommands::Close { ids } => {
+            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
+            close_multi(&ids)
+        }
+        IssueCommands::Reopen(args) => {
+            let mut args = args;
+            args.id = item_id::normalize_full(&args.id);
+            reopen(args, human)
+        }
         IssueCommands::Schema => schema(human),
     }
 }
@@ -200,13 +258,14 @@ fn validate_issue_create_input(input: IssueCreateInput) -> Result<IssueCreateRec
     let valid_sources = ["test", "other", "audit"];
     if !valid_sources.contains(&source.as_str()) {
         return Err(DowError::new(
-            format!(
-                "Invalid source '{}', valid: test/other/audit",
-                source
-            ),
+            format!("Invalid source '{}', valid: test/other/audit", source),
             2,
         ));
     }
+
+    let mut files = input.files;
+    normalize_issue_files(&mut files);
+    validate_issue_file_scope(&files, "issue create")?;
 
     Ok(IssueCreateRecord {
         title,
@@ -215,9 +274,61 @@ fn validate_issue_create_input(input: IssueCreateInput) -> Result<IssueCreateRec
         desc,
         source,
         reproduce,
-        files_modify: expand_file_list(input.files_modify.unwrap_or_default()),
-        files_create: expand_file_list(input.files_create.unwrap_or_default()),
+        files_modify: files.modify.unwrap_or_default(),
+        files_create: files.create.unwrap_or_default(),
     })
+}
+
+fn normalize_issue_files(files: &mut IssueFilesInput) {
+    if let Some(values) = files.create.take() {
+        files.create = Some(expand_file_list(values));
+    }
+    if let Some(values) = files.modify.take() {
+        files.modify = Some(expand_file_list(values));
+    }
+}
+
+fn validate_issue_file_scope(files: &IssueFilesInput, operation: &str) -> Result<(), DowError> {
+    let has_create = files
+        .create
+        .as_ref()
+        .is_some_and(|values| !values.is_empty());
+    let has_modify = files
+        .modify
+        .as_ref()
+        .is_some_and(|values| !values.is_empty());
+    if has_create || has_modify {
+        return Ok(());
+    }
+
+    Err(DowError::new(
+        format!(
+            "{} requires at least one non-empty files.create or files.modify list",
+            operation
+        ),
+        2,
+    ))
+}
+
+fn parse_issue_files_arg(value: &str) -> Result<IssueFilesInput, DowError> {
+    serde_json::from_str(value)
+        .map_err(|e| DowError::new(format!("invalid --file JSON object: {}", e), 2))
+}
+
+fn read_issue_stdin_if_available() -> Option<String> {
+    use std::io::IsTerminal;
+
+    if std::io::stdin().is_terminal() {
+        return None;
+    }
+
+    let mut buf = String::new();
+    std::io::stdin().read_to_string(&mut buf).ok()?;
+    if buf.trim().is_empty() {
+        None
+    } else {
+        Some(buf)
+    }
 }
 
 fn render_issue_entry(id: &str, issue: &IssueCreateRecord) -> String {
@@ -283,7 +394,7 @@ pub(crate) fn create_issue_batch(records: Vec<IssueCreateRecord>) -> Result<Vec<
             "---\nsource: {}\nnums: {}\n---\n\n",
             group.source,
             group.entries.len()
-    );
+        );
         for (id, item) in group.entries {
             content.push_str(&render_issue_entry(&id, &item));
         }
@@ -343,6 +454,7 @@ fn write_issue_batch(issue_dir: &PathBuf, files: &[(String, String)]) -> Result<
 // ─── Update ─────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 struct IssueUpdateInput {
     title: Option<String>,
     severity: Option<String>,
@@ -350,19 +462,23 @@ struct IssueUpdateInput {
     desc: Option<String>,
     reproduce: Option<String>,
     fix: Option<String>,
-    files_modify: Option<Vec<String>>,
-    files_create: Option<Vec<String>>,
+    files: Option<IssueFilesInput>,
 }
 
 fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let id = args.id.clone();
-    let input = resolve_issue_update_input(args)?;
+    let mut input = resolve_issue_update_input(args)?;
 
     if !has_any_issue_update(&input) {
         return Err(DowError::new(
             "no fields to update (provide at least one --field)",
             2,
         ));
+    }
+
+    if let Some(files) = input.files.as_mut() {
+        normalize_issue_files(files);
+        validate_issue_file_scope(files, "issue update")?;
     }
 
     if let Some(ref s) = input.severity {
@@ -394,20 +510,26 @@ fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
 
     // Merge fields (array fields use incremental logic)
     use crate::commands::task::apply_incremental;
-    let new_title = input.title.unwrap_or(parsed.title);
-    let new_severity = input.severity.unwrap_or(parsed.severity);
-    let new_location = input.location.unwrap_or(parsed.location);
-    let new_desc = input.desc.unwrap_or(parsed.description);
-    let new_reproduce = input.reproduce.unwrap_or(parsed.reproduce);
-    let new_fix = input.fix.unwrap_or(parsed.fix);
-    let new_files_modify = expand_file_list(match input.files_modify {
-        Some(v) => apply_incremental(v, parsed.files_modify),
-        None => parsed.files_modify,
-    });
-    let new_files_create = expand_file_list(match input.files_create {
-        Some(v) => apply_incremental(v, parsed.files_create),
-        None => parsed.files_create,
-    });
+    let new_title = input.title.clone().unwrap_or(parsed.title.clone());
+    let new_severity = input.severity.clone().unwrap_or(parsed.severity.clone());
+    let new_location = input.location.clone().unwrap_or(parsed.location.clone());
+    let new_desc = input.desc.clone().unwrap_or(parsed.description.clone());
+    let new_reproduce = input.reproduce.clone().unwrap_or(parsed.reproduce.clone());
+    let new_fix = input.fix.clone().unwrap_or(parsed.fix.clone());
+    let new_files_modify = match input.files.as_ref().and_then(|files| files.modify.clone()) {
+        Some(values) => apply_incremental(values, parsed.files_modify.clone()),
+        None => parsed.files_modify.clone(),
+    };
+    let new_files_create = match input.files.as_ref().and_then(|files| files.create.clone()) {
+        Some(values) => apply_incremental(values, parsed.files_create.clone()),
+        None => parsed.files_create.clone(),
+    };
+    if input.files.is_some() && new_files_modify.is_empty() && new_files_create.is_empty() {
+        return Err(DowError::new(
+            "issue update cannot remove the last files.create/files.modify path",
+            2,
+        ));
+    }
 
     // Rebuild the entry
     let content = fs::read_to_string(&file_path)
@@ -439,22 +561,26 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
         || args.desc.is_some()
         || args.reproduce.is_some()
         || args.fix.is_some()
-        || args.files_modify.is_some()
-        || args.files_create.is_some();
+        || args.file.is_some();
 
-    if !has_flags {
-        use std::io::IsTerminal;
-        if !std::io::stdin().is_terminal() {
-            let mut buf = String::new();
-            if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
-                let trimmed = buf.trim();
-                if trimmed.starts_with('{') {
-                    let input: IssueUpdateInput = serde_json::from_str(trimmed)
-                        .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
-                    return Ok(input);
-                }
-            }
+    let stdin_data = read_issue_stdin_if_available();
+    if has_flags && stdin_data.is_some() {
+        return Err(DowError::new(
+            "cannot combine issue update CLI options with stdin JSON; use one input source",
+            2,
+        ));
+    }
+    if let Some(stdin_data) = stdin_data {
+        let trimmed = stdin_data.trim();
+        if trimmed.starts_with('{') {
+            let input: IssueUpdateInput = serde_json::from_str(trimmed)
+                .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
+            return Ok(input);
         }
+        return Err(DowError::new(
+            "issue update stdin input must be a JSON object",
+            2,
+        ));
     }
 
     Ok(IssueUpdateInput {
@@ -464,18 +590,10 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
         desc: args.desc,
         reproduce: args.reproduce,
         fix: args.fix,
-        files_modify: args.files_modify.map(|s| {
-            s.split(',')
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
-                .collect()
-        }),
-        files_create: args.files_create.map(|s| {
-            s.split(',')
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
-                .collect()
-        }),
+        files: args
+            .file
+            .map(|value| parse_issue_files_arg(&value))
+            .transpose()?,
     })
 }
 
@@ -486,8 +604,7 @@ fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
         || input.desc.is_some()
         || input.reproduce.is_some()
         || input.fix.is_some()
-        || input.files_modify.is_some()
-        || input.files_create.is_some()
+        || input.files.is_some()
 }
 
 /// 多行字段格式化：第一行紧跟 prefix，后续行用 4 空格缩进续行
@@ -612,7 +729,7 @@ fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    let target_num = extract_issue_id_num(&parsed.id).unwrap_or(0);
+    let target_num = item_id::parse(&parsed.id).map(|id| id.num()).unwrap_or(0);
 
     // Collect higher issue IDs for renumbering
     let mut higher_nums: Vec<u32> = Vec::new();
@@ -628,12 +745,10 @@ fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [") {
-                            let title = line[5..].trim();
-                            if let Some(num) = extract_issue_id_num(title) {
-                                if num > target_num {
-                                    higher_nums.push(num);
-                                }
+                        if let Some(parsed) = item_id::extract_from_line(line) {
+                            if parsed.kind == item_id::ItemKind::Issue && parsed.num() > target_num
+                            {
+                                higher_nums.push(parsed.num());
                             }
                         }
                     }
@@ -648,8 +763,8 @@ fn remove(args: IssueRemoveArgs, human: bool) -> Result<i32, DowError> {
     let renumber: Vec<IssueRenumberEntry> = higher_nums
         .iter()
         .map(|&n| IssueRenumberEntry {
-        from: format!("ISSUE-I{:03}", n),
-        to: format!("ISSUE-I{:03}", n - 1),
+            from: format!("ISSUE-I{:03}", n),
+            to: format!("ISSUE-I{:03}", n - 1),
         })
         .collect();
 
@@ -906,8 +1021,14 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         description: parsed.description.clone(),
         reproduce: parsed.reproduce.clone(),
         fix: parsed.fix.clone(),
-        files_modify: parsed.files_modify.clone(),
-        files_create: parsed.files_create.clone(),
+        files: if parsed.files_modify.is_empty() && parsed.files_create.is_empty() {
+            None
+        } else {
+            Some(IssueFilesOutput {
+                create: parsed.files_create.clone(),
+                modify: parsed.files_modify.clone(),
+            })
+        },
         status: status.to_string(),
         file: filename,
     };
@@ -922,11 +1043,13 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         println!("  Description: {}", result.description);
         println!("  Reproduce:   {}", result.reproduce);
         println!("  Fix:         {}", result.fix);
-        if !result.files_modify.is_empty() {
-            println!("  Files modify: {}", result.files_modify.join(", "));
-        }
-        if !result.files_create.is_empty() {
-            println!("  Files create: {}", result.files_create.join(", "));
+        if let Some(files) = &result.files {
+            if !files.modify.is_empty() {
+                println!("  Files modify: {}", files.modify.join(", "));
+            }
+            if !files.create.is_empty() {
+                println!("  Files create: {}", files.create.join(", "));
+            }
         }
         println!("  File:        {}", result.file);
     } else {
@@ -943,6 +1066,14 @@ fn close_multi(ids: &[String]) -> Result<i32, DowError> {
     for id in ids {
         close(id)?;
     }
+
+    // Auto-revoke claims for closed issues
+    let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
+    for id in ids {
+        let normalized = item_id::normalize_short(id);
+        let _ = claim::revoke_claims(&doc_root_path, Some(&normalized));
+    }
+
     Ok(0)
 }
 
@@ -1127,79 +1258,67 @@ fn reopen(args: IssueReopenArgs, human: bool) -> Result<i32, DowError> {
 }
 
 fn schema(_human: bool) -> Result<i32, DowError> {
-    let result = IssueSchemaOutput {
-        fields: vec![
-            SchemaField {
-                name: "title".to_string(),
-                required: true,
-                r#type: "string".to_string(),
-                description: "Issue title".to_string(),
-                valid_values: vec![],
+    let result = serde_json::json!({
+        "fields": [
+            {
+                "name": "title",
+                "required": true,
+                "type": "string",
+                "description": "Issue title"
             },
-            SchemaField {
-                name: "severity".to_string(),
-                required: true,
-                r#type: "enum".to_string(),
-                description: "Issue severity level".to_string(),
-                valid_values: vec!["P0".into(), "P1".into(), "P2".into()],
+            {
+                "name": "severity",
+                "required": true,
+                "type": "enum",
+                "description": "Issue severity level",
+                "valid_values": ["P0", "P1", "P2"]
             },
-            SchemaField {
-                name: "location".to_string(),
-                required: true,
-                r#type: "string".to_string(),
-                description: "Code location (file:line)".to_string(),
-                valid_values: vec![],
+            {
+                "name": "location",
+                "required": true,
+                "type": "string",
+                "description": "Code location (file:line)"
             },
-            SchemaField {
-                name: "description".to_string(),
-                required: true,
-                r#type: "string".to_string(),
-                description: "Issue description".to_string(),
-                valid_values: vec![],
+            {
+                "name": "description",
+                "required": true,
+                "type": "string",
+                "description": "Issue description"
             },
-            SchemaField {
-                name: "reproduce".to_string(),
-                required: true,
-                r#type: "string".to_string(),
-                description: "Steps to reproduce".to_string(),
-                valid_values: vec![],
+            {
+                "name": "reproduce",
+                "required": true,
+                "type": "string",
+                "description": "Steps to reproduce"
             },
-            SchemaField {
-                name: "fix".to_string(),
-                required: false,
-                r#type: "string".to_string(),
-                description: "Fix description (filled on close)".to_string(),
-                valid_values: vec![],
+            {
+                "name": "fix",
+                "required": false,
+                "type": "string",
+                "description": "Fix description (filled on close)"
             },
-            SchemaField {
-                name: "source".to_string(),
-                required: true,
-                r#type: "enum".to_string(),
-                description: "Issue source".to_string(),
-                valid_values: vec![
-                    "test".into(),
-                    "other".into(),
-                    "audit".into(),
-                ],
+            {
+                "name": "source",
+                "required": true,
+                "type": "enum",
+                "description": "Issue source",
+                "valid_values": ["test", "other", "audit"]
             },
-            SchemaField {
-                name: "files_modify".to_string(),
-                required: false,
-                r#type: "array".to_string(),
-                description: "Files that may need modification to fix the issue".to_string(),
-                valid_values: vec![],
-            },
-            SchemaField {
-                name: "files_create".to_string(),
-                required: false,
-                r#type: "array".to_string(),
-                description: "Files that may need to be created to fix the issue".to_string(),
-                valid_values: vec![],
-            },
+            {
+                "name": "files",
+                "required": true,
+                "type": "object",
+                "description": "File scope; at least one non-empty create or modify list is required",
+                "at_least_one": ["create", "modify"],
+                "properties": {
+                    "create": {"type": "array", "items": "string"},
+                    "modify": {"type": "array", "items": "string"}
+                }
+            }
         ],
-        file_format: "issue_<source>_<YYYY-MM-DD>_<seq>.md".to_string(),
-        id_format: "ISSUE-I### (3-digit zero-padded sequence)".to_string(),
-    };
+        "file_format": "issue_<source>_<YYYY-MM-DD>_<seq>.md",
+        "id_format": "ISSUE-I### (3-digit zero-padded sequence)"
+    });
 
     output::print_json(&result);
     Ok(0)
@@ -1232,14 +1351,7 @@ fn find_issue_by_id(
     let entries = fs::read_dir(issue_dir)
         .map_err(|e| DowError::new(format!("Failed to read issue directory: {}", e), 1))?;
 
-    // Normalize ID: accept both "ISSUE-I001" and "I001" shorthand
-    let normalized_id = if id.starts_with("ISSUE-I") {
-        id.to_string()
-    } else if id.starts_with("I") && id[1..].chars().all(|c| c.is_ascii_digit()) {
-        format!("ISSUE-{}", id)
-    } else {
-        format!("ISSUE-I{}", id)
-    };
+    let normalized_id = item_id::normalize_full(id);
 
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -1404,12 +1516,9 @@ fn next_issue_id(issue_dir: &PathBuf) -> u32 {
             }
             if let Ok(content) = fs::read_to_string(entry.path()) {
                 for line in content.lines() {
-                    if line.starts_with("- [") {
-                        let title = line[5..].trim();
-                        if let Some(num) = extract_issue_id_num(title) {
-                            if num > max_id {
-                                max_id = num;
-                            }
+                    if let Some(parsed) = item_id::extract_from_line(line) {
+                        if parsed.kind == item_id::ItemKind::Issue && parsed.num() > max_id {
+                            max_id = parsed.num();
                         }
                     }
                 }
@@ -1418,17 +1527,6 @@ fn next_issue_id(issue_dir: &PathBuf) -> u32 {
     }
 
     max_id + 1
-}
-
-/// Extract numeric ID from issue title (e.g. "ISSUE-I003：title" -> 3)
-fn extract_issue_id_num(title: &str) -> Option<u32> {
-    let prefix = "ISSUE-I";
-    if !title.starts_with(prefix) {
-        return None;
-    }
-    let rest = &title[prefix.len()..];
-    let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
 }
 
 /// Get next file sequence number for a given source + date combination
@@ -1482,25 +1580,30 @@ fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<Vec<IssueCreateInp
         || args.desc.is_some()
         || args.source.is_some()
         || args.reproduce.is_some()
-        || args.files_modify.is_some()
-        || args.files_create.is_some();
+        || args.file.is_some();
 
-    if !has_flags {
-        use std::io::IsTerminal;
-        if !std::io::stdin().is_terminal() {
-            let mut buf = String::new();
-            if std::io::stdin().read_to_string(&mut buf).is_ok() && !buf.trim().is_empty() {
-                let payload: IssueCreatePayload = serde_json::from_str(&buf)
-                    .map_err(|e| DowError::new(format!("Invalid stdin JSON: {}", e), 2))?;
-                return Ok(match payload {
-                    IssueCreatePayload::One(input) => vec![input],
-                    IssueCreatePayload::Many(inputs) => inputs,
-                });
-            }
-        }
+    let stdin_data = read_issue_stdin_if_available();
+    if has_flags && stdin_data.is_some() {
+        return Err(DowError::new(
+            "cannot combine issue CLI options with stdin JSON; use one input source",
+            2,
+        ));
+    }
+    if let Some(stdin_data) = stdin_data {
+        let payload: IssueCreatePayload = serde_json::from_str(stdin_data.trim())
+            .map_err(|e| DowError::new(format!("Invalid stdin JSON: {}", e), 2))?;
+        return Ok(match payload {
+            IssueCreatePayload::One(input) => vec![input],
+            IssueCreatePayload::Many(inputs) => inputs,
+        });
     }
 
     // Fallback to CLI flags
+    let file = args
+        .file
+        .as_deref()
+        .ok_or_else(|| DowError::new("--file is required", 2))
+        .and_then(parse_issue_files_arg)?;
     Ok(vec![IssueCreateInput {
         title: args.title.clone(),
         severity: args.severity.clone(),
@@ -1509,18 +1612,8 @@ fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<Vec<IssueCreateInp
         source: args.source.clone(),
         reproduce: args.reproduce.clone(),
         fix: None,
-        files_modify: args.files_modify.as_deref().map(split_create_files),
-        files_create: args.files_create.as_deref().map(split_create_files),
+        files: file,
     }])
-}
-
-fn split_create_files(value: &str) -> Vec<String> {
-    value
-        .split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(ToOwned::to_owned)
-        .collect()
 }
 
 fn parse_open_items(content: &str) -> Vec<IssueItem> {

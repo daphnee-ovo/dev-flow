@@ -1,123 +1,66 @@
 ---
-description: Auto-read unclosed issues and fix them
+description: User-triggered workflow to automatically fix open issues
+disable-model-invocation: true
 allowed-tools: Agent, Bash, Read, Write, Edit
 ---
 
-# FIX — Auto-fix Unclosed Issues
+# FIX — **User-triggered** automatic issue repair
 
-## Pre-checks
+Only run this workflow when the user explicitly invokes `/fix`. Do not invoke
+it automatically from hooks, `/test`, `/check`, task completion, or issue
+creation.
 
-1. Confirm `.dev-doc/` exists
-2. Confirm STATUS is DEV
-3. Scan `.dev-doc/issue/` directory, confirm unclosed issues exist (i.e., `issue_*.md` without `closed_` prefix)
-4. If no unclosed issues, tell user "no issues to fix currently" and exit
+## Execution
 
-## Mode Detection
-doc_root obtained via `dow status --field doc_root` (no need to manually detect branch mode).
+1. List open issues with `dow issue list`. The CLI resolves the active branch's
+   document root. If there are no open issues, report that and stop.
 
-## Execution Steps
+2. Read each issue with `dow issue show <ISSUE-ID>` and understand its scope,
+   reproduction steps, affected files, and any related task or specification.
 
-1. List all unclosed issues: `dow issue list`
+3. Claim every issue before making project changes:
 
-2. Read each issue file content one by one
+   ```bash
+   dow claim <ISSUE-ID>...
+   ```
 
-3. Declare work association: `dow claim <ISSUE-ID>...` (pass all issue IDs to fix, guard allows writes based on this)
+4. Fix each claimed issue. Locate the root cause, keep the change scoped to
+   the issue, and run appropriate verification. Bug fixes require a regression
+   test; if that is technically infeasible, explain the alternative
+   verification and ask the user before closing the issue.
 
-4. Generate project context: `dow hooks context`
+5. For a verified fix, record the result and close the issue:
 
-5. Launch independent Agent to fix each issue (if issues have no dependencies, can parallelize)
+   ```bash
+   dow issue update <ISSUE-ID> --fix "<concise fix summary>"
+   dow issue close <ISSUE-ID>
+   ```
 
-6. After fix complete, verify and close issue
+   `dow issue close` checks the issue, renames a fully closed issue file, and
+   revokes its claim. Do not edit the issue checkbox or rename issue files
+   manually. If update or close fails, do not report the issue as fixed.
 
-7. Release claim: `dow claim --revoke`
+6. Leave unfixable issues open. Report the reason, verification performed,
+   and the suggested next step.
 
-## Agent Dispatch (Isolation Template)
+## Completion Report
 
-**Launch independent fix subagent for each unclosed issue. Dispatch by current runtime: Claude Code uses `Agent`, Codex uses `spawn_agent`. Subagent prompt must use following content:**
+Summarize every issue handled:
 
-```
-description: "FIX - Fix issue: <issue title>"
-prompt: `You are a senior developer. Your task is to fix the following issue.
-
-## Issue Content
-
-<paste complete issue file content>
-
-## Related Specs
-
-<extract parts from SPEC.md related to this issue>
-
-## Project Context
-
-<execute dow hooks context output, paste as-is>
-
-## Fix Requirements
-
-1. Locate root cause, don't just fix surface symptoms
-2. Fixed code must comply with technical specs in SPEC.md
-3. Must actually run verification after fix (start service/execute command/run tests)
-4. Ensure fix doesn't introduce new problems (regression)
-5. Minimize fix scope, don't refactor unrelated code along the way
-
-## Output Format
-
-Conclusion: Fixed / Cannot fix
-Modified files: <list modified file paths>
-Verification method: <how to verify fix success>
-Reason: <if cannot fix, explain reason and suggestions>
-
-## Prohibited
-
-- Don't read unrelated historical files
-- Don't modify code unrelated to issue
-- Don't add new features not required by SPEC
-- Don't modify code related to other issues (avoid conflicts)
-- Prohibited to write to system temp directories; project-internal tmp and temp both allowed, prioritize existing directories, new projects default to tmp`
-```
-
-## Input Isolation Rules
-
-| Allowed Input | Prohibited Input |
-|---------------|------------------|
-| That issue's complete content | Other issues' content |
-| Related parts from SPEC.md | Dev process conversation history |
-| Related task descriptions from task/ | Unrelated historical records |
-| Project context (context.sh output) | PRD.md |
-
-## Result Handling
-
-- **Fixed** → Check corresponding item in issue file as `[x]`, fill in fix description in fix field. When all items in file are `[x]`, rename with `closed_` prefix (e.g., `issue_test_2026-05-15_1.md` → `closed_issue_test_2026-05-15_1.md`)
-
-- **Cannot fix** → Keep issue open, report reason and suggestions to user
-
-## audit Mode
-
-When in `audit/<original_mode>` (e.g., `audit/quick`), /fix behavior unchanged, but completion prompt different:
-
-- After all issues fixed, prompt user to execute `/iterate`
-- After iterate completes will auto-restore original mode (no need for manual `/mode`)
-- Typical flow: audit finds issues → `/fix` fixes → `/iterate` → auto-restore
-
-## After Completion
-
-Summarize handling results for all issues:
-```
+```text
 [dev-flow] Issue Fix Report
-━━━━━━━━━━━━━━━━━━━━━━
-Fixed: N items
-Cannot fix: M items
+Fixed: N
+Cannot fix: M
+Blocked: K
 
 Details:
-  ✓ <issue-1>: <one-sentence fix description>
-  ✓ <issue-2>: <one-sentence fix description>
-  ✗ <issue-3>: <cannot fix reason>
-
-Next step suggestion: <if unfixable issues exist, give suggestions>
+  ✓ <issue-id>: <one-sentence fix and verification summary>
+  ✗ <issue-id>: <reason and next step>
+  ! <issue-id>: <claim or workflow blocker>
 ```
 
-## Why Independent Agent per Issue
+## Audit Mode
 
-- Avoid fixes interfering with each other (one fix introduces another bug)
-- Isolate context, let each Agent focus on single problem
-- Support parallel fixes, improve efficiency
-- Fix failure doesn't affect other issues' handling
+When the mode is `audit/<original_mode>` (for example, `audit/quick`), the fix
+workflow is unchanged. After all issues are fixed, prompt the user to run
+`/iterate`; `/iterate` restores the original mode after completion.

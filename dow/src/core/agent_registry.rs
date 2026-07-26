@@ -39,6 +39,10 @@ pub const SUPPORTED_AGENTS: &[AgentInfo] = &[
         name: "kiro",
         display_name: "Kiro",
     },
+    AgentInfo {
+        name: "pi",
+        display_name: "Pi",
+    },
 ];
 
 pub fn deploy_plugin(agent: &str, bundle_dir: &Path) -> Result<(), String> {
@@ -143,6 +147,7 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
     let required_dirs: &[&str] = match agent {
         "claude" => &["commands", "agents"],
         "codex" => &["skills", "agents"],
+        "pi" => &[],
         _ => &[],
     };
     for dir in required_dirs {
@@ -177,6 +182,11 @@ pub fn verify_plugin_integrity(agent: &str) -> Result<Vec<String>, String> {
             }
             if !target.join(".codex-plugin").join("plugin.json").exists() {
                 issues.push("Missing .codex-plugin/plugin.json".to_string());
+            }
+        }
+        "pi" => {
+            if !target.join("index.ts").exists() {
+                issues.push("Missing index.ts (extension entry point)".to_string());
             }
         }
         _ => {}

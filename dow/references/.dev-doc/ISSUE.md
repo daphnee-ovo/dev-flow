@@ -6,6 +6,14 @@
 
 关闭标记：hook 自动重命名为 `closed_issue_<source>_<YYYY-MM-DD>_<seq>.md`
 
+## Public Input
+
+Issue create/update accepts a nested `files` object. CLI input uses
+`--file '{"modify":["src/main.rs"]}'`; stdin JSON places it under the
+top-level `files` key. `create` and `modify` are individually optional, but
+at least one must contain a non-empty path. The Markdown representation below
+intentionally keeps its existing `files_modify`/`files_create` field names.
+
 ## 模板
 
 ```markdown

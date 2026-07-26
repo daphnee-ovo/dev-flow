@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/i
 irm https://raw.githubusercontent.com/daphnee-ovo/dev-flow/main/install/install.ps1 | iex
 ```
 
-The install scripts run `dow setup` automatically. For Cargo and Homebrew installs, `dow setup` registers dev-flow with your preferred agent (Claude Code, Codex, or Kiro). Project initialization happens later with `/init` inside the target project.
+The install scripts run `dow setup` automatically. For Cargo and Homebrew installs, `dow setup` registers dev-flow with your preferred agent (Claude Code, Codex, Kiro, or Pi). Project initialization happens later with `/init` inside the target project.
 
 ### First Run
 
@@ -80,18 +80,19 @@ dev-flow is intentionally opinionated. It is probably too much for one-line edit
 | Agent | Status | Manual setup |
 |-------|--------|---------|
 | **Claude Code** | Supported | `dow setup --agent claude` |
-| **Codex CLI** | Supported | `dow setup --agent codex` |
-| **Kiro** | Supported | `dow setup --agent kiro` |
+| **Codex** | Supported | `dow setup --agent codex` |
+| **Kiro-Cli** | Supported | `dow setup --agent kiro` |
+| **Pi** | Testing | `dow setup --agent pi` |
 
 ### Agent Compatibility
 
-All three agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
+All four agents deliver the same workflow experience — identical commands, hooks, sub-agents, and state management. The only differences are platform-level implementation details:
 
-| Aspect | Claude Code | Codex CLI / App | Kiro |
-|--------|-------------|-----------------|------|
-| Command interface | Slash commands | Skill commands | Skill commands |
-| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent |
-| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` |
+| Aspect | Claude Code | Codex CLI / App | Kiro | Pi |
+|--------|-------------|-----------------|------|----|
+| Command interface | Slash commands | Skill commands | Skill commands | Skill commands |
+| Sub-agent invocation | `Agent` tool | `spawn_agent` | subagent | `Agent` tool |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `.kiro/steering/` | `AGENTS.md` |
 
 #### Kiro: Enabling Hooks
 
@@ -132,7 +133,7 @@ Core principles:
 | `/task` | TASK phase — decompose into task files (challenger agent for complex cases) |
 | `/issue` | Manually create issue files |
 | `/test` | Run dow test for full project verification |
-| `/fix` | Auto-read open issues and fix them |
+| `/fix` | User-triggered workflow to read, claim, fix, verify, and close open issues |
 | `/status` | Report current project status & progress |
 | `/check` | Check if dev work is synced with .dev-doc |
 | `/iterate` | Start new iteration after delivery (archive + reset) |
@@ -234,11 +235,13 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 
 Issues support a full lifecycle beyond tasks:
 
-- **Fields**: description, reproduce steps, fix, priority, files_modify, files_create, refs, severity. Creation accepts one JSON object or a batch JSON array.
+- **Nested file scope**: create/update use `--file '{"create":[],"modify":["src/a.rs"]}'`; stdin JSON uses a top-level `files` object. `create` and `modify` are individually optional, but at least one must contain a non-empty path.
+- **JSON batches**: creation accepts one nested JSON object or a batch JSON array.
 - **Multi-line values**: description/reproduce/fix support YAML indented continuation format
 - **Close enforcement**: closing requires a non-empty fix field
-- **Incremental array updates**: `--files +src/foo.rs -src/bar.rs` to add/remove specific items
-- **Fix workflow**: `/fix` reads open issues and resolves them systematically
+- **Incremental file updates**: `dow issue update I001 --file '{"modify":["+src/foo.rs","-src/bar.rs"]}'`
+- **Output contract**: JSON detail output uses nested `files`; issue Markdown keeps its existing `files_modify`/`files_create` representation.
+- **Fix workflow**: `/fix` runs only after explicit user invocation. It reads and claims open issues, applies scoped fixes, records each fix with `dow issue update --fix`, verifies the result, and closes the issue with `dow issue close`.
 
 ### Multi-Branch VERSION
 

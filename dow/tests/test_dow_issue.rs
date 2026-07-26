@@ -50,6 +50,8 @@ fn test_issue_create_with_flags() {
             "run with empty string",
             "--source",
             "test",
+            "--file",
+            r#"{"modify":["src/parser.rs"]}"#,
         ])
         .current_dir(dir.path())
         .output()
@@ -86,7 +88,7 @@ fn test_issue_create_with_stdin_json() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
 
-    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"test"}"#;
+    let json_input = r#"{"title":"memory leak","severity":"P1","location":"src/alloc.rs:10","desc":"grows unbounded","reproduce":"allocate in loop","source":"test","files":{"modify":["src/alloc.rs"]}}"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "create"])
@@ -135,10 +137,8 @@ fn test_issue_create_with_optional_files() {
             "run the test",
             "--source",
             "test",
-            "--files-modify",
-            "src/main.rs,src/lib.rs",
-            "--files-create",
-            "src/new.rs",
+            "--file",
+            r#"{"modify":["src/main.rs","src/lib.rs"],"create":["src/new.rs"]}"#,
         ])
         .current_dir(dir.path())
         .output()
@@ -169,9 +169,9 @@ fn test_issue_create_batch_json_groups_by_source() {
     let dir = tempfile::tempdir().unwrap();
     let doc = setup_env(dir.path());
     let json_input = r#"[
-        {"title":"test one","severity":"P1","location":"a.rs:1","desc":"d1","reproduce":"r1","source":"test","files_modify":["a.rs"]},
-        {"title":"other one","severity":"P2","location":"b.rs:2","desc":"d2","reproduce":"r2","source":"other"},
-        {"title":"test two","severity":"P0","location":"c.rs:3","desc":"d3","reproduce":"r3","source":"test","files_create":["c.rs"]}
+        {"title":"test one","severity":"P1","location":"a.rs:1","desc":"d1","reproduce":"r1","source":"test","files":{"modify":["a.rs"]}},
+        {"title":"other one","severity":"P2","location":"b.rs:2","desc":"d2","reproduce":"r2","source":"other","files":{"modify":["b.rs"]}},
+        {"title":"test two","severity":"P0","location":"c.rs:3","desc":"d3","reproduce":"r3","source":"test","files":{"create":["c.rs"]}}
     ]"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -241,8 +241,8 @@ fn test_issue_create_batch_validation_is_atomic() {
     let dir = tempfile::tempdir().unwrap();
     let doc = setup_env(dir.path());
     let json_input = r#"[
-        {"title":"valid","severity":"P1","location":"a.rs:1","desc":"d","reproduce":"r","source":"test"},
-        {"title":"invalid","severity":"CRITICAL","location":"b.rs:1","desc":"d","reproduce":"r","source":"test"}
+        {"title":"valid","severity":"P1","location":"a.rs:1","desc":"d","reproduce":"r","source":"test","files":{"modify":["a.rs"]}},
+        {"title":"invalid","severity":"CRITICAL","location":"b.rs:1","desc":"d","reproduce":"r","source":"test","files":{"modify":["b.rs"]}}
     ]"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -273,13 +273,133 @@ fn test_issue_create_batch_validation_is_atomic() {
 }
 
 #[test]
+fn test_issue_create_rejects_unscoped_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "issue",
+            "create",
+            "--title",
+            "unscoped",
+            "--severity",
+            "P1",
+            "--location",
+            "src/a.rs:1",
+            "--desc",
+            "d",
+            "--reproduce",
+            "r",
+            "--source",
+            "other",
+            "--file",
+            r#"{"create":[]}"#,
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("files.create"));
+    assert_eq!(fs::read_dir(doc.join("issue")).unwrap().count(), 0);
+}
+
+#[test]
+fn test_issue_create_rejects_mixed_cli_and_stdin() {
+    let dir = tempfile::tempdir().unwrap();
+    let _doc = setup_env(dir.path());
+    let json_input = r#"{"title":"stdin issue","severity":"P1","location":"src/a.rs:1","desc":"d","reproduce":"r","source":"other","files":{"modify":["src/a.rs"]}}"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create", "--title", "cli issue"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    use std::io::Write;
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot combine"));
+}
+
+#[test]
+fn test_issue_update_nested_files_incremental() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let issue_path = doc.join("issue/issue_other_2026-06-25_1.md");
+    fs::write(
+        &issue_path,
+        "---\nsource: other\nnums: 1\n---\n\n- [ ] ISSUE-I001：Update scope\n  - severity: P1\n  - location：src/old.rs:1\n  - description：d\n  - reproduce：r\n  - files_modify: [old.rs]\n  - fix：\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "issue",
+            "update",
+            "ISSUE-I001",
+            "--file",
+            r#"{"modify":["+new.rs","-old.rs"]}"#,
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let content = fs::read_to_string(issue_path).unwrap();
+    assert!(content.contains("files_modify: [new.rs]"));
+    assert!(!content.contains("files_modify: [old.rs]"));
+}
+
+#[test]
+fn test_issue_update_rejects_task_test_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let issue_path = doc.join("issue/issue_other_2026-06-25_1.md");
+    fs::write(
+        &issue_path,
+        "---\nsource: other\nnums: 1\n---\n\n- [ ] ISSUE-I001：Issue\n  - severity: P1\n  - location：src/a.rs:1\n  - description：d\n  - reproduce：r\n  - files_modify: [src/a.rs]\n  - fix：\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "issue",
+            "update",
+            "ISSUE-I001",
+            "--file",
+            r#"{"test":["tests/issue.rs"]}"#,
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unknown field"));
+}
+
+#[test]
 fn test_issue_create_rejects_fix_in_json() {
     let dir = tempfile::tempdir().unwrap();
     let _doc = setup_env(dir.path());
 
     // stdin JSON carrying a `fix` field must be rejected transparently,
     // not silently dropped.
-    let json_input = r#"{"title":"x","severity":"P1","location":"src/a.rs:1","desc":"d","reproduce":"r","source":"test","fix":"already fixed"}"#;
+    let json_input = r#"{"title":"x","severity":"P1","location":"src/a.rs:1","desc":"d","reproduce":"r","source":"test","files":{"modify":["src/a.rs"]},"fix":"already fixed"}"#;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["issue", "create"])
@@ -338,6 +458,8 @@ fn test_issue_create_invalid_severity() {
             "steps",
             "--source",
             "other",
+            "--file",
+            r#"{"modify":["a.rs"]}"#,
         ])
         .current_dir(dir.path())
         .output()
@@ -354,7 +476,14 @@ fn test_issue_create_missing_title() {
     let _doc = setup_env(dir.path());
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["issue", "create", "--severity", "P1"])
+        .args([
+            "issue",
+            "create",
+            "--severity",
+            "P1",
+            "--file",
+            r#"{"modify":["a.rs"]}"#,
+        ])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -391,6 +520,8 @@ fn test_issue_create_auto_increments_id() {
             "steps here",
             "--source",
             "test",
+            "--file",
+            r#"{"modify":["b.rs"]}"#,
         ])
         .current_dir(dir.path())
         .output()
@@ -431,7 +562,7 @@ fn test_issue_show() {
 
     fs::write(
         doc.join("issue/issue_test_2026-06-20_1.md"),
-        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：parser crash\n  - severity: P0\n  - location：src/parser.rs:42\n  - description：crashes on empty\n  - reproduce：run with empty file\n  - fix：\n",
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：parser crash\n  - severity: P0\n  - location：src/parser.rs:42\n  - description：crashes on empty\n  - reproduce：run with empty file\n  - files_modify: [src/parser.rs]\n  - fix：\n",
     ).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -450,6 +581,7 @@ fn test_issue_show() {
     assert_eq!(json["title"], "parser crash");
     assert_eq!(json["severity"], "P0");
     assert_eq!(json["location"], "src/parser.rs:42");
+    assert_eq!(json["files"]["modify"][0], "src/parser.rs");
     assert_eq!(json["status"], "open");
 }
 
@@ -739,11 +871,15 @@ fn test_issue_schema() {
     let severity_field = fields.iter().find(|f| f["name"] == "severity").unwrap();
     assert!(severity_field["valid_values"].as_array().unwrap().len() == 3);
 
-    for name in ["files_modify", "files_create"] {
-        let field = fields.iter().find(|f| f["name"] == name).unwrap();
-        assert_eq!(field["required"], false);
-        assert_eq!(field["type"], "array");
-    }
+    let files = fields.iter().find(|f| f["name"] == "files").unwrap();
+    assert_eq!(files["required"], true);
+    assert_eq!(files["type"], "object");
+    assert_eq!(
+        files["at_least_one"],
+        serde_json::json!(["create", "modify"])
+    );
+    assert!(files["properties"]["create"].is_object());
+    assert!(files["properties"]["modify"].is_object());
 
     assert!(json["file_format"].as_str().unwrap().contains("issue_"));
     assert!(json["id_format"].as_str().unwrap().contains("ISSUE-I"));
@@ -828,4 +964,71 @@ fn test_issue_list_all() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let open = json["open"].as_array().unwrap();
     assert_eq!(open.len(), 2, "should show both open and closed files");
+}
+
+// ─── Short ID Tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_issue_show_accepts_short_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let issue_dir = doc.join("issue");
+    fs::write(
+        issue_dir.join("issue_test_2026-07-22_1.md"),
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：Short ID bug\n  - severity: P1\n  - location：src/lib.rs:10\n  - description：test short id\n  - reproduce：use I1\n",
+    )
+    .unwrap();
+
+    // I001 (short with padding)
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "show", "I001"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "I001 failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "ISSUE-I001");
+
+    // I1 (short without padding)
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "show", "I1"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "I1 failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["id"], "ISSUE-I001");
+}
+
+#[test]
+fn test_issue_close_accepts_short_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+
+    let issue_dir = doc.join("issue");
+    fs::write(
+        issue_dir.join("issue_test_2026-07-22_1.md"),
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：Close short\n  - severity: P1\n  - location：a.rs:1\n  - description：close with short\n  - reproduce：use I1\n  - fix：patched\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "close", "I1"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "I1 close failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

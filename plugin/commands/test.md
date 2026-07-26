@@ -1,12 +1,14 @@
 ---
-description: Run complete project or Task-scoped tests
+description: Enter TEST phase and run full-project tests only when the user explicitly requests TEST phase
 allowed-tools: Bash, Read
 ---
 
 # TEST — Test execution
 
-`/test` is the workflow entry. The `dow test` CLI is the only test executor and
-the only component that creates test-failure ISSUE files.
+`/test` is the explicit TEST-phase workflow entry. Do not invoke it from Task
+completion or a hook reminder; ask the user to enter TEST instead. The `dow test`
+CLI is the only test executor and the only component that creates test-failure
+ISSUE files.
 
 ## Commands
 
@@ -56,8 +58,9 @@ not silently executed as Shell.
   create an ISSUE.
 
 The ISSUE title is `Test fail:<summary>` for full tests and
-`Test TASK-ID fail:<summary>` for Task tests. Failure targets may populate
-`files_modify` and `files_create`.
+`Test TASK-ID fail:<summary>` for Task tests. Generated ISSUE Markdown may
+contain `files_modify` and `files_create`; public issue create/update input
+uses the nested `files` object.
 
 There is no `--file` or `--task` test selector. Use the language's own command
 for an ad hoc single-file check, or configure `test.ci`.

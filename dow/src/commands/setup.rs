@@ -69,7 +69,7 @@ fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
             let available = available_agents();
             if available.is_empty() {
                 return Err(DowError::new(
-                    "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, or Kiro CLI first.",
+                    "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, Kiro CLI, or Pi first.",
                     1,
                 ));
             }
@@ -82,7 +82,7 @@ fn resolve_agents(agent_arg: Option<String>) -> Result<Vec<String>, DowError> {
             {
                 return Err(DowError::new(
                     &format!(
-                        "Unsupported agent: {} (options: claude, codex, kiro, all)",
+                        "Unsupported agent: {} (options: claude, codex, kiro, pi, all)",
                         name
                     ),
                     1,
@@ -111,7 +111,7 @@ fn interactive_select() -> Result<Vec<String>, DowError> {
 
     if detected.is_empty() {
         return Err(DowError::new(
-            "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, or Kiro CLI first.",
+            "No agent runtimes detected. Install Claude Code, Codex/ChatGPT App, Kiro CLI, or Pi first.",
             1,
         ));
     }
@@ -150,6 +150,7 @@ fn is_agent_runtime_available(agent: &str) -> bool {
         "claude" => executable_on_path("claude").is_some(),
         "codex" => resolve_codex_binary().is_ok(),
         "kiro" => executable_on_path("kiro-cli").is_some() || executable_on_path("kiro").is_some(),
+        "pi" => executable_on_path("pi").is_some(),
         _ => false,
     }
 }
@@ -198,8 +199,60 @@ fn register_with_agent(agent: &str) -> Result<(), String> {
         "kiro" => platform::agent_plugin_dir("kiro")
             .map(|plugin_dir| register_kiro_plugin(&plugin_dir))
             .unwrap_or_else(|| Err("Cannot determine Kiro plugin directory".to_string())),
+        "pi" => platform::agent_plugin_dir("pi")
+            .map(|plugin_dir| register_pi_extension(&plugin_dir))
+            .unwrap_or_else(|| Err("Cannot determine Pi extensions directory".to_string())),
         _ => Ok(()),
     }
+}
+
+fn register_pi_extension(plugin_dir: &Path) -> Result<(), String> {
+    let bundle = platform::bundle_dir().join("pi");
+    if !bundle.is_dir() {
+        return Err("pi bundle does not exist, please run assemble first".to_string());
+    }
+
+    // Deploy extension to ~/.pi/agent/extensions/dev-flow/
+    if plugin_dir.exists() {
+        let _ = fs::remove_dir_all(plugin_dir);
+    }
+    fs::create_dir_all(plugin_dir)
+        .map_err(|e| format!("Failed to create Pi extension directory: {}", e))?;
+
+    // Copy index.ts (extension entry point)
+    let src_index = bundle.join("index.ts");
+    if src_index.exists() {
+        fs::copy(&src_index, plugin_dir.join("index.ts"))
+            .map_err(|e| format!("Failed to copy extension index.ts: {}", e))?;
+    }
+
+    // Deploy skills to ~/.pi/agent/skills/ (each skill as dir/SKILL.md)
+    let skills_src = bundle.join("skills");
+    if skills_src.is_dir() {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| ".".to_string());
+        let skills_dst = PathBuf::from(&home).join(".pi").join("agent").join("skills");
+        fs::create_dir_all(&skills_dst)
+            .map_err(|e| format!("Failed to create Pi skills directory: {}", e))?;
+        if let Ok(entries) = fs::read_dir(&skills_src) {
+            for entry in entries.flatten() {
+                let src_path = entry.path();
+                if !src_path.is_dir() {
+                    continue;
+                }
+                let skill_name = entry.file_name();
+                let dst_skill = skills_dst.join(&skill_name);
+                if dst_skill.exists() {
+                    let _ = fs::remove_dir_all(&dst_skill);
+                }
+                agent_registry::copy_dir_recursive(&src_path, &dst_skill)
+                    .map_err(|e| format!("Failed to deploy Pi skill {:?}: {}", skill_name, e))?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn register_kiro_plugin(plugin_dir: &Path) -> Result<(), String> {

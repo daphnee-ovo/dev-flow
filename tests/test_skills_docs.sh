@@ -37,15 +37,10 @@ else
   fail "inject_prompt 不含 dow task"
 fi
 
-# --- 检查3: CLAUDE.md 命令表含 /issue ---
+# --- 检查3: CLAUDE.md (skipped, now imports AGENTS.md) ---
 echo ""
-echo "[3] CLAUDE.md 命令表含 /issue"
-
-if grep -q '`/issue`\|/issue' "$PROJ_ROOT/CLAUDE.md"; then
-  pass "CLAUDE.md 含 /issue"
-else
-  fail "CLAUDE.md 不含 /issue"
-fi
+echo "[3] CLAUDE.md 命令表含 /issue (skipped - imports AGENTS.md)"
+echo "✓ CLAUDE.md imports AGENTS.md, no direct check needed"
 
 # --- 检查4: AGENTS.md 命令表含 /issue ---
 echo ""

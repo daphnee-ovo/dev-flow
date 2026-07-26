@@ -143,7 +143,7 @@ fn detect_tty() -> Option<String> {
 
 /// Add claim (merge into existing list, update timestamp if already exists)
 pub fn add_claims(doc_root: &Path, ids: &[String]) -> std::io::Result<()> {
-    add_claims_with_agent(doc_root, ids, detect_agent_id())
+    add_claims_with_options(doc_root, ids, detect_agent_id(), None)
 }
 
 pub fn add_claims_with_agent(
@@ -151,8 +151,21 @@ pub fn add_claims_with_agent(
     ids: &[String],
     agent_id: Option<String>,
 ) -> std::io::Result<()> {
+    add_claims_with_options(doc_root, ids, agent_id, None)
+}
+
+pub fn add_claims_with_options(
+    doc_root: &Path,
+    ids: &[String],
+    agent_id: Option<String>,
+    ttl_override: Option<u64>,
+) -> std::io::Result<()> {
     let mut lock = read_claim_lock(doc_root).unwrap_or_else(ClaimLock::empty);
     let ts = now_ts();
+
+    if let Some(ttl) = ttl_override {
+        lock.ttl = ttl;
+    }
 
     for id in ids {
         if let Some(existing) = lock.claims.iter_mut().find(|c| &c.id == id) {
@@ -188,4 +201,45 @@ pub fn revoke_claims(doc_root: &Path, id: Option<&str>) -> std::io::Result<()> {
             }
         }
     }
+}
+
+/// Revoke all claims held by a specific agent.
+/// If agent_id is None, revoke all claims (fallback for undetectable agent).
+pub fn revoke_by_agent(doc_root: &Path, agent_id: Option<&str>) -> std::io::Result<Vec<String>> {
+    let agent_id = match agent_id {
+        Some(id) => id,
+        None => {
+            // Cannot detect agent — revoke all as fallback
+            let revoked = get_active_claims(doc_root);
+            remove_claim_lock(doc_root);
+            return Ok(revoked);
+        }
+    };
+
+    let mut lock = match read_claim_lock(doc_root) {
+        Some(l) => l,
+        None => return Ok(Vec::new()),
+    };
+
+    let revoked: Vec<String> = lock
+        .claims
+        .iter()
+        .filter(|c| c.agent_id.as_deref() == Some(agent_id))
+        .map(|c| c.id.clone())
+        .collect();
+
+    if revoked.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    lock.claims
+        .retain(|c| c.agent_id.as_deref() != Some(agent_id));
+
+    if lock.claims.is_empty() {
+        remove_claim_lock(doc_root);
+    } else {
+        write_claim_lock(doc_root, &lock)?;
+    }
+
+    Ok(revoked)
 }

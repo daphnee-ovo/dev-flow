@@ -36,7 +36,7 @@
     ],
     "stop": [
       {
-        "command": "dow hooks save-changelog --kiro-hook",
+        "command": "dow hooks session-stop --kiro-hook",
         "timeout_ms": 15000
       }
     ]

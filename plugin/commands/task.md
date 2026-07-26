@@ -71,6 +71,20 @@ Main agent directly:
 
 Get format via `dow task schema`. Create via `dow task create`.
 
+Task file scope uses one nested JSON object. `create` and `modify` are
+individually optional, but at least one must contain a non-empty path;
+`test` is optional:
+
+```bash
+dow task create --title "Add auth" --type feat --priority P1 --refs user-request \
+  --file '{"modify":["src/auth.rs"],"test":["tests/auth.rs"]}' \
+  --depends-on "" --complexity S --done-when "auth works"
+```
+
+For stdin JSON, put the same object under the top-level `files` key. The
+legacy `files_modify`/`files_create`/`files_test` fields and `--files-*` flags
+are not accepted.
+
 **Batch creation**: pipe a JSON array to stdin to create multiple tasks at once:
 ```bash
 echo '[{"title":"Task A","priority":"P0"},{"title":"Task B","depends_on":["TASK-T001"]}]' | dow task create
@@ -79,10 +93,11 @@ This is the preferred method when decomposing multiple tasks — one command ins
 
 **Incremental update**: array fields support `+item` (append) / `-item` (remove) syntax:
 ```bash
-dow task update T001 --files-modify "+new.rs,-old.rs"
+dow task update T001 --file '{"modify":["+new.rs","-old.rs"]}'
 dow task update T001 --done-when "+新验收标准"
 ```
-Without `+`/`-` prefix = full replacement. Applies to: `files_modify`, `files_create`, `files_test`, `depends_on`, `done_when`.
+Without `+`/`-` prefix = full replacement. Applies to the nested `files`
+categories, `depends_on`, and `done_when`.
 
 ## After Completion
 

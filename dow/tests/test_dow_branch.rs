@@ -80,8 +80,8 @@ fn test_context_doc_root_matches_branch() {
         .unwrap();
 
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let doc_root = json["doc_root"].as_str().unwrap();
-    assert_eq!(doc_root, format!(".dev-doc/{}", branch));
+    // doc_root removed from output; verify branch is correct instead
+    assert_eq!(json["branch"], branch);
 }
 
 #[test]
@@ -175,7 +175,6 @@ fn test_auto_creates_branch_dir_on_new_branch() {
     assert!(output.status.success());
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["branch"], "feat-new");
-    assert_eq!(json["doc_root"], ".dev-doc/feat-new");
 
     // 目录应该被自动创建
     assert!(&dir.join(".dev-doc/feat-new/STATUS.yaml").exists());
@@ -484,7 +483,7 @@ fn test_guard_allows_task_create_metadata_paths_without_claim() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --title 'fix example' --files-modify src/example.rs --files-create src/generated.rs"
+            "command": "dow task create --title 'fix example' --file '{\"modify\":[\"src/example.rs\"],\"create\":[\"src/generated.rs\"]}'"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -500,6 +499,118 @@ fn test_guard_allows_task_create_metadata_paths_without_claim() {
         "metadata paths must not be treated as writes: {}",
         String::from_utf8_lossy(&output.stdout)
     );
+}
+
+#[test]
+fn test_guard_allows_flow_create_with_prose_metadata() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow task create --title 'fix example' --refs 'GitHub issue prose: tee cp mv sed perl dd and > are data' --file '{\"modify\":[\"dow/src/hooks/guard.rs\"],\"test\":[\"dow/tests/test_dow_branch.rs\"]}' --complexity M --done-when 'criterion one,criterion two'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "flow metadata must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_issue_create_prose_metadata_without_claim() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "dow issue create --title 'guard issue' --severity P1 --location 'dow/src/hooks/guard.rs' --desc 'The prose contains tee cp mv sed perl dd and > as ordinary text.' --reproduce 'Run the command and observe the guard.' --source other --file '{\"modify\":[\"dow/src/hooks/guard.rs\"]}'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "issue metadata must not be treated as writes: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_allows_github_issue_body_prose_without_filesystem_target() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let tool_input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "gh issue create --title 'guard issue' --body '## Summary\n> ordinary prose mentions tee cp mv sed perl dd and a path-like word to\n'"
+        }
+    });
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "guard", "--codex-hook"])
+        .env("TOOL_INPUT", tool_input.to_string())
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        output.stdout.is_empty(),
+        "GitHub issue prose must not be treated as a write: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn test_guard_blocks_known_filesystem_commands() {
+    let dir = create_test_dir();
+    setup_dev_all_done(&dir);
+
+    let commands = [
+        "cp source.txt output.txt",
+        "mv source.txt output.txt",
+        "sed -i 's/old/new/' src/main.rs",
+        "perl -i -pe 's/old/new/' src/main.rs",
+        "dd if=source.bin of=output.bin",
+    ];
+
+    for command in commands {
+        let tool_input = serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": command}
+        });
+        let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+            .args(["hooks", "guard", "--codex-hook"])
+            .env("TOOL_INPUT", tool_input.to_string())
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("\"permissionDecision\":\"deny\""),
+            "known filesystem command was not blocked: {command}\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
 }
 
 #[test]
@@ -560,7 +671,7 @@ fn test_guard_allows_task_create_refs_containing_tee_word() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --title 'fix example' --priority P0 --refs 'User-defined send steer queue interaction-group semantics' --files-modify 'crates/rozsa-app/src/agent_session.rs,crates/rozsa-gui/src/commands.rs' --files-test 'crates/rozsa-gui/tests/turn_diff_test.rs' --complexity L --done-when 'Interaction summary works'"
+            "command": "dow task create --title 'fix example' --priority P0 --refs 'User-defined send steer queue interaction-group semantics' --file '{\"modify\":[\"crates/rozsa-app/src/agent_session.rs\",\"crates/rozsa-gui/src/commands.rs\"],\"test\":[\"crates/rozsa-gui/tests/turn_diff_test.rs\"]}' --complexity L --done-when 'Interaction summary works'"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -583,7 +694,7 @@ fn test_guard_allows_stdin_json_task_create_metadata_paths_without_claim() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
 
-    let command = "printf '%s' '{\"title\":\"fix example\",\"files_modify\":[\"src/example.rs\"],\"files_create\":[],\"files_test\":[]}' | dow task create";
+    let command = "printf '%s' '{\"title\":\"fix example\",\"refs\":\"issue prose: tee cp mv sed perl dd and > are data\",\"files\":{\"modify\":[\"src/example.rs\"]}}' | dow task create";
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {"command": command}
@@ -612,7 +723,7 @@ fn test_guard_allows_positional_trusted_flow_command() {
         .args([
             "hooks",
             "guard",
-            "dow task create --files-modify src/example.rs",
+            "dow task create --file '{\"modify\":[\"src/example.rs\"]}'",
         ])
         .current_dir(&dir)
         .output()
@@ -631,7 +742,7 @@ fn test_guard_allows_absolute_current_dow_metadata_command() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
     let command = format!(
-        "{} task create --files-modify src/example.rs",
+        "{} task create --file '{{\"modify\":[\"src/example.rs\"]}}'",
         env!("CARGO_BIN_EXE_dow")
     );
 
@@ -657,7 +768,7 @@ fn test_guard_does_not_exempt_flow_command_with_redirect() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --files-modify src/example.rs > output"
+            "command": "dow task create --file '{\"modify\":[\"src/example.rs\"]}' > output"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -683,7 +794,7 @@ fn test_guard_does_not_exempt_flow_command_with_tee() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --files-modify src/example.rs | tee output"
+            "command": "dow task create --file '{\"modify\":[\"src/example.rs\"]}' | tee output"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))

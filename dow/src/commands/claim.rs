@@ -7,7 +7,7 @@
 
 use crate::cli::ClaimArgs;
 use crate::commands::task as task_cmd;
-use crate::core::{claim, doc_root};
+use crate::core::{claim, doc_root, item_id};
 use crate::error::DowError;
 use crate::output;
 use serde::Serialize;
@@ -31,7 +31,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
 
     if args.revoke {
-        let normalized_target = args.ids.first().map(|s| normalize_claim_id(s));
+        let normalized_target = args.ids.first().map(|s| item_id::normalize_short(s));
         let target = normalized_target.as_deref();
         claim::revoke_claims(&doc_root_path, target)
             .map_err(|e| DowError::new(format!("Failed to revoke claim: {}", e), 1))?;
@@ -41,7 +41,29 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     }
 
     if !args.ids.is_empty() {
-        let normalized: Vec<String> = args.ids.iter().map(|id| normalize_claim_id(id)).collect();
+        let normalized: Vec<String> = args
+            .ids
+            .iter()
+            .map(|id| item_id::normalize_short(id))
+            .collect();
+
+        // Validate --timeout
+        let ttl_override = match args.timeout {
+            Some(t) if t > 600 => {
+                return Err(DowError::new(
+                    "--timeout must be <= 600 seconds".to_string(),
+                    1,
+                ));
+            }
+            Some(0) => {
+                return Err(DowError::new(
+                    "--timeout must be > 0".to_string(),
+                    1,
+                ));
+            }
+            Some(t) => Some(t),
+            None => None,
+        };
 
         // Validate whether each ID corresponds to an incomplete task/issue
         let (invalid, duplicates) = validate_claim_ids(&doc_root_path, &normalized);
@@ -67,7 +89,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         // Check issue files requirement
         check_issue_files(&doc_root_path, &normalized)?;
 
-        claim::add_claims(&doc_root_path, &normalized)
+        claim::add_claims_with_options(&doc_root_path, &normalized, claim::detect_agent_id(), ttl_override)
             .map_err(|e| DowError::new(format!("Failed to add claim: {}", e), 1))?;
 
         // Silent on success — operator knows what they claimed
@@ -137,18 +159,6 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-/// Normalize full ID to short format: TASK-T001 → T001, ISSUE-I001 → I001
-/// If already in short format, return as-is
-fn normalize_claim_id(id: &str) -> String {
-    if let Some(short) = id.strip_prefix("TASK-") {
-        short.to_string()
-    } else if let Some(short) = id.strip_prefix("ISSUE-") {
-        short.to_string()
-    } else {
-        id.to_string()
-    }
-}
-
 /// Validate claim IDs: returns (invalid_ids, duplicate_ids)
 /// invalid = completed or non-existent; duplicate = same ID appears in multiple files
 fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String>, Vec<String>) {
@@ -166,10 +176,10 @@ fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [ ] TASK-") {
-                            if let Some(rest) = line.strip_prefix("- [ ] TASK-") {
-                                if let Some(id) = rest.split(':').next() {
-                                    *id_count.entry(id.trim().to_string()).or_insert(0) += 1;
+                        if item_id::is_undone_line(line) {
+                            if let Some(parsed) = item_id::extract_from_line(line) {
+                                if parsed.kind == item_id::ItemKind::Task {
+                                    *id_count.entry(parsed.short()).or_insert(0) += 1;
                                 }
                             }
                         }
@@ -190,11 +200,10 @@ fn validate_claim_ids(doc_root: &std::path::Path, ids: &[String]) -> (Vec<String
                 }
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     for line in content.lines() {
-                        if line.starts_with("- [ ] ISSUE-") {
-                            if let Some(rest) = line.strip_prefix("- [ ] ISSUE-") {
-                                let id = rest.split([':', '：']).next().unwrap_or("").trim();
-                                if !id.is_empty() {
-                                    *id_count.entry(id.to_string()).or_insert(0) += 1;
+                        if item_id::is_undone_line(line) {
+                            if let Some(parsed) = item_id::extract_from_line(line) {
+                                if parsed.kind == item_id::ItemKind::Issue {
+                                    *id_count.entry(parsed.short()).or_insert(0) += 1;
                                 }
                             }
                         }
@@ -238,7 +247,7 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
     let mut errors: Vec<String> = Vec::new();
 
     for target_id in &task_ids {
-        let full_id = format!("TASK-{}", target_id);
+        let full_id = item_id::normalize_full(target_id);
         let target = match all_tasks.iter().find(|t| t.id == full_id) {
             Some(t) => t,
             None => continue,
@@ -281,7 +290,7 @@ fn check_dependencies(doc_root: &std::path::Path, ids: &[String]) -> Result<(), 
         }
 
         for claimed_id in &currently_claimed {
-            let claimed_full_id = format!("TASK-{}", claimed_id);
+            let claimed_full_id = item_id::normalize_full(claimed_id);
             let claimed_task = match all_tasks.iter().find(|t| t.id == claimed_full_id) {
                 Some(t) => t,
                 None => continue,
@@ -335,11 +344,11 @@ fn check_issue_files(doc_root: &std::path::Path, ids: &[String]) -> Result<(), D
     let mut errors: Vec<String> = Vec::new();
 
     for iid in &issue_ids {
-        let full_id = format!("ISSUE-{}", iid);
+        let full_id = item_id::normalize_full(iid);
         let has_files = check_issue_has_files(&issue_dir, &full_id);
         if !has_files {
             errors.push(format!(
-                "cannot claim {}: no files declared. Use `dow issue update {} --files-modify \"path/to/file\"` first.",
+                "cannot claim {}: no files declared. Use `dow issue update {} --file '{{\"modify\":[\"path/to/file\"]}}'` first.",
                 full_id, full_id
             ));
         }

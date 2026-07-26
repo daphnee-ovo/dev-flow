@@ -1,15 +1,15 @@
 #!/bin/bash
-# 组装各 agent 插件目录到 dist/
-# 用法: bash devtools/assemble.sh <claude|codex|kiro|all>
+# Assemble each agent plugin into dist/<agent>/.
+# Usage: bash devtools/assemble.sh <claude|codex|kiro|pi|all>
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_ROOT/dist"
 
-# 从 VERSION 文件提取版本号
+# Extract the version from VERSION.
 VERSION_RAW="$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "0.0.0")"
-# 格式: (branch)X.Y.Z → 提取 X.Y.Z
+# Format: (branch)X.Y.Z → extract X.Y.Z.
 VERSION="${VERSION_RAW##*)}"; VERSION="${VERSION:-$VERSION_RAW}"
 
 install_command_skills() {
@@ -49,10 +49,10 @@ for command_file in sorted(commands_dir.glob("*.md")):
     command_name = command_file.stem
     text = command_file.read_text(encoding="utf-8")
     fields, body = split_frontmatter(text)
-    description = fields.get("description") or f"执行 dev-flow /{command_name} 流程"
+    description = fields.get("description") or f"Run the dev-flow /{command_name} workflow"
     skill_description = (
-        f"{description}。当用户要求执行 dev-flow {command_name} 流程，"
-        "或表达对应流程意图时使用。"
+        f"{description}. Use this skill when the user requests the dev-flow "
+        f"{command_name} workflow or expresses that intent."
     )
 
     skill_dir = skills_dir / command_name
@@ -125,13 +125,13 @@ assemble_agent() {
   rm -rf "$target_dir"
   mkdir -p "$target_dir"
 
-  # 复制共享插件内容
-  # kiro 的 agents 需要转为 JSON，不复制 md
-  if [ "$agent" != "kiro" ]; then
+  # Copy shared plugin content.
+  # Kiro converts agents to JSON instead of copying Markdown; Pi uses skills.
+  if [ "$agent" != "kiro" ] && [ "$agent" != "pi" ]; then
     cp -r "$PROJECT_ROOT/plugin/agents" "$target_dir/agents"
   fi
 
-  # 复制 agent 适配层
+  # Copy the agent adapter.
   if [ "$agent" = "claude" ]; then
     cp -r "$PROJECT_ROOT/plugin/commands" "$target_dir/commands"
     mkdir -p "$target_dir/.claude-plugin"
@@ -155,17 +155,23 @@ assemble_agent() {
     cp "$PROJECT_ROOT/targets/codex/hooks.json" "$target_dir/hooks/hooks.json"
   elif [ "$agent" = "kiro" ]; then
     install_kiro_command_skills "$target_dir"
-    # agents: 扁平 JSON 文件（kiro 要求 ~/.kiro/agents/<name>.json）
+    # Agents: flat JSON files (Kiro expects ~/.kiro/agents/<name>.json).
     mkdir -p "$target_dir/agents"
-    # dev-flow agent（含 hooks 定义，作为主 agent）
+    # Main dev-flow agent, including hook definitions.
     cp "$PROJECT_ROOT/targets/kiro/agents/dev-flow/config.json" "$target_dir/agents/dev-flow.json"
-    # 共享 agents: md → json，注入同一套 hooks
+    # Convert shared agents from Markdown to JSON and inject the same hooks.
     for agent_md in "$PROJECT_ROOT/plugin/agents"/*.md; do
       local aname="$(basename "$agent_md" .md)"
       convert_agent_md_to_json "$agent_md" "$target_dir/agents/$aname.json"
     done
+  elif [ "$agent" = "pi" ]; then
+    # Pi uses TypeScript extensions loaded from ~/.pi/agent/extensions/dev-flow/.
+    # The extension entry point is index.ts.
+    cp "$PROJECT_ROOT/targets/pi/extension.ts" "$target_dir/index.ts"
+    # Skills use the same format as Codex: skills/<name>/SKILL.md.
+    install_command_skills "$target_dir" false
   else
-    echo "[assemble] 未知 agent: $agent" >&2
+    echo "[assemble] Unknown agent: $agent" >&2
     exit 1
   fi
 
@@ -173,7 +179,7 @@ assemble_agent() {
 }
 
 if [ -z "$1" ]; then
-  echo "用法: bash devtools/assemble.sh <claude|codex|kiro|all>" >&2
+  echo "Usage: bash devtools/assemble.sh <claude|codex|kiro|pi|all>" >&2
   exit 1
 fi
 
@@ -187,13 +193,17 @@ case "$1" in
   kiro)
     assemble_agent kiro
     ;;
+  pi)
+    assemble_agent pi
+    ;;
   all)
     assemble_agent claude
     assemble_agent codex
     assemble_agent kiro
+    assemble_agent pi
     ;;
   *)
-    echo "[assemble] 未知参数: $1（可选: claude, codex, kiro, all）" >&2
+    echo "[assemble] Unknown argument: $1 (expected: claude, codex, kiro, pi, or all)" >&2
     exit 1
     ;;
 esac
