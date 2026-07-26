@@ -25,6 +25,7 @@ pub mod doc_validator;
 pub mod github;
 pub mod item_id;
 pub mod platform;
+pub mod renumber;
 pub mod task_store;
 pub mod version;
 pub mod yaml;

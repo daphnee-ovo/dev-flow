@@ -59,9 +59,21 @@ pub fn run(args: RollbackArgs, human: bool) -> Result<i32, DowError> {
     let tasks = archive_db::query_tasks(&conn, Some(&target_version), None)?;
     let restored_tasks = restore_tasks(&doc_root_path, &tasks)?;
 
+    // 1.5 Renumber pending tasks that collide with restored done tasks
+    let task_dir = doc_root_path.join("task");
+    if let Err(e) = crate::core::renumber::renumber(&task_dir, crate::core::item_id::ItemKind::Task) {
+        eprintln!("[dev-flow] warning: task renumber failed: {}", e);
+    }
+
     // 2. Restore issue files
     let issues = archive_db::query_issues(&conn, Some(&target_version), None)?;
     let restored_issues = restore_issues(&doc_root_path, &issues)?;
+
+    // 2.5 Renumber pending issues that collide with restored closed issues
+    let issue_dir = doc_root_path.join("issue");
+    if let Err(e) = crate::core::renumber::renumber(&issue_dir, crate::core::item_id::ItemKind::Issue) {
+        eprintln!("[dev-flow] warning: issue renumber failed: {}", e);
+    }
 
     // 3. Restore documents (PRD/SPEC/TEST/BRAINSTORM)
     let mut restored_docs = Vec::new();
