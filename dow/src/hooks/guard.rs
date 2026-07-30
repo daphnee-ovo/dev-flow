@@ -548,18 +548,37 @@ fn has_active_claim(doc_root: &Path) -> bool {
     !crate::core::claim::get_active_claims(doc_root).is_empty()
 }
 
-/// Check if the current agent matches the claim owner; returns warning message if mismatch
+/// Check if the current agent matches the claim owner.
+/// Uses ancestor-chain verification: if the claimed PID is an ancestor of the
+/// current process, they belong to the same agent session.
+/// Returns warning message only on genuine mismatch.
 fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
     let claim_agent = crate::core::claim::get_claim_agent_id(doc_root)?;
     let current_agent = crate::core::claim::detect_agent_id()?;
-    if claim_agent != current_agent {
-        Some(format!(
-            "[dev-flow WARNING] another agent ({}) holds the claim. You may be modifying files owned by a different session.",
-            claim_agent
-        ))
-    } else {
-        None
+
+    // Direct match (same PID, same TTY, same DOW_AGENT_ID)
+    if claim_agent == current_agent {
+        return None;
     }
+
+    // Ancestor-chain verification: if the claimed agent_id is a PID,
+    // check if it's an ancestor of the current process.
+    // This handles the case where claim was recorded with a different PID
+    // in the same process tree (e.g., legacy claims using parent PID).
+    if let Some(claimed_pid) = crate::core::process::parse_pid_agent_id(&claim_agent) {
+        if crate::core::process::is_ancestor_of_current(claimed_pid) {
+            return None; // Same agent session — different intermediate shell
+        }
+        // If the claimed PID is dead, treat as stale (not a competing agent)
+        if !crate::core::process::is_process_alive(claimed_pid) {
+            return None; // Stale claim from a dead process — allow takeover
+        }
+    }
+
+    Some(format!(
+        "[dev-flow WARNING] another agent ({}) holds the claim. You may be modifying files owned by a different session.",
+        claim_agent
+    ))
 }
 
 fn check_claim_file_scope(

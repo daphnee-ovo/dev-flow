@@ -96,7 +96,7 @@ pub fn get_claim_agent_id(doc_root: &Path) -> Option<String> {
 }
 
 /// Detect current agent ID.
-/// Priority: DOW_AGENT_ID env → TTY (Unix) → caller process ID
+/// Priority: DOW_AGENT_ID env → TTY (Unix) → stable ancestor PID → caller PID
 pub fn detect_agent_id() -> Option<String> {
     // Explicit override via environment variable
     if let Ok(id) = std::env::var("DOW_AGENT_ID") {
@@ -111,7 +111,12 @@ pub fn detect_agent_id() -> Option<String> {
         return Some(tty);
     }
 
-    // Fallback: caller process ID (the agent runtime that invoked dow)
+    // Walk up process tree to find a stable (non-shell) ancestor
+    if let Some(ancestor_pid) = super::process::find_stable_ancestor() {
+        return Some(format!("pid:{}", ancestor_pid));
+    }
+
+    // Final fallback: caller process ID
     Some(format!("pid:{}", get_caller_pid()))
 }
 
