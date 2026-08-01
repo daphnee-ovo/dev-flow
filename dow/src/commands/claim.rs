@@ -49,9 +49,9 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
 
         // Validate --timeout
         let ttl_override = match args.timeout {
-            Some(t) if t > 600 => {
+            Some(t) if t > 1800 => {
                 return Err(DowError::new(
-                    "--timeout must be <= 600 seconds".to_string(),
+                    "--timeout must be <= 1800 seconds".to_string(),
                     1,
                 ));
             }

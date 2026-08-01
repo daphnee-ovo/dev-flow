@@ -556,7 +556,7 @@ pub struct ClaimArgs {
     #[arg(long)]
     pub revoke: bool,
 
-    /// Claim duration in seconds (max 600, default 300)
+    /// Claim duration in seconds (max 1800, default 600)
     #[arg(long)]
     pub timeout: Option<u64>,
 }

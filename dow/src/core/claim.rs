@@ -9,7 +9,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const CLAIM_FILE: &str = "claim.lock";
-const DEFAULT_TTL: u64 = 300;
+const DEFAULT_TTL: u64 = 600;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claim {

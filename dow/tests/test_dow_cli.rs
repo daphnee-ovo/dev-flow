@@ -31,6 +31,63 @@ fn run_dow(dir: &Path, args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+fn setup_claim_fixture(dir: &Path) {
+    common::git_init_with_commit(dir);
+    common::setup_dev_doc(dir, "DEV", "fast");
+    let branch = common::default_branch(dir);
+    let task_dir = dir.join(".dev-doc").join(branch).join("task");
+    fs::write(
+        task_dir.join("task_2026-08-02_1.md"),
+        "- [ ] TASK-T001: claim timeout test\n  - priority: P1\n",
+    )
+    .unwrap();
+    fs::write(dir.join(".gitignore"), ".dev-doc/**/claim.lock\n").unwrap();
+}
+
+#[test]
+fn claim_uses_ten_minute_default_and_allows_thirty_minute_maximum() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_claim_fixture(dir.path());
+
+    let default_claim = run_dow(dir.path(), &["claim", "T001"]);
+    assert!(default_claim.status.success());
+    let lock: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            dir.path()
+                .join(".dev-doc")
+                .join(common::default_branch(dir.path()))
+                .join("claim.lock"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(lock["ttl"], 600);
+
+    let maximum = run_dow(dir.path(), &["claim", "T001", "--timeout", "1800"]);
+    assert!(maximum.status.success());
+    let lock: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            dir.path()
+                .join(".dev-doc")
+                .join(common::default_branch(dir.path()))
+                .join("claim.lock"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(lock["ttl"], 1800);
+}
+
+#[test]
+fn claim_rejects_timeout_above_thirty_minutes() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_claim_fixture(dir.path());
+
+    let output = run_dow(dir.path(), &["claim", "T001", "--timeout", "1801"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("<= 1800 seconds"));
+}
+
 #[test]
 fn doctor_replaces_lint_as_public_command() {
     let help = run_dow(Path::new("."), &["doctor", "--help"]);

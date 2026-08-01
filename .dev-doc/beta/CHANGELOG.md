@@ -8,3 +8,8 @@
 
 ## 2026-08-01
 - 22:33 fix: harden installer bundle packaging
+- 22:37 docs: record installer fix
+
+## 2026-08-02
+- 00:14 fix: restore dashboard SSE file updates
+- 01:47 fix: restore dashboard file-scope rendering
