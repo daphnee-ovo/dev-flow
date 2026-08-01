@@ -23,6 +23,7 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
             1,
         ));
     }
+    validate_agent_bundles(&agents, &bundle)?;
 
     let mut config = DowConfig::load();
 
@@ -161,6 +162,26 @@ fn available_agents() -> Vec<String> {
         .filter(|a| is_agent_runtime_available(a.name))
         .map(|a| a.name.to_string())
         .collect()
+}
+
+fn validate_agent_bundles(agents: &[String], bundle: &Path) -> Result<(), DowError> {
+    let missing: Vec<String> = agents
+        .iter()
+        .filter(|agent| !bundle.join(agent).is_dir())
+        .cloned()
+        .collect();
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    Err(DowError::new(
+        &format!(
+            "Plugin bundle is incomplete; missing agent bundle(s): {}. Reinstall dev-flow before running setup again.",
+            missing.join(", ")
+        ),
+        1,
+    ))
 }
 
 fn register_with_agent(agent: &str) -> Result<(), String> {

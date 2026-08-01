@@ -2,6 +2,8 @@
 
 ## Local Development
 
+> **Important:** Do not develop directly on `main`. Complete development work on `beta` or another working branch, and keep `main` reserved for integration and release activity.
+
 ```bash
 # Clone the repository
 git clone https://github.com/anthropics/dev-flow.git

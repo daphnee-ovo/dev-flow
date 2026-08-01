@@ -56,18 +56,41 @@ for agent in "${OLD_AGENTS[@]}"; do
   fi
 done
 
-# Test assemble for codex, kiro, and pi
+# Test assemble for every target directory
 echo ""
-echo "--- Testing assemble for codex, kiro, and pi ---"
-bash devtools/assemble.sh codex > /dev/null 2>&1
-bash devtools/assemble.sh kiro > /dev/null 2>&1
-bash devtools/assemble.sh pi > /dev/null 2>&1
+echo "--- Testing target-driven assemble output ---"
+bash devtools/assemble.sh all > /dev/null 2>&1
 
-if [[ ! -d "dist/codex" ]]; then
-  echo "❌ FAIL: dist/codex not created"
+TARGET_AGENTS=()
+for target_dir in targets/*; do
+  [[ -d "$target_dir" ]] || continue
+  TARGET_AGENTS+=("${target_dir##*/}")
+done
+
+if [[ ${#TARGET_AGENTS[@]} -eq 0 ]]; then
+  echo "❌ FAIL: no agent targets found under targets/"
   FAILED=1
+fi
+
+for agent in "${TARGET_AGENTS[@]}"; do
+  if [[ ! -d "dist/$agent" ]]; then
+    echo "❌ FAIL: dist/$agent not created from targets/$agent"
+    FAILED=1
+  else
+    echo "✓ dist/$agent created from targets/$agent"
+  fi
+done
+
+echo ""
+echo "--- Checking release packaging derives agents from targets/ ---"
+if grep -q 'for target_dir in targets/\*' .github/workflows/release.yml && \
+   grep -q 'cp -r "dist/${agent}" "_package/bundle/${agent}"' .github/workflows/release.yml && \
+   grep -q 'Missing assembled bundle for target' .github/workflows/release.yml && \
+   ! grep -q 'cp -r dist/claude\|cp -r dist/codex\|cp -r dist/kiro\|cp -r dist/pi' .github/workflows/release.yml; then
+  echo "✓ release workflow packages targets dynamically"
 else
-  echo "✓ dist/codex created"
+  echo "❌ FAIL: release workflow still uses a hardcoded agent package list"
+  FAILED=1
 fi
 
 # Check no references to old agents in any target config

@@ -66,9 +66,21 @@ jobs:
             strip _package/bin/dow 2>/dev/null || true
             chmod +x _package/bin/dow
           fi
-          cp -r dist/claude _package/bundle/claude
-          cp -r dist/codex _package/bundle/codex
-          cp -r dist/kiro _package/bundle/kiro
+          target_count=0
+          for target_dir in targets/*; do
+            [ -d "$target_dir" ] || continue
+            agent="${target_dir##*/}"
+            if [ ! -d "dist/${agent}" ]; then
+              echo "Missing assembled bundle for target: ${agent}" >&2
+              exit 1
+            fi
+            cp -r "dist/${agent}" "_package/bundle/${agent}"
+            target_count=$((target_count + 1))
+          done
+          if [ "$target_count" -eq 0 ]; then
+            echo "No agent targets found under targets/" >&2
+            exit 1
+          fi
           tar -czf "dow-${TAG}-${{ matrix.platform }}.tar.gz" -C _package .
         shell: bash
 

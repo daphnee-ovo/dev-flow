@@ -25,6 +25,19 @@ fn write_fake_codex(bin_dir: &Path) {
     }
 }
 
+fn write_fake_pi(bin_dir: &Path) {
+    fs::create_dir_all(bin_dir).unwrap();
+    let pi_path = bin_dir.join("pi");
+    fs::write(&pi_path, "#!/usr/bin/env sh\nexit 0\n").unwrap();
+
+    #[cfg(unix)]
+    {
+        let mut permissions = fs::metadata(&pi_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&pi_path, permissions).unwrap();
+    }
+}
+
 fn write_minimal_codex_bundle(data_dir: &Path) -> PathBuf {
     let codex_bundle = data_dir.join("dow").join("bundle").join("codex");
     fs::create_dir_all(codex_bundle.join(".agents/plugins")).unwrap();
@@ -171,4 +184,31 @@ fn test_setup_codex_uses_explicit_runtime_when_not_on_path() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stderr).contains("Using Codex runtime"));
+}
+
+#[test]
+fn test_setup_preflights_all_agent_bundles_before_registration() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let data = temp.path().join("data");
+    let bin = temp.path().join("bin");
+
+    write_fake_codex(&bin);
+    write_fake_pi(&bin);
+    write_minimal_codex_bundle(&data);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["setup", "--agent", "all"])
+        .env("HOME", &home)
+        .env("XDG_DATA_HOME", &data)
+        .env("CODEX_BIN", bin.join("codex"))
+        .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Plugin bundle is incomplete"));
+    assert!(stderr.contains("pi"));
+    assert!(!home.join(".codex/plugins/dev-flow").exists());
 }

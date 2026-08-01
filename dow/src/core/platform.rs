@@ -5,7 +5,8 @@
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub fn config_dir() -> PathBuf {
     if cfg!(target_os = "windows") {
@@ -40,22 +41,48 @@ pub fn data_dir() -> PathBuf {
 }
 
 pub fn bundle_dir() -> PathBuf {
-    // Prioritize checking bundle adjacent to exe (supports winget portable / manual extraction)
     if let Ok(exe) = env::current_exe() {
-        if let Some(exe_dir) = exe.parent() {
-            // tar.gz structure: ./bin/dow.exe + ./bundle/
-            let adjacent = exe_dir.parent().unwrap_or(exe_dir).join("bundle");
-            if adjacent.is_dir() {
-                return adjacent;
-            }
-            // Sibling: dow.exe + bundle/ (zip scenario)
-            let sibling = exe_dir.join("bundle");
-            if sibling.is_dir() {
-                return sibling;
-            }
+        if let Some(bundle) = bundle_dir_from_executable(&exe) {
+            return bundle;
         }
     }
     data_dir().join("bundle")
+}
+
+fn bundle_dir_from_executable(exe: &Path) -> Option<PathBuf> {
+    let mut executable_paths = vec![exe.to_path_buf()];
+    if let Ok(canonical) = fs::canonicalize(exe) {
+        if !executable_paths.iter().any(|path| path == &canonical) {
+            executable_paths.push(canonical);
+        }
+    }
+
+    for executable in executable_paths {
+        let Some(exe_dir) = executable.parent() else {
+            continue;
+        };
+        let prefix = exe_dir.parent().unwrap_or(exe_dir);
+
+        // tar.gz structure: ./bin/dow + ./bundle/
+        let adjacent = prefix.join("bundle");
+        if adjacent.is_dir() {
+            return Some(adjacent);
+        }
+
+        // Sibling: dow + bundle/ (zip scenario)
+        let sibling = exe_dir.join("bundle");
+        if sibling.is_dir() {
+            return Some(sibling);
+        }
+
+        // Homebrew stores formula resources under share/<formula>/.
+        let formula_share = prefix.join("share").join("dev-flow").join("bundle");
+        if formula_share.is_dir() {
+            return Some(formula_share);
+        }
+    }
+
+    None
 }
 
 pub fn agent_plugin_dir(agent: &str) -> Option<PathBuf> {
@@ -166,6 +193,20 @@ mod tests {
         assert!(agent_plugin_dir("codex").is_some());
         assert!(agent_plugin_dir("pi").is_some());
         assert!(agent_plugin_dir("unknown").is_none());
+    }
+
+    #[test]
+    fn test_bundle_dir_from_executable_finds_homebrew_share_bundle() {
+        let temp = tempfile::tempdir().unwrap();
+        let prefix = temp.path().join("Cellar/dev-flow/0.3.9");
+        let executable = prefix.join("bin/dow");
+        let bundle = prefix.join("share/dev-flow/bundle");
+
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::write(&executable, b"dow").unwrap();
+        fs::create_dir_all(&bundle).unwrap();
+
+        assert_eq!(bundle_dir_from_executable(&executable), Some(bundle));
     }
 
     #[cfg(target_os = "macos")]

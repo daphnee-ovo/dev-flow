@@ -197,10 +197,18 @@ case "$1" in
     assemble_agent pi
     ;;
   all)
-    assemble_agent claude
-    assemble_agent codex
-    assemble_agent kiro
-    assemble_agent pi
+    agents=()
+    for target_dir in "$PROJECT_ROOT"/targets/*; do
+      [ -d "$target_dir" ] || continue
+      agents+=("${target_dir##*/}")
+    done
+    if [ "${#agents[@]}" -eq 0 ]; then
+      echo "[assemble] No agent targets found under $PROJECT_ROOT/targets/" >&2
+      exit 1
+    fi
+    for agent in "${agents[@]}"; do
+      assemble_agent "$agent"
+    done
     ;;
   *)
     echo "[assemble] Unknown argument: $1 (expected: claude, codex, kiro, pi, or all)" >&2
