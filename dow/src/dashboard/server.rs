@@ -1,3 +1,24 @@
+// FrameworkTree
+// server.rs
+// ├── struct Assets
+// ├── struct AppState
+// ├── start()
+// ├── handle_index()
+// ├── handle_asset()
+// ├── task_done()
+// ├── task_reopen()
+// ├── issue_close()
+// ├── issue_reopen()
+// ├── task_update_field()
+// ├── issue_update_field()
+// ├── line_contains_id()
+// ├── entry_matches_id()
+// ├── close_issue_in_content()
+// ├── has_field_in_entry()
+// ├── get_field_in_entry()
+// ├── replace_field_in_entry()
+// └── insert_field_in_entry()
+
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -26,12 +47,23 @@ pub(crate) struct AppState {
     pub(crate) connections: Arc<AtomicUsize>,
 }
 
+
 pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, DowError> {
     let (notify_tx, _) = broadcast::channel::<()>(16);
     let notify_tx = Arc::new(notify_tx);
     let connections = Arc::new(AtomicUsize::new(0));
 
-    let _watcher = crate::dashboard::watcher::spawn_watcher(&doc_root, notify_tx.clone());
+    let _watcher = crate::dashboard::watcher::spawn_watcher(&doc_root, notify_tx.clone())
+        .map_err(|error| {
+            DowError::new(
+                format!(
+                    "Failed to watch dashboard document root {}: {}",
+                    doc_root.display(),
+                    error
+                ),
+                1,
+            )
+        })?;
 
     let state = AppState {
         doc_root,

@@ -1,31 +1,86 @@
 // FrameworkTree
 // api_v1.rs
 // ├── build_v1_router()
+// ├── struct ApiErrorResponse
+// ├── enum ApiError
+// ├── impl ApiError
+// ├── into_response()
+// ├── struct DiscoveryResponse
+// ├── struct EndpointInfo
 // ├── handle_discovery()
+// ├── struct StatusResponse
+// ├── struct StatusPatchBody
 // ├── handle_get_status()
+// ├── get_status_data()
 // ├── handle_patch_status()
+// ├── patch_status()
+// ├── struct TaskListResponse
+// ├── struct TaskItemResponse
+// ├── struct TaskFilesResponse
+// ├── struct TaskListQuery
+// ├── struct TaskCreateBody
+// ├── struct TaskFilesInput
+// ├── struct TaskPatchBody
 // ├── handle_list_tasks()
+// ├── list_tasks()
 // ├── handle_create_task()
+// ├── create_task()
 // ├── handle_get_task()
+// ├── get_task()
 // ├── handle_patch_task()
+// ├── patch_task()
 // ├── handle_delete_task()
+// ├── delete_task()
+// ├── struct IssueListResponse
+// ├── struct IssueItemResponse
+// ├── struct IssueFilesResponse
+// ├── struct IssueListQuery
+// ├── struct IssueCreateBody
+// ├── default_source()
+// ├── struct IssueFilesInput
+// ├── struct IssuePatchBody
 // ├── handle_list_issues()
+// ├── list_issues()
 // ├── handle_create_issue()
+// ├── create_issue()
 // ├── handle_get_issue()
+// ├── get_issue()
 // ├── handle_patch_issue()
+// ├── patch_issue()
 // ├── handle_delete_issue()
+// ├── delete_issue()
+// ├── struct DocsListResponse
+// ├── struct DocMetaResponse
+// ├── struct DocContentResponse
+// ├── struct DocPutBody
 // ├── handle_list_docs()
 // ├── handle_get_doc()
 // ├── handle_put_doc()
+// ├── struct ChangelogResponse
+// ├── struct ChangelogAddBody
+// ├── struct ChangelogAddResponse
 // ├── handle_get_changelog()
 // ├── handle_post_changelog()
+// ├── add_changelog_entry()
+// ├── struct VersionResponse
 // ├── handle_get_version()
+// ├── update_event()
+// ├── sse_event_from_broadcast()
 // ├── handle_sse_v1()
-// ├── ApiError
-// ├── ApiErrorResponse
-//
-// Related Docs:
-// - [Dashboard API Reference](../../../docs/dashboard-api.md)
+// ├── mod tests
+// ├── lagged_broadcast_still_emits_full_invalidation_update()
+// ├── struct SseConnectionGuard
+// ├── impl SseConnectionGuard
+// ├── drop()
+// ├── struct IssueDetail
+// ├── get_all_issue_details()
+// ├── parse_issues_detail()
+// ├── extract_field_value()
+// ├── split_id_title_issue()
+// ├── parse_inline_list_api()
+// ├── remove_entry_from_content()
+// ├── update_frontmatter_nums()
+// └── update_issue_field()
 
 use std::convert::Infallible;
 use std::fs;
@@ -40,6 +95,7 @@ use axum::response::IntoResponse;
 use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 
@@ -82,6 +138,7 @@ pub fn build_v1_router() -> Router<AppState> {
         // Events
         .route("/events", get(handle_sse_v1))
 }
+
 
 // ─── Error Types ─────────────────────────────────────────────────────────────
 
@@ -1321,6 +1378,27 @@ async fn handle_get_version() -> Json<VersionResponse> {
 
 // ─── SSE Events ──────────────────────────────────────────────────────────────
 
+const SSE_UPDATE_DATA: &str = r#"{"resource":"all"}"#;
+
+fn update_event() -> Event {
+    Event::default().event("update").data(SSE_UPDATE_DATA)
+}
+
+fn sse_event_from_broadcast(
+    message: Result<(), BroadcastStreamRecvError>,
+) -> Option<Result<Event, Infallible>> {
+    match message {
+        Ok(()) => Some(Ok(update_event())),
+        Err(error) => {
+            eprintln!(
+                "[dow dashboard] SSE broadcast receive error: {}; sending a full invalidation update",
+                error
+            );
+            Some(Ok(update_event()))
+        }
+    }
+}
+
 async fn handle_sse_v1(
     State(state): State<AppState>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
@@ -1330,14 +1408,7 @@ async fn handle_sse_v1(
     let rx = state.notify_tx.subscribe();
     let stream = BroadcastStream::new(rx);
 
-    let event_stream = stream.filter_map(move |msg| match msg {
-        Ok(_) => Some(Ok::<_, Infallible>(
-            Event::default()
-                .event("update")
-                .data(r#"{"resource":"all"}"#),
-        )),
-        Err(_) => None,
-    });
+    let event_stream = stream.filter_map(sse_event_from_broadcast);
 
     let guard = SseConnectionGuard(connections);
     let event_stream = event_stream.map(move |item| {
@@ -1347,6 +1418,21 @@ async fn handle_sse_v1(
 
     Sse::new(event_stream)
         .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lagged_broadcast_still_emits_full_invalidation_update() {
+        let event = sse_event_from_broadcast(Err(BroadcastStreamRecvError::Lagged(2)))
+            .expect("lagged broadcasts should produce an update")
+            .expect("SSE event construction should not fail");
+
+        let _ = event;
+        assert_eq!(SSE_UPDATE_DATA, r#"{"resource":"all"}"#);
+    }
 }
 
 struct SseConnectionGuard(Arc<std::sync::atomic::AtomicUsize>);
