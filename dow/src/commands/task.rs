@@ -1812,3 +1812,71 @@ pub(crate) fn get_all_task_details(doc_root: &Path) -> Vec<TaskDetail> {
 
     results
 }
+
+// ─── Public API for programmatic task creation ───────────────────────────────
+
+/// Record for creating a task via API (mirrors TaskInput but with pub fields)
+pub(crate) struct TaskCreateRecord {
+    pub(crate) title: String,
+    pub(crate) task_type: String,
+    pub(crate) priority: String,
+    pub(crate) refs: String,
+    pub(crate) files_create: Vec<String>,
+    pub(crate) files_modify: Vec<String>,
+    pub(crate) files_test: Vec<String>,
+    pub(crate) depends_on: Vec<String>,
+    pub(crate) parallel: bool,
+    pub(crate) complexity: String,
+    pub(crate) done_when: Vec<String>,
+}
+
+/// Create tasks programmatically (used by dashboard API).
+/// Returns the list of created task IDs.
+pub(crate) fn create_task_batch(records: Vec<TaskCreateRecord>) -> Result<Vec<String>, DowError> {
+    if records.is_empty() {
+        return Err(DowError::new("at least one task record is required", 2));
+    }
+
+    let task_dir = resolve_task_dir()?;
+    fs::create_dir_all(&task_dir)
+        .map_err(|e| DowError::new(format!("cannot create task directory: {}", e), 1))?;
+
+    let next_id = scan_next_id(&task_dir);
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let batch_file = find_or_create_batch_file(&task_dir, &today)?;
+
+    let mut content = fs::read_to_string(&batch_file)
+        .map_err(|e| DowError::new(format!("cannot read task file: {}", e), 1))?;
+
+    let existing_count = count_tasks_in_content(&content);
+    let new_total = existing_count + records.len();
+
+    let mut created_ids = Vec::new();
+    for (i, record) in records.iter().enumerate() {
+        let id_num = next_id + i;
+        let id_str = format!("TASK-T{:03}", id_num);
+        let input = TaskInput {
+            title: record.title.clone(),
+            r#type: record.task_type.clone(),
+            priority: record.priority.clone(),
+            refs: record.refs.clone(),
+            files_create: record.files_create.clone(),
+            files_modify: record.files_modify.clone(),
+            files_test: record.files_test.clone(),
+            depends_on: record.depends_on.clone(),
+            parallel: record.parallel,
+            complexity: record.complexity.clone(),
+            done_when: record.done_when.clone(),
+        };
+        let entry = format_task_entry(&id_str, &input);
+        content.push_str(&entry);
+        created_ids.push(id_str);
+    }
+
+    content = update_frontmatter_nums(&content, new_total);
+
+    fs::write(&batch_file, &content)
+        .map_err(|e| DowError::new(format!("cannot write task file: {}", e), 1))?;
+
+    Ok(created_ids)
+}

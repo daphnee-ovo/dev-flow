@@ -44,17 +44,17 @@ function showConfirmModal({ title, message, confirmLabel, danger, onConfirm }) {
 }
 
 // ─── Action API ───
-async function performAction(url, { successMsg, body } = {}) {
+async function performAction(url, { successMsg, body, method } = {}) {
   try {
-    const opts = { method: 'POST' };
+    const opts = { method: method || 'POST' };
     if (body) {
       opts.headers = { 'Content-Type': 'application/json' };
       opts.body = JSON.stringify(body);
     }
     const resp = await fetch(url, opts);
     const data = await resp.json();
-    if (!data.ok) {
-      showToast(data.error || 'Action failed', 'error');
+    if (!resp.ok) {
+      showToast(data.message || data.error || 'Action failed', 'error');
       return false;
     }
     if (successMsg) showToast(successMsg, 'success');
@@ -567,8 +567,15 @@ function bindActionButtons(container) {
         confirmLabel: cfg.label,
         danger: cfg.danger,
         onConfirm: async () => {
-          const url = `/api/${kind}/${encodeURIComponent(id)}/${action}`;
-          await performAction(url, { successMsg: `${id} ${action} successful` });
+          if (action === 'done' || action === 'reopen') {
+            const newStatus = action === 'done' ? 'done' : 'pending';
+            const url = `/api/v1/${kind}s/${encodeURIComponent(id)}`;
+            await performAction(url, {
+              successMsg: `${id} ${action} successful`,
+              body: { status: newStatus },
+              method: 'PATCH',
+            });
+          }
         },
       });
     });
@@ -596,10 +603,11 @@ function bindActionButtons(container) {
       const { id, kind, field, value } = opt.dataset;
       const picker = opt.closest('.badge-picker');
       picker.classList.remove('visible');
-      const url = `/api/${kind}/${encodeURIComponent(id)}/update`;
+      const url = `/api/v1/${kind}s/${encodeURIComponent(id)}`;
       await performAction(url, {
         successMsg: `${id} ${field} updated to ${value}`,
-        body: { field, value },
+        body: { [field]: value },
+        method: 'PATCH',
       });
     });
   });
@@ -648,10 +656,11 @@ function showIssueCloseModal(id, issue) {
       return;
     }
     close();
-    const url = `/api/issue/${encodeURIComponent(id)}/close`;
+    const url = `/api/v1/issues/${encodeURIComponent(id)}`;
     await performAction(url, {
       successMsg: `${id} closed`,
-      body: { fix: fixText },
+      body: { status: 'closed', fix: fixText },
+      method: 'PATCH',
     });
   });
 

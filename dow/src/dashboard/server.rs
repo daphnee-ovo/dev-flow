@@ -26,10 +26,10 @@ use crate::error::DowError;
 struct Assets;
 
 #[derive(Clone)]
-struct AppState {
-    doc_root: PathBuf,
-    notify_tx: Arc<broadcast::Sender<()>>,
-    connections: Arc<AtomicUsize>,
+pub(crate) struct AppState {
+    pub(crate) doc_root: PathBuf,
+    pub(crate) notify_tx: Arc<broadcast::Sender<()>>,
+    pub(crate) connections: Arc<AtomicUsize>,
 }
 
 pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, DowError> {
@@ -54,6 +54,7 @@ pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, D
         .route("/api/issue/{id}/close", post(handle_issue_close))
         .route("/api/issue/{id}/reopen", post(handle_issue_reopen))
         .route("/api/issue/{id}/update", post(handle_issue_update))
+        .nest("/api/v1", crate::dashboard::api_v1::build_v1_router())
         .route("/", get(handle_index))
         .route("/assets/{*path}", get(handle_asset))
         .with_state(state);
@@ -315,7 +316,7 @@ async fn handle_issue_update(
 
 // ─── File Operations ─────────────────────────────────────────────────────────
 
-fn task_done(doc_root: &Path, id: &str) -> Result<(), String> {
+pub(crate) fn task_done(doc_root: &Path, id: &str) -> Result<(), String> {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
         return Err("Task directory does not exist".to_string());
@@ -350,7 +351,7 @@ fn task_done(doc_root: &Path, id: &str) -> Result<(), String> {
     Err(format!("Pending task {} not found", id))
 }
 
-fn task_reopen(doc_root: &Path, id: &str) -> Result<(), String> {
+pub(crate) fn task_reopen(doc_root: &Path, id: &str) -> Result<(), String> {
     let task_dir = doc_root.join("task");
     if !task_dir.is_dir() {
         return Err("Task directory does not exist".to_string());
@@ -394,7 +395,7 @@ fn task_reopen(doc_root: &Path, id: &str) -> Result<(), String> {
 }
 
 
-fn issue_close(doc_root: &Path, id: &str, fix_text: Option<&str>) -> Result<(), String> {
+pub(crate) fn issue_close(doc_root: &Path, id: &str, fix_text: Option<&str>) -> Result<(), String> {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
         return Err("Issue directory does not exist".to_string());
@@ -465,7 +466,7 @@ fn issue_close(doc_root: &Path, id: &str, fix_text: Option<&str>) -> Result<(), 
     Err(format!("Open issue {} not found", id))
 }
 
-fn issue_reopen(doc_root: &Path, id: &str) -> Result<(), String> {
+pub(crate) fn issue_reopen(doc_root: &Path, id: &str) -> Result<(), String> {
     let issue_dir = doc_root.join("issue");
     if !issue_dir.is_dir() {
         return Err("Issue directory does not exist".to_string());
@@ -535,7 +536,7 @@ const ISSUE_ALLOWED_FIELDS: &[(&str, &[&str])] = &[
     ("severity", &["P0", "P1", "P2"]),
 ];
 
-fn task_update_field(doc_root: &Path, id: &str, field: &str, value: &str) -> Result<(), String> {
+pub(crate) fn task_update_field(doc_root: &Path, id: &str, field: &str, value: &str) -> Result<(), String> {
     // Validate field and value
     let allowed = TASK_ALLOWED_FIELDS
         .iter()
@@ -585,7 +586,7 @@ fn task_update_field(doc_root: &Path, id: &str, field: &str, value: &str) -> Res
     Err(format!("Task {} not found", id))
 }
 
-fn issue_update_field(doc_root: &Path, id: &str, field: &str, value: &str) -> Result<(), String> {
+pub(crate) fn issue_update_field(doc_root: &Path, id: &str, field: &str, value: &str) -> Result<(), String> {
     // Validate field and value
     let allowed = ISSUE_ALLOWED_FIELDS
         .iter()
@@ -723,7 +724,7 @@ fn get_field_in_entry(content: &str, id: &str, field: &str) -> Option<String> {
 }
 
 /// Replace a field value in an entry block for the given ID
-fn replace_field_in_entry(content: &str, id: &str, field: &str, new_value: &str) -> String {
+pub(crate) fn replace_field_in_entry(content: &str, id: &str, field: &str, new_value: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
     let mut in_entry = false;
@@ -765,7 +766,7 @@ fn replace_field_in_entry(content: &str, id: &str, field: &str, new_value: &str)
 }
 
 /// Insert a new field in an entry block for the given ID (after the last existing field)
-fn insert_field_in_entry(content: &str, id: &str, field: &str, value: &str) -> String {
+pub(crate) fn insert_field_in_entry(content: &str, id: &str, field: &str, value: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
     let mut in_entry = false;

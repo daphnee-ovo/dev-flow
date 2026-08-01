@@ -3,23 +3,55 @@ let lastDataJson = '';
 
 // ─── SSE Connection ───
 function connectSSE() {
-  const evtSource = new EventSource('/api/events');
+  const evtSource = new EventSource('/api/v1/events');
   const banner = document.getElementById('reconnecting');
 
   evtSource.onopen = () => { banner.classList.remove('visible'); };
 
-  evtSource.addEventListener('update', (e) => {
+  evtSource.addEventListener('update', async (e) => {
     try {
-      if (e.data === lastDataJson) return;
-      lastDataJson = e.data;
-      appData = JSON.parse(e.data);
-      renderCurrentView();
-    } catch (err) { console.error('SSE parse error:', err); }
+      // v1 events are lightweight notifications; re-fetch data
+      await refreshData();
+    } catch (err) { console.error('SSE refresh error:', err); }
   });
 
   evtSource.onerror = () => {
     banner.classList.add('visible');
   };
+}
+
+// ─── Data Fetching ───
+async function refreshData() {
+  const [statusResp, tasksResp, issuesResp, docsResp] = await Promise.all([
+    fetch('/api/v1/status'),
+    fetch('/api/v1/tasks'),
+    fetch('/api/v1/issues'),
+    fetch('/api/v1/docs'),
+  ]);
+  const status = await statusResp.json();
+  const tasksData = await tasksResp.json();
+  const issuesData = await issuesResp.json();
+  const docsData = await docsResp.json();
+
+  // Fetch doc content for existing docs
+  const docs = { brainstorm: { exists: false }, prd: { exists: false }, spec: { exists: false } };
+  for (const item of docsData.items) {
+    if (item.exists) {
+      const docResp = await fetch(`/api/v1/docs/${item.name}`);
+      const docContent = await docResp.json();
+      docs[item.name] = { exists: true, content: docContent.content };
+    } else {
+      docs[item.name] = { exists: false, content: null };
+    }
+  }
+
+  appData = {
+    status,
+    tasks: tasksData.items,
+    issues: issuesData.items,
+    docs,
+  };
+  renderCurrentView();
 }
 
 // ─── Tab Navigation ───
@@ -91,8 +123,7 @@ function renderCurrentView() {
 // ─── Initial Load ───
 async function init() {
   try {
-    const resp = await fetch('/api/data');
-    appData = await resp.json();
+    await refreshData();
   } catch (e) {
     console.error('Initial data load failed:', e);
   }
