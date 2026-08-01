@@ -5,3 +5,6 @@
 
 ## 2026-07-30
 - 18:38 fix: use ancestor process tracing instead of PID for claim agent identity
+
+## 2026-08-01
+- 22:33 fix: harden installer bundle packaging
