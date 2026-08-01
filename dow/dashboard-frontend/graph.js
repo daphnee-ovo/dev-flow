@@ -31,9 +31,10 @@ function renderGraph(container, tasks, issues) {
   });
 
   // Compute implicit edges from file overlap (tasks + issues with files)
-  const itemsWithFiles = allItems.filter(t =>
-    (t.files_create && t.files_create.length) || (t.files_modify && t.files_modify.length)
-  );
+  const itemsWithFiles = allItems.filter(t => {
+    const files = t.files || {};
+    return (files.create && files.create.length) || (files.modify && files.modify.length);
+  });
   const implicitEdges = computeImplicitEdges(itemsWithFiles, edges);
   const allEdges = [...edges, ...implicitEdges];
 
@@ -306,8 +307,10 @@ function computeImplicitEdges(tasks, explicitEdges) {
   for (let i = 0; i < tasks.length; i++) {
     for (let j = i + 1; j < tasks.length; j++) {
       const a = tasks[i], b = tasks[j];
-      const filesA = new Set([...(a.files_create || []), ...(a.files_modify || [])]);
-      const filesB = new Set([...(b.files_create || []), ...(b.files_modify || [])]);
+      const aFiles = a.files || {};
+      const bFiles = b.files || {};
+      const filesA = new Set([...(aFiles.create || []), ...(aFiles.modify || [])]);
+      const filesB = new Set([...(bFiles.create || []), ...(bFiles.modify || [])]);
       if (filesA.size === 0 || filesB.size === 0) continue;
 
       const shared = [...filesA].filter(f => f && filesB.has(f));
@@ -346,8 +349,8 @@ function fitGraphToView() {
 // Priority: create→modify > status > ID order
 function resolveImplicitDirection(a, b, sharedFiles) {
   // Rule 1 (highest): modify depends on create — if one creates a shared file and the other modifies it
-  const createsA = new Set(a.files_create || []);
-  const createsB = new Set(b.files_create || []);
+  const createsA = new Set((a.files || {}).create || []);
+  const createsB = new Set((b.files || {}).create || []);
   const aCreatesShared = sharedFiles.some(f => createsA.has(f));
   const bCreatesShared = sharedFiles.some(f => createsB.has(f));
   if (aCreatesShared && !bCreatesShared) return [b, a]; // b(modify) depends on a(create)

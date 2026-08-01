@@ -501,9 +501,10 @@ function renderIssueKanbanCol(title, issues) {
 }
 
 function renderFilesSection(t) {
-  const create = t.files_create || [];
-  const modify = t.files_modify || [];
-  const test = t.files_test || [];
+  const files = t.files || {};
+  const create = files.create || [];
+  const modify = files.modify || [];
+  const test = files.test || [];
   const total = create.length + modify.length + test.length;
   if (total === 0) return '';
 
@@ -516,8 +517,9 @@ function renderFilesSection(t) {
 }
 
 function renderIssueFiles(i) {
-  const modify = i.files_modify || [];
-  const create = i.files_create || [];
+  const files = i.files || {};
+  const modify = files.modify || [];
+  const create = files.create || [];
   const total = modify.length + create.length;
   if (total === 0) return '';
 
