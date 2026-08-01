@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -6,19 +5,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::Path as AxumPath;
 use axum::http::{header, StatusCode};
-use axum::response::sse::{Event, Sse};
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 use rust_embed::Embed;
-use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::StreamExt;
 
-use crate::dashboard::data;
 use crate::error::DowError;
 
 #[derive(Embed)]
@@ -46,14 +40,6 @@ pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, D
     };
 
     let app = Router::new()
-        .route("/api/data", get(handle_data))
-        .route("/api/events", get(handle_sse))
-        .route("/api/task/{id}/done", post(handle_task_done))
-        .route("/api/task/{id}/reopen", post(handle_task_reopen))
-        .route("/api/task/{id}/update", post(handle_task_update))
-        .route("/api/issue/{id}/close", post(handle_issue_close))
-        .route("/api/issue/{id}/reopen", post(handle_issue_reopen))
-        .route("/api/issue/{id}/update", post(handle_issue_update))
         .nest("/api/v1", crate::dashboard::api_v1::build_v1_router())
         .route("/", get(handle_index))
         .route("/assets/{*path}", get(handle_asset))
@@ -113,50 +99,6 @@ pub async fn start(doc_root: PathBuf, port: u16, no_open: bool) -> Result<i32, D
     Ok(0)
 }
 
-async fn handle_data(State(state): State<AppState>) -> impl IntoResponse {
-    let project_data = data::collect_project_data(&state.doc_root);
-    axum::Json(project_data)
-}
-
-async fn handle_sse(
-    State(state): State<AppState>,
-) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
-    state.connections.fetch_add(1, Ordering::Relaxed);
-    let connections = state.connections.clone();
-    let doc_root = state.doc_root.clone();
-
-    let rx = state.notify_tx.subscribe();
-    let stream = BroadcastStream::new(rx);
-
-    let event_stream = stream.filter_map(move |msg| match msg {
-            Ok(_) => {
-                let project_data = data::collect_project_data(&doc_root);
-                let json = serde_json::to_string(&project_data).unwrap_or_default();
-            Some(Ok::<_, Infallible>(
-                Event::default().event("update").data(json),
-            ))
-            }
-            Err(_) => None,
-    });
-
-    let guard = ConnectionGuard(connections);
-    let event_stream = event_stream.map(move |item| {
-        let _ = &guard;
-        item
-    });
-
-    Sse::new(event_stream)
-        .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
-}
-
-struct ConnectionGuard(Arc<AtomicUsize>);
-
-impl Drop for ConnectionGuard {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Relaxed);
-    }
-}
-
 async fn handle_index() -> impl IntoResponse {
     match Assets::get("index.html") {
         Some(file) => (
@@ -181,136 +123,6 @@ async fn handle_asset(AxumPath(path): AxumPath<String>) -> impl IntoResponse {
                 .into_response()
         }
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
-    }
-}
-
-// ─── Action API Types ────────────────────────────────────────────────────────
-
-#[derive(Serialize)]
-struct ActionResponse {
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-impl ActionResponse {
-    fn success() -> Self {
-        Self { ok: true, error: None }
-    }
-    fn err(msg: impl Into<String>) -> Self {
-        Self { ok: false, error: Some(msg.into()) }
-    }
-}
-
-#[derive(Deserialize)]
-struct UpdateBody {
-    field: String,
-    value: String,
-}
-
-#[derive(Deserialize, Default)]
-struct IssueCloseBody {
-    #[serde(default)]
-    fix: Option<String>,
-}
-
-// ─── Task Done ───────────────────────────────────────────────────────────────
-
-async fn handle_task_done(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let result = tokio::task::spawn_blocking(move || task_done(&doc_root, &id)).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
-    }
-}
-
-// ─── Task Reopen ─────────────────────────────────────────────────────────────
-
-async fn handle_task_reopen(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let result = tokio::task::spawn_blocking(move || task_reopen(&doc_root, &id)).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
-    }
-}
-
-// ─── Task Update ─────────────────────────────────────────────────────────────
-
-async fn handle_task_update(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-    axum::Json(body): axum::Json<UpdateBody>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        task_update_field(&doc_root, &id, &body.field, &body.value)
-    }).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
-    }
-}
-
-// ─── Issue Close ─────────────────────────────────────────────────────────────
-
-async fn handle_issue_close(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-    body: Option<axum::Json<IssueCloseBody>>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let fix_text = body.and_then(|b| b.0.fix);
-    let result = tokio::task::spawn_blocking(move || {
-        issue_close(&doc_root, &id, fix_text.as_deref())
-    }).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
-    }
-}
-
-// ─── Issue Reopen ────────────────────────────────────────────────────────────
-
-async fn handle_issue_reopen(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let result = tokio::task::spawn_blocking(move || issue_reopen(&doc_root, &id)).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
-    }
-}
-
-// ─── Issue Update ────────────────────────────────────────────────────────────
-
-async fn handle_issue_update(
-    State(state): State<AppState>,
-    AxumPath(id): AxumPath<String>,
-    axum::Json(body): axum::Json<UpdateBody>,
-) -> impl IntoResponse {
-    let doc_root = state.doc_root.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        issue_update_field(&doc_root, &id, &body.field, &body.value)
-    }).await;
-    match result {
-        Ok(Ok(())) => (StatusCode::OK, axum::Json(ActionResponse::success())),
-        Ok(Err(e)) => (StatusCode::BAD_REQUEST, axum::Json(ActionResponse::err(e))),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(ActionResponse::err(e.to_string()))),
     }
 }
 

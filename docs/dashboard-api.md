@@ -440,23 +440,6 @@ All error responses use a consistent JSON structure:
 
 ---
 
-## Legacy API (Deprecated)
-
-The following endpoints are still available for backward compatibility with the built-in dashboard frontend, but should not be used for new integrations:
-
-| Method | Path | Replacement |
-|--------|------|-------------|
-| GET | `/api/data` | Use individual `/api/v1/` endpoints |
-| GET | `/api/events` | Use `/api/v1/events` |
-| POST | `/api/task/{id}/done` | `PATCH /api/v1/tasks/:id` with `{"status":"done"}` |
-| POST | `/api/task/{id}/reopen` | `PATCH /api/v1/tasks/:id` with `{"status":"pending"}` |
-| POST | `/api/task/{id}/update` | `PATCH /api/v1/tasks/:id` with field updates |
-| POST | `/api/issue/{id}/close` | `PATCH /api/v1/issues/:id` with `{"status":"closed","fix":"..."}` |
-| POST | `/api/issue/{id}/reopen` | `PATCH /api/v1/issues/:id` with `{"status":"open"}` |
-| POST | `/api/issue/{id}/update` | `PATCH /api/v1/issues/:id` with field updates |
-
----
-
 ## Examples
 
 ### curl: List pending P0 tasks
