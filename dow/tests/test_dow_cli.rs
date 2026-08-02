@@ -44,6 +44,19 @@ fn setup_claim_fixture(dir: &Path) {
     fs::write(dir.join(".gitignore"), ".dev-doc/**/claim.lock\n").unwrap();
 }
 
+fn setup_issue_claim_fixture(dir: &Path) {
+    common::git_init_with_commit(dir);
+    common::setup_dev_doc(dir, "DEV", "fast");
+    let branch = common::default_branch(dir);
+    let issue_dir = dir.join(".dev-doc").join(branch).join("issue");
+    fs::write(
+        issue_dir.join("issue_test_2026-08-02_1.md"),
+        "---\nsource: test\nnums: 1\n---\n\n- [ ] ISSUE-I001：claim output test\n  - severity: P1\n  - location：src/main.rs:1\n  - description：claim output should include details\n  - reproduce：run dow claim\n  - files_modify: [src/main.rs]\n  - fix：\n",
+    )
+    .unwrap();
+    fs::write(dir.join(".gitignore"), ".dev-doc/**/claim.lock\n").unwrap();
+}
+
 #[test]
 fn claim_uses_ten_minute_default_and_allows_thirty_minute_maximum() {
     let dir = tempfile::tempdir().unwrap();
@@ -86,6 +99,37 @@ fn claim_rejects_timeout_above_thirty_minutes() {
     let output = run_dow(dir.path(), &["claim", "T001", "--timeout", "1801"]);
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("<= 1800 seconds"));
+}
+
+#[test]
+fn claim_prints_task_and_issue_details_on_success() {
+    let task_dir = tempfile::tempdir().unwrap();
+    setup_claim_fixture(task_dir.path());
+
+    let task_claim = run_dow(task_dir.path(), &["claim", "T001"]);
+    assert!(
+        task_claim.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&task_claim.stderr)
+    );
+    let task_claim_json: serde_json::Value = serde_json::from_slice(&task_claim.stdout).unwrap();
+    let task_show = run_dow(task_dir.path(), &["task", "show", "T001"]);
+    let task_show_json: serde_json::Value = serde_json::from_slice(&task_show.stdout).unwrap();
+    assert_eq!(task_claim_json, task_show_json);
+
+    let issue_dir = tempfile::tempdir().unwrap();
+    setup_issue_claim_fixture(issue_dir.path());
+
+    let issue_claim = run_dow(issue_dir.path(), &["claim", "I001"]);
+    assert!(
+        issue_claim.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&issue_claim.stderr)
+    );
+    let issue_claim_json: serde_json::Value = serde_json::from_slice(&issue_claim.stdout).unwrap();
+    let issue_show = run_dow(issue_dir.path(), &["issue", "show", "I001"]);
+    let issue_show_json: serde_json::Value = serde_json::from_slice(&issue_show.stdout).unwrap();
+    assert_eq!(issue_claim_json, issue_show_json);
 }
 
 #[test]

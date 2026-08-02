@@ -5,8 +5,8 @@
 // - [Guard Hook](../hooks/guard.rs)
 // - [Claim Core](../core/claim.rs)
 
-use crate::cli::ClaimArgs;
-use crate::commands::task as task_cmd;
+use crate::cli::{ClaimArgs, IssueCommands, TaskCommands};
+use crate::commands::{issue as issue_cmd, task as task_cmd};
 use crate::core::{claim, doc_root, item_id};
 use crate::error::DowError;
 use crate::output;
@@ -92,7 +92,21 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
         claim::add_claims_with_options(&doc_root_path, &normalized, claim::detect_agent_id(), ttl_override)
             .map_err(|e| DowError::new(format!("Failed to add claim: {}", e), 1))?;
 
-        // Silent on success — operator knows what they claimed
+        for id in &normalized {
+            let show_id = item_id::normalize_full(id);
+            match item_id::parse(id).map(|parsed| parsed.kind) {
+                Some(item_id::ItemKind::Task) => {
+                    task_cmd::run(TaskCommands::Show { id: show_id }, human)?;
+                }
+                Some(item_id::ItemKind::Issue) => {
+                    issue_cmd::run(IssueCommands::Show { id: show_id }, human)?;
+                }
+                None => {
+                    return Err(DowError::new(format!("Invalid claimed item ID: {}", id), 1));
+                }
+            }
+        }
+
         return Ok(0);
     }
 
