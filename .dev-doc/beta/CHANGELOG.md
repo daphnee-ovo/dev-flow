@@ -13,3 +13,7 @@
 ## 2026-08-02
 - 00:14 fix: restore dashboard SSE file updates
 - 01:47 fix: restore dashboard file-scope rendering
+- 04:09 feat: claim 默认10分钟,最长30min
+- 04:29 fix: Fix nested-project workflow root resolution
+- 17:02 fix(cli): aggregate task and issue validation errors
+- 17:10 feat: show claimed item details

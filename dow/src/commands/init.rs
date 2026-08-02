@@ -2,10 +2,11 @@
 // ├── init.rs  -- dow init (initialize dev-flow workflow management)
 
 use crate::cli::InitArgs;
-use crate::core::{doc_root, version, yaml};
+use crate::core::{version, yaml};
 use crate::error::DowError;
 use serde::Serialize;
 use std::fs;
+use std::path::Path;
 
 #[derive(Serialize)]
 struct InitOutput {
@@ -25,8 +26,9 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
         ));
     }
 
-    let base_dir = std::path::Path::new(crate::core::DOC_DIR);
-    fs::create_dir_all(base_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
+    let project_root = std::env::current_dir().map_err(|e| DowError::new(e.to_string(), 1))?;
+    let base_dir = project_root.join(crate::core::DOC_DIR);
+    fs::create_dir_all(&base_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // Parse multi-branch mode path: .dev-doc/<branch>/
     let branch = crate::core::doc_root::current_branch().unwrap_or_else(|| "main".to_string());
@@ -37,11 +39,12 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     for dir in &["issue", "task"] {
         fs::create_dir_all(doc_root_path.join(dir)).map_err(|e| DowError::new(e.to_string(), 1))?;
     }
-    fs::create_dir_all("tests").map_err(|e| DowError::new(e.to_string(), 1))?;
+    fs::create_dir_all(project_root.join("tests")).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // tmp directory: if temp already exists, don't create tmp
-    if !std::path::Path::new("temp").is_dir() {
-        fs::create_dir_all("tmp").map_err(|e| DowError::new(e.to_string(), 1))?;
+    if !project_root.join("temp").is_dir() {
+        fs::create_dir_all(project_root.join("tmp"))
+            .map_err(|e| DowError::new(e.to_string(), 1))?;
     }
 
     // Determine starting phase
@@ -68,14 +71,14 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     fs::write(&status_path, &status_content).map_err(|e| DowError::new(e.to_string(), 1))?;
 
     // Write VERSION (initialize with current branch)
-    let version_path = std::path::Path::new("VERSION");
+    let version_path = project_root.join("VERSION");
     if !version_path.exists() {
         let branch = crate::core::doc_root::current_branch().unwrap_or_else(|| "main".to_string());
         version::write_branch(&branch, "0.1.0")?;
     }
 
     // Generate persistent documentation skeleton (docs/ + README.md)
-    init_persistent_docs(&args.name, &status_path)?;
+    init_persistent_docs(&args.name, &status_path, &project_root)?;
 
     // Write CHANGELOG
     let changelog_path = doc_root_path.join("CHANGELOG.md");
@@ -84,7 +87,7 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     }
 
     // Ensure .gitignore has claim.lock entry
-    ensure_gitignore_claim_lock();
+    ensure_gitignore_claim_lock(&project_root);
 
     // Detect kiro environment and inject steering
     inject_kiro_steering_if_needed(&args.name);
@@ -102,8 +105,11 @@ pub fn run(args: InitArgs, _human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Result<(), DowError> {
-    let project_root = doc_root::project_root();
+fn init_persistent_docs(
+    project_name: &str,
+    status_path: &Path,
+    project_root: &Path,
+) -> Result<(), DowError> {
     let docs_dir = project_root.join("docs");
     fs::create_dir_all(&docs_dir).map_err(|e| DowError::new(e.to_string(), 1))?;
 
@@ -140,11 +146,11 @@ fn init_persistent_docs(project_name: &str, status_path: &std::path::Path) -> Re
     Ok(())
 }
 
-fn ensure_gitignore_claim_lock() {
+fn ensure_gitignore_claim_lock(project_root: &Path) {
     let entry = ".dev-doc/**/claim.lock";
-    let gitignore = std::path::Path::new(".gitignore");
+    let gitignore = project_root.join(".gitignore");
     if gitignore.exists() {
-        let content = fs::read_to_string(gitignore).unwrap_or_default();
+        let content = fs::read_to_string(&gitignore).unwrap_or_default();
         if !content.lines().any(|l| l.trim() == entry) {
             let mut new_content = content;
             if !new_content.ends_with('\n') {

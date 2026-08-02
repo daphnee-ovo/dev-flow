@@ -23,7 +23,7 @@
 
 所有项目默认使用多分支模式：`DOC_ROOT=.dev-doc/<当前分支名>`。`dow init` 自动检测当前 git 分支并创建对应子目录。
 
-检测规则：如果 `.dev-doc/` 下存在包含 `STATUS.yaml` 的子目录，则 `DOC_ROOT=.dev-doc/<当前分支名>`。
+检测规则：从当前工作目录向上查找最近的 `.dev-doc/`，将其所在目录作为项目根；如果不存在工作流根，则使用当前工作目录。随后在该根目录下按当前分支解析 `DOC_ROOT=.dev-doc/<当前分支名>`。不得因为父 Git 仓库存在 `.dev-doc/` 而跨项目写入。
 
 ## 文件命名规范
 
@@ -136,7 +136,7 @@ issue/
 
 ### VERSION 文件
 
-项目根目录下的 `VERSION` 文件是版本号的**单一真相源**（Single Source of Truth）。
+dev-flow 项目根目录下的 `VERSION` 文件是版本号的**单一真相源**（Single Source of Truth）。项目根由最近的 `.dev-doc/` 祖先确定，不默认使用父 Git 仓库根目录。
 
 - 格式：`major.minor.patch`（如 `2.6.1`）
 - 纯文本文件，仅包含版本号字符串

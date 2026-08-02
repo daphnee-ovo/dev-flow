@@ -184,6 +184,120 @@ fn test_task_create_json_reports_all_batch_errors() {
 }
 
 #[test]
+fn test_nested_project_uses_nearest_workflow_root() {
+    let parent = tempfile::tempdir().unwrap();
+    common::git_init_with_commit(parent.path());
+
+    let branch = default_branch(parent.path());
+    let parent_doc = parent.path().join(".dev-doc").join(&branch);
+    fs::create_dir_all(parent_doc.join("task")).unwrap();
+    fs::create_dir_all(parent_doc.join("issue")).unwrap();
+    fs::write(
+        parent_doc.join("STATUS.yaml"),
+        "name: parent-project\nphase: DEV\nmode: fast\nupdated: 2026-08-02 10:00\nstarted: 2026-08-02 09:00\n",
+    )
+    .unwrap();
+    let parent_task = parent_doc.join("task/task_2026-08-02_1.md");
+    fs::write(
+        &parent_task,
+        "---\ntitle: TASK - parent\nnums: 1\n---\n\n- [ ] TASK-T001: Parent task\n  - type: feat\n  - priority: P1\n",
+    )
+    .unwrap();
+
+    let child = parent.path().join("tmp/rozsa-rt");
+    fs::create_dir_all(&child).unwrap();
+
+    let init = Command::new(dow_cmd())
+        .args(["init", "--name", "rozsa-rt", "--mode", "fast"])
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    assert!(
+        init.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let child_doc = child.join(".dev-doc").join(&branch);
+    assert!(child_doc.join("STATUS.yaml").exists());
+    assert!(child.join("VERSION").exists());
+    assert!(!parent.path().join("VERSION").exists());
+    assert!(!parent.path().join("docs").exists());
+
+    let create = Command::new(dow_cmd())
+        .args([
+            "task",
+            "create",
+            "--title",
+            "Child task",
+            "--task-type",
+            "fix",
+            "--priority",
+            "P1",
+            "--refs",
+            "user-request",
+            "--file",
+            r#"{"modify":["src/child.rs"]}"#,
+            "--depends-on",
+            "",
+            "--complexity",
+            "S",
+            "--done-when",
+            "child task exists",
+        ])
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    assert!(
+        create.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&create.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&create.stdout).trim(), "TASK-T001");
+    assert!(fs::read_to_string(&parent_task)
+        .unwrap()
+        .contains("TASK-T001: Parent task"));
+
+    let list = Command::new(dow_cmd())
+        .args(["task", "list"])
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    assert!(list.status.success());
+    let items: Vec<serde_json::Value> = serde_json::from_slice(&list.stdout).unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["id"], "TASK-T001");
+    assert_eq!(items[0]["title"], "Child task");
+
+    let status = Command::new(dow_cmd())
+        .args(["status"])
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    assert!(status.status.success());
+    let status_json: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status_json["name"], "rozsa-rt");
+    let expected_doc_root = fs::canonicalize(&child_doc).unwrap();
+    assert_eq!(
+        status_json["doc_root"].as_str().unwrap(),
+        expected_doc_root.to_string_lossy().as_ref()
+    );
+
+    let claim = Command::new(dow_cmd())
+        .args(["claim", "T001"])
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    assert!(
+        claim.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&claim.stderr)
+    );
+    assert!(child_doc.join("claim.lock").exists());
+    assert!(!parent_doc.join("claim.lock").exists());
+}
+
+#[test]
 fn test_task_create_with_stdin_json_object() {
     let dir = create_test_dir();
     setup_env(&dir);

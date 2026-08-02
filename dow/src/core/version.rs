@@ -1,7 +1,8 @@
 // dow/src/core/
 // ├── version.rs  -- VERSION file multi-branch read/write
 //
-// Path resolution: VERSION lives at the git repository root (project_root).
+// Path resolution: VERSION lives at the dev-flow project root resolved by
+// doc_root::project_root().
 // All read/write goes through doc_root::project_root(); no caller needs to
 // thread a path. Path-taking helpers below are private implementation detail.
 //

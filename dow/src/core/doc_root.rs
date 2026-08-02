@@ -12,7 +12,7 @@ use std::process::Command;
 /// Resolve actual doc_root path
 /// Enforce .dev-doc/<branch>/ format (including main/master)
 /// Automatically create directory and STATUS.yaml for new branches
-/// If base is relative, anchors it to project_root() (git toplevel)
+/// If base is relative, anchors it to project_root().
 pub fn resolve(base: &str) -> PathBuf {
     let raw = Path::new(base);
     let base_path = if raw.is_relative() {
@@ -62,16 +62,32 @@ pub fn resolve(base: &str) -> PathBuf {
     base_path.to_path_buf()
 }
 
-/// Get project root directory (git repository root)
+/// Get the dev-flow project root directory.
+///
+/// A project is identified by the nearest ancestor containing `.dev-doc`.
+/// This keeps nested projects isolated while still allowing commands to run
+/// from a project's subdirectories. If no workflow root exists yet, use the
+/// current directory so commands cannot accidentally write to a parent Git
+/// repository.
 pub fn project_root() -> PathBuf {
-    let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok();
-    output
-        .filter(|o| o.status.success())
-        .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim().to_string()))
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut candidate = current_dir.as_path();
+
+    loop {
+        if candidate.join(crate::core::DOC_DIR).is_dir() {
+            return candidate.to_path_buf();
+        }
+
+        let Some(parent) = candidate.parent() else {
+            break;
+        };
+        if parent == candidate {
+            break;
+        }
+        candidate = parent;
+    }
+
+    current_dir
 }
 
 /// Get current git branch name
