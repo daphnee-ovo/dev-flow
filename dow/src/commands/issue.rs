@@ -7,16 +7,23 @@
 // ├── struct IssueShowOutput
 // ├── struct IssueReopenPreview
 // ├── struct IssueFilesInput
-// ├── struct IssueCreateInput
-// ├── enum IssueCreatePayload
+// ├── struct IssueCreateCandidate
 // ├── struct IssueCreateRecord
 // ├── struct IssueCreateGroup
 // ├── run()
 // ├── create()
-// ├── validate_issue_create_input()
+// ├── resolve_issue_create_input()
+// ├── has_any_issue_create_flag()
+// ├── issue_create_from_cli()
+// ├── required_issue_cli_value()
+// ├── parse_issue_create_stdin()
+// ├── issue_create_from_json()
+// ├── validate_issue_create_candidate()
 // ├── normalize_issue_files()
 // ├── validate_issue_file_scope()
 // ├── parse_issue_files_arg()
+// ├── parse_issue_files_arg_value()
+// ├── parse_issue_files_value()
 // ├── read_issue_stdin_if_available()
 // ├── render_issue_entry()
 // ├── create_issue_batch()
@@ -24,6 +31,8 @@
 // ├── struct IssueUpdateInput
 // ├── update()
 // ├── resolve_issue_update_input()
+// ├── parse_issue_update_stdin()
+// ├── issue_update_from_json()
 // ├── has_any_issue_update()
 // ├── format_multiline_field()
 // ├── replace_issue_entry_in_content()
@@ -44,7 +53,6 @@
 // ├── next_issue_id()
 // ├── next_file_seq()
 // ├── generate_iro_token()
-// ├── read_stdin_json_or_flags()
 // └── parse_open_items()
 
 // dow/src/commands/
@@ -69,12 +77,17 @@ use crate::cli::{
     IssueCommands, IssueCreateArgs, IssueListArgs, IssueRemoveArgs, IssueReopenArgs,
     IssueUpdateArgs,
 };
+use crate::commands::input_validation::{
+    field_path, invalid_json_error, object, optional_string, optional_string_array,
+    required_string, unknown_fields, ValidationErrors,
+};
 use crate::commands::task::{expand_file_list, parse_inline_list};
 use crate::core::{claim, doc_root, doc_validator, item_id};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use serde_json::Value;
 use std::fs;
 use std::io::Read as IoRead;
 use std::path::PathBuf;
@@ -126,32 +139,21 @@ struct IssueReopenPreview {
     command: String,
 }
 
-#[derive(Deserialize, Default, Clone)]
-#[serde(deny_unknown_fields)]
+#[derive(Default, Clone)]
 struct IssueFilesInput {
     create: Option<Vec<String>>,
     modify: Option<Vec<String>>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct IssueCreateInput {
+struct IssueCreateCandidate {
     title: Option<String>,
     severity: Option<String>,
     location: Option<String>,
     desc: Option<String>,
     source: Option<String>,
     reproduce: Option<String>,
-    #[serde(default)]
     fix: Option<String>,
-    files: IssueFilesInput,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum IssueCreatePayload {
-    Many(Vec<IssueCreateInput>),
-    One(IssueCreateInput),
+    files: Option<IssueFilesInput>,
 }
 
 pub(crate) struct IssueCreateRecord {
@@ -199,19 +201,15 @@ pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
 }
 
 fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
-    // Detect stdin JSON or use flags
-    let inputs = read_stdin_json_or_flags(&args)?;
-    if inputs.is_empty() {
-        return Err(DowError::new("at least one issue is required", 2));
+    let records = resolve_issue_create_input(args)?;
+    if records.is_empty() {
+        return Err(DowError::new(
+            "no issue input provided; use CLI options (--title, --severity, --location, --desc, --reproduce, --source, --file) or pipe an issue JSON object/array to stdin",
+            2,
+        ));
     }
 
-    // Validate every item before creating directories or writing any files.
-    let validated: Vec<IssueCreateRecord> = inputs
-        .into_iter()
-        .map(validate_issue_create_input)
-        .collect::<Result<_, _>>()?;
-
-    let ids = create_issue_batch(validated)?;
+    let ids = create_issue_batch(records)?;
 
     for id in ids {
         println!("{}", id);
@@ -220,62 +218,223 @@ fn create(args: IssueCreateArgs, _human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-fn validate_issue_create_input(input: IssueCreateInput) -> Result<IssueCreateRecord, DowError> {
+fn resolve_issue_create_input(args: IssueCreateArgs) -> Result<Vec<IssueCreateRecord>, DowError> {
+    let has_flags = has_any_issue_create_flag(&args);
+    let stdin_data = read_issue_stdin_if_available();
+    if has_flags && stdin_data.is_some() {
+        return Err(DowError::new(
+            "cannot combine issue CLI options with stdin JSON; use one input source",
+            2,
+        ));
+    }
+
+    let mut errors = ValidationErrors::default();
+    let candidates = if let Some(stdin_data) = stdin_data {
+        parse_issue_create_stdin(&stdin_data, &mut errors)?
+    } else if has_flags {
+        vec![(String::new(), issue_create_from_cli(args, &mut errors))]
+    } else {
+        Vec::new()
+    };
+
+    let mut records = Vec::new();
+    for (path, candidate) in candidates {
+        if let Some(record) = validate_issue_create_candidate(candidate, &path, &mut errors) {
+            records.push(record);
+        }
+    }
+
+    errors.finish(
+        "issue create",
+        "run 'dow issue schema' for the complete field contract, or pipe a JSON object with the required fields to stdin",
+    )?;
+    Ok(records)
+}
+
+fn has_any_issue_create_flag(args: &IssueCreateArgs) -> bool {
+    args.title.is_some()
+        || args.severity.is_some()
+        || args.location.is_some()
+        || args.desc.is_some()
+        || args.reproduce.is_some()
+        || args.source.is_some()
+        || args.file.is_some()
+}
+
+fn issue_create_from_cli(
+    args: IssueCreateArgs,
+    errors: &mut ValidationErrors,
+) -> IssueCreateCandidate {
+    IssueCreateCandidate {
+        title: required_issue_cli_value(args.title, "--title", "title", errors),
+        severity: required_issue_cli_value(args.severity, "--severity", "severity", errors),
+        location: required_issue_cli_value(args.location, "--location", "location", errors),
+        desc: required_issue_cli_value(args.desc, "--desc", "desc", errors),
+        source: required_issue_cli_value(args.source, "--source", "source", errors),
+        reproduce: required_issue_cli_value(args.reproduce, "--reproduce", "reproduce", errors),
+        fix: None,
+        files: match args.file {
+            Some(value) => parse_issue_files_arg_value(&value, "files", errors),
+            None => {
+                errors.push(
+                    "--file is required (JSON: files; expected a JSON object with create/modify arrays)",
+                );
+                None
+            }
+        },
+    }
+}
+
+fn required_issue_cli_value(
+    value: Option<String>,
+    option: &str,
+    json_path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<String> {
+    value.or_else(|| {
+        errors.push(format!(
+            "{} is required (JSON: {}; expected a string)",
+            option, json_path
+        ));
+        None
+    })
+}
+
+fn parse_issue_create_stdin(
+    input: &str,
+    errors: &mut ValidationErrors,
+) -> Result<Vec<(String, IssueCreateCandidate)>, DowError> {
+    let value: Value = serde_json::from_str(input).map_err(|error| {
+        invalid_json_error(
+            "issue create stdin",
+            &error,
+            "expected one issue object or an array of issue objects; run 'dow issue schema' for the required fields",
+        )
+    })?;
+
+    let mut candidates = Vec::new();
+    match &value {
+        Value::Object(_) => {
+            if let Some(candidate) = issue_create_from_json(&value, "", errors) {
+                candidates.push((String::new(), candidate));
+            }
+        }
+        Value::Array(values) => {
+            if values.is_empty() {
+                errors.push("input: expected a non-empty JSON array");
+            }
+            for (index, value) in values.iter().enumerate() {
+                if let Some(candidate) =
+                    issue_create_from_json(value, &format!("[{}]", index), errors)
+                {
+                    candidates.push((format!("[{}]", index), candidate));
+                }
+            }
+        }
+        _ => errors.push("input: expected a JSON object or an array of JSON objects"),
+    }
+    Ok(candidates)
+}
+
+fn issue_create_from_json(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<IssueCreateCandidate> {
+    let object = object(value, path, errors)?;
+    unknown_fields(
+        object,
+        &[
+            "title",
+            "severity",
+            "location",
+            "desc",
+            "reproduce",
+            "source",
+            "fix",
+            "files",
+        ],
+        path,
+        errors,
+    );
+
+    let files = match object.get("files") {
+        Some(value) => parse_issue_files_value(value, &field_path(path, "files"), errors),
+        None => {
+            errors.push(format!(
+                "{}: missing (expected an object with create/modify arrays)",
+                field_path(path, "files")
+            ));
+            None
+        }
+    };
+    Some(IssueCreateCandidate {
+        title: required_string(object, "title", path, errors),
+        severity: required_string(object, "severity", path, errors),
+        location: required_string(object, "location", path, errors),
+        desc: required_string(object, "desc", path, errors),
+        source: required_string(object, "source", path, errors),
+        reproduce: required_string(object, "reproduce", path, errors),
+        fix: optional_string(object, "fix", path, errors),
+        files,
+    })
+}
+
+fn validate_issue_create_candidate(
+    input: IssueCreateCandidate,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<IssueCreateRecord> {
+    let before = errors.len();
     if input.fix.is_some() {
-        return Err(DowError::new(
-            "`fix` cannot be specified when creating an issue; record it later via `dow issue update <id> --fix \"...\"`",
-            2,
+        errors.push(format!(
+            "{}: fix is not accepted when creating an issue; resolve the issue first, then run 'dow issue update <id> --fix \"...\"' to record the resolution, and finally run 'dow issue close <id>'",
+            field_path(path, "fix")
         ));
     }
 
-    let title = input
-        .title
-        .ok_or_else(|| DowError::new("--title is required", 2))?;
-    let severity = input
-        .severity
-        .ok_or_else(|| DowError::new("--severity is required", 2))?;
-    let location = input
-        .location
-        .ok_or_else(|| DowError::new("--location is required", 2))?;
-    let desc = input
-        .desc
-        .ok_or_else(|| DowError::new("--desc is required", 2))?;
-    let source = input
-        .source
-        .ok_or_else(|| DowError::new("--source is required", 2))?;
-    let reproduce = input
-        .reproduce
-        .ok_or_else(|| DowError::new("--reproduce is required", 2))?;
-
-    let valid_severities = ["P0", "P1", "P2"];
-    if !valid_severities.contains(&severity.as_str()) {
-        return Err(DowError::new(
-            format!("Invalid severity '{}', valid: P0/P1/P2", severity),
-            2,
-        ));
+    if let Some(severity) = input.severity.as_deref() {
+        let valid = ["P0", "P1", "P2"];
+        if !valid.contains(&severity) {
+            errors.push(format!(
+                "{}: Invalid severity '{}'; allowed: {}",
+                field_path(path, "severity"),
+                severity,
+                valid.join("/")
+            ));
+        }
     }
-
-    let valid_sources = ["test", "other", "audit"];
-    if !valid_sources.contains(&source.as_str()) {
-        return Err(DowError::new(
-            format!("Invalid source '{}', valid: test/other/audit", source),
-            2,
-        ));
+    if let Some(source) = input.source.as_deref() {
+        let valid = ["test", "other", "audit"];
+        if !valid.contains(&source) {
+            errors.push(format!(
+                "{}: Invalid source '{}'; allowed: {}",
+                field_path(path, "source"),
+                source,
+                valid.join("/")
+            ));
+        }
     }
 
     let mut files = input.files;
-    normalize_issue_files(&mut files);
-    validate_issue_file_scope(&files, "issue create")?;
+    if let Some(files) = files.as_mut() {
+        normalize_issue_files(files);
+        validate_issue_file_scope(files, path, errors);
+    }
 
-    Ok(IssueCreateRecord {
-        title,
-        severity,
-        location,
-        desc,
-        source,
-        reproduce,
-        files_modify: files.modify.unwrap_or_default(),
-        files_create: files.create.unwrap_or_default(),
+    if errors.len() != before {
+        return None;
+    }
+
+    Some(IssueCreateRecord {
+        title: input.title?,
+        severity: input.severity?,
+        location: input.location?,
+        desc: input.desc?,
+        source: input.source?,
+        reproduce: input.reproduce?,
+        files_modify: files.as_ref()?.modify.clone().unwrap_or_default(),
+        files_create: files.as_ref()?.create.clone().unwrap_or_default(),
     })
 }
 
@@ -288,7 +447,7 @@ fn normalize_issue_files(files: &mut IssueFilesInput) {
     }
 }
 
-fn validate_issue_file_scope(files: &IssueFilesInput, operation: &str) -> Result<(), DowError> {
+fn validate_issue_file_scope(files: &IssueFilesInput, path: &str, errors: &mut ValidationErrors) {
     let has_create = files
         .create
         .as_ref()
@@ -298,21 +457,73 @@ fn validate_issue_file_scope(files: &IssueFilesInput, operation: &str) -> Result
         .as_ref()
         .is_some_and(|values| !values.is_empty());
     if has_create || has_modify {
-        return Ok(());
+        return;
     }
 
-    Err(DowError::new(
-        format!(
-            "{} requires at least one non-empty files.create or files.modify list",
-            operation
-        ),
-        2,
-    ))
+    errors.push(format!(
+        "{}: at least one non-empty files.create or files.modify path is required",
+        field_path(path, "files")
+    ));
 }
 
 fn parse_issue_files_arg(value: &str) -> Result<IssueFilesInput, DowError> {
-    serde_json::from_str(value)
-        .map_err(|e| DowError::new(format!("invalid --file JSON object: {}", e), 2))
+    let json: Value = serde_json::from_str(value).map_err(|error| {
+        invalid_json_error(
+            "--file",
+            &error,
+            "expected an object such as {\"modify\":[\"src/example.rs\"]}",
+        )
+    })?;
+    let mut errors = ValidationErrors::default();
+    let files = parse_issue_files_value(&json, "files", &mut errors);
+    if let Some(files) = files.as_ref() {
+        validate_issue_file_scope(files, "", &mut errors);
+    }
+    errors.finish(
+        "--file",
+        "expected an object with optional create/modify arrays and at least one non-empty create or modify path",
+    )?;
+    files.ok_or_else(|| DowError::new("--file: invalid file scope", 2))
+}
+
+fn parse_issue_files_arg_value(
+    value: &str,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<IssueFilesInput> {
+    let json: Value = match serde_json::from_str(value) {
+        Ok(json) => json,
+        Err(error) => {
+            errors.push(format!(
+                "{}: invalid JSON at line {}, column {}: {}",
+                path,
+                error.line(),
+                error.column(),
+                error
+            ));
+            return None;
+        }
+    };
+    parse_issue_files_value(&json, path, errors)
+}
+
+fn parse_issue_files_value(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<IssueFilesInput> {
+    let object = object(value, path, errors)?;
+    unknown_fields(object, &["create", "modify"], path, errors);
+    let before = errors.len();
+    let files = IssueFilesInput {
+        create: optional_string_array(object, "create", path, errors),
+        modify: optional_string_array(object, "modify", path, errors),
+    };
+    if errors.len() == before {
+        Some(files)
+    } else {
+        None
+    }
 }
 
 fn read_issue_stdin_if_available() -> Option<String> {
@@ -453,8 +664,7 @@ fn write_issue_batch(issue_dir: &PathBuf, files: &[(String, String)]) -> Result<
 
 // ─── Update ─────────────────────────────────────────────────────────────────
 
-#[derive(Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(Default)]
 struct IssueUpdateInput {
     title: Option<String>,
     severity: Option<String>,
@@ -468,28 +678,33 @@ struct IssueUpdateInput {
 fn update(args: IssueUpdateArgs) -> Result<i32, DowError> {
     let id = args.id.clone();
     let mut input = resolve_issue_update_input(args)?;
+    let mut errors = ValidationErrors::default();
 
     if !has_any_issue_update(&input) {
-        return Err(DowError::new(
-            "no fields to update (provide at least one --field)",
-            2,
-        ));
+        errors.push(
+            "no fields to update; provide at least one of title, severity, location, desc, reproduce, fix, or files",
+        );
     }
 
     if let Some(files) = input.files.as_mut() {
         normalize_issue_files(files);
-        validate_issue_file_scope(files, "issue update")?;
+        validate_issue_file_scope(files, "", &mut errors);
     }
 
     if let Some(ref s) = input.severity {
         let valid = ["P0", "P1", "P2"];
         if !valid.contains(&s.as_str()) {
-            return Err(DowError::new(
-                format!("invalid severity '{}', valid: P0/P1/P2", s),
-                2,
+            errors.push(format!(
+                "severity: invalid value '{}'; allowed: {}",
+                s,
+                valid.join("/")
             ));
         }
     }
+    errors.finish(
+        "issue update",
+        "provide a JSON object or CLI fields; run 'dow issue schema' for the accepted issue field names and types",
+    )?;
 
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let issue_dir = doc_root_path.join("issue");
@@ -571,16 +786,7 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
         ));
     }
     if let Some(stdin_data) = stdin_data {
-        let trimmed = stdin_data.trim();
-        if trimmed.starts_with('{') {
-            let input: IssueUpdateInput = serde_json::from_str(trimmed)
-                .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
-            return Ok(input);
-        }
-        return Err(DowError::new(
-            "issue update stdin input must be a JSON object",
-            2,
-        ));
+        return parse_issue_update_stdin(&stdin_data);
     }
 
     Ok(IssueUpdateInput {
@@ -595,6 +801,84 @@ fn resolve_issue_update_input(args: IssueUpdateArgs) -> Result<IssueUpdateInput,
             .map(|value| parse_issue_files_arg(&value))
             .transpose()?,
     })
+}
+
+fn parse_issue_update_stdin(input: &str) -> Result<IssueUpdateInput, DowError> {
+    let value: Value = serde_json::from_str(input).map_err(|error| {
+        invalid_json_error(
+            "issue update stdin",
+            &error,
+            "expected one JSON object containing only fields to update",
+        )
+    })?;
+    let mut errors = ValidationErrors::default();
+    let input = match value {
+        Value::Object(_) => issue_update_from_json(&value, "", &mut errors),
+        _ => {
+            errors.push("input: expected a JSON object");
+            None
+        }
+    };
+    errors.finish(
+        "issue update JSON",
+        "provide at least one update field; run 'dow issue schema' for the accepted field names and types",
+    )?;
+    input.ok_or_else(|| DowError::new("issue update JSON: invalid input", 2))
+}
+
+fn issue_update_from_json(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<IssueUpdateInput> {
+    let object = object(value, path, errors)?;
+    unknown_fields(
+        object,
+        &[
+            "title",
+            "severity",
+            "location",
+            "desc",
+            "reproduce",
+            "fix",
+            "files",
+        ],
+        path,
+        errors,
+    );
+    let before = errors.len();
+    let input = IssueUpdateInput {
+        title: optional_string(object, "title", path, errors),
+        severity: optional_string(object, "severity", path, errors),
+        location: optional_string(object, "location", path, errors),
+        desc: optional_string(object, "desc", path, errors),
+        reproduce: optional_string(object, "reproduce", path, errors),
+        fix: optional_string(object, "fix", path, errors),
+        files: object
+            .get("files")
+            .and_then(|value| parse_issue_files_value(value, &field_path(path, "files"), errors)),
+    };
+    if let Some(severity) = input.severity.as_deref() {
+        let valid = ["P0", "P1", "P2"];
+        if !valid.contains(&severity) {
+            errors.push(format!(
+                "{}: Invalid severity '{}'; allowed: {}",
+                field_path(path, "severity"),
+                severity,
+                valid.join("/")
+            ));
+        }
+    }
+    if let Some(files) = input.files.as_ref() {
+        let mut files = files.clone();
+        normalize_issue_files(&mut files);
+        validate_issue_file_scope(&files, path, errors);
+    }
+    if errors.len() == before {
+        Some(input)
+    } else {
+        None
+    }
 }
 
 fn has_any_issue_update(input: &IssueUpdateInput) -> bool {
@@ -1096,7 +1380,7 @@ fn close(id: &str) -> Result<i32, DowError> {
     // fix field must be filled before closing
     if parsed.fix.trim().is_empty() {
         return Err(DowError::new(
-            format!("cannot close {}: fix field is empty (use `dow issue update {} --fix \"...\"` to describe the fix first)", id, id),
+            format!("cannot close {}: fix is empty. Resolve the issue first, then run 'dow issue update {} --fix \"...\"' to record the resolution, and run 'dow issue close {}' again.", id, id, id),
             2,
         ));
     }
@@ -1280,7 +1564,7 @@ fn schema(_human: bool) -> Result<i32, DowError> {
                 "description": "Code location (file:line)"
             },
             {
-                "name": "description",
+                "name": "desc",
                 "required": true,
                 "type": "string",
                 "description": "Issue description"
@@ -1295,7 +1579,7 @@ fn schema(_human: bool) -> Result<i32, DowError> {
                 "name": "fix",
                 "required": false,
                 "type": "string",
-                "description": "Fix description (filled on close)"
+                "description": "Resolution recorded after fixing the issue and before 'dow issue close'"
             },
             {
                 "name": "source",
@@ -1570,50 +1854,6 @@ fn generate_iro_token(id: &str) -> String {
     "iro-salt".hash(&mut hasher);
     let hash = hasher.finish();
     format!("IRO-{:06x}", hash & 0xFFFFFF)
-}
-
-/// Read stdin if available (non-blocking check), parse as JSON; otherwise use CLI flags.
-fn read_stdin_json_or_flags(args: &IssueCreateArgs) -> Result<Vec<IssueCreateInput>, DowError> {
-    let has_flags = args.title.is_some()
-        || args.severity.is_some()
-        || args.location.is_some()
-        || args.desc.is_some()
-        || args.source.is_some()
-        || args.reproduce.is_some()
-        || args.file.is_some();
-
-    let stdin_data = read_issue_stdin_if_available();
-    if has_flags && stdin_data.is_some() {
-        return Err(DowError::new(
-            "cannot combine issue CLI options with stdin JSON; use one input source",
-            2,
-        ));
-    }
-    if let Some(stdin_data) = stdin_data {
-        let payload: IssueCreatePayload = serde_json::from_str(stdin_data.trim())
-            .map_err(|e| DowError::new(format!("Invalid stdin JSON: {}", e), 2))?;
-        return Ok(match payload {
-            IssueCreatePayload::One(input) => vec![input],
-            IssueCreatePayload::Many(inputs) => inputs,
-        });
-    }
-
-    // Fallback to CLI flags
-    let file = args
-        .file
-        .as_deref()
-        .ok_or_else(|| DowError::new("--file is required", 2))
-        .and_then(parse_issue_files_arg)?;
-    Ok(vec![IssueCreateInput {
-        title: args.title.clone(),
-        severity: args.severity.clone(),
-        location: args.location.clone(),
-        desc: args.desc.clone(),
-        source: args.source.clone(),
-        reproduce: args.reproduce.clone(),
-        fix: None,
-        files: file,
-    }])
 }
 
 fn parse_open_items(content: &str) -> Vec<IssueItem> {

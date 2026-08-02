@@ -7,6 +7,7 @@ pub mod changelog_cmd;
 pub mod claim;
 pub mod dashboard;
 pub mod inbox;
+pub(crate) mod input_validation;
 pub mod init;
 pub mod issue;
 pub mod iterate;

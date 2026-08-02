@@ -1,7 +1,7 @@
 // FrameworkTree
 // task.rs
 // ├── struct TaskInput
-// ├── struct TaskCreatePayload
+// ├── struct TaskCreateCandidate
 // ├── struct TaskFilesInput
 // ├── struct TaskListItem
 // ├── struct TaskDetail
@@ -13,13 +13,20 @@
 // ├── run()
 // ├── create()
 // ├── resolve_create_input()
+// ├── parse_task_create_stdin()
+// ├── task_create_from_json()
 // ├── has_any_task_create_flag()
 // ├── read_stdin_if_available()
+// ├── required_cli_value()
 // ├── parse_task_files_arg()
+// ├── parse_task_files_arg_value()
+// ├── parse_task_files_value()
 // ├── normalize_task_files()
 // ├── validate_task_file_scope()
-// ├── task_input_from_payload()
+// ├── task_input_from_candidate()
 // ├── split_comma()
+// ├── validate_task_type()
+// ├── validate_task_priority()
 // ├── validate_complexity()
 // ├── scan_next_id()
 // ├── all_task_files_including_done()
@@ -33,6 +40,8 @@
 // ├── struct TaskUpdateInput
 // ├── update()
 // ├── resolve_update_input()
+// ├── parse_task_update_stdin()
+// ├── task_update_from_json()
 // ├── has_any_task_update()
 // ├── replace_task_entry_in_content()
 // ├── struct RemoveImpact
@@ -55,7 +64,9 @@
 // ├── generate_tro_token()
 // ├── schema()
 // ├── resolve_task_dir()
-// └── get_all_task_details()
+// ├── get_all_task_details()
+// ├── struct TaskCreateRecord
+// └── create_task_batch()
 
 // dow/src/commands/
 // ├── task.rs  -- dow task (task resource management)
@@ -74,12 +85,17 @@
 use crate::cli::{
     TaskCommands, TaskCreateArgs, TaskListArgs, TaskRemoveArgs, TaskReopenArgs, TaskUpdateArgs,
 };
+use crate::commands::input_validation::{
+    field_path, invalid_json_error, object, optional_bool, optional_string, optional_string_array,
+    required_bool, required_string, required_string_array, unknown_fields, ValidationErrors,
+};
 use crate::commands::test_runner;
 use crate::core::{claim, doc_root, item_id, task_store};
 use crate::error::DowError;
 use crate::output;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::io::{self, Read as _};
 use std::path::{Path, PathBuf};
@@ -101,19 +117,16 @@ struct TaskInput {
     done_when: Vec<String>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TaskCreatePayload {
-    title: String,
-    #[serde(rename = "type")]
-    task_type: String,
-    priority: String,
-    refs: String,
-    files: TaskFilesInput,
-    depends_on: Vec<String>,
-    parallel: bool,
-    complexity: String,
-    done_when: Vec<String>,
+struct TaskCreateCandidate {
+    title: Option<String>,
+    task_type: Option<String>,
+    priority: Option<String>,
+    refs: Option<String>,
+    files: Option<TaskFilesInput>,
+    depends_on: Option<Vec<String>>,
+    parallel: Option<bool>,
+    complexity: Option<String>,
+    done_when: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -257,13 +270,9 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
     let tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
         return Err(DowError::new(
-            "no task input provided (use --title or pipe JSON to stdin)",
+            "no task input provided; use CLI options (--title, --type, --priority, --refs, --file, --depends-on, --complexity, --done-when) or pipe a task JSON object/array to stdin",
             2,
         ));
-    }
-
-    for task in &tasks {
-        validate_complexity(&task.complexity)?;
     }
 
     let task_dir = resolve_task_dir()?;
@@ -314,62 +323,147 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
     }
 
     if let Some(stdin_data) = stdin_data {
-        let trimmed = stdin_data.trim();
-        if trimmed.starts_with('[') {
-            let tasks: Vec<TaskCreatePayload> = serde_json::from_str(trimmed)
-                .map_err(|e| DowError::new(format!("invalid JSON array from stdin: {}", e), 2))?;
-            return tasks.into_iter().map(task_input_from_payload).collect();
-        } else if trimmed.starts_with('{') {
-            let task: TaskCreatePayload = serde_json::from_str(trimmed)
-                .map_err(|e| DowError::new(format!("invalid JSON object from stdin: {}", e), 2))?;
-            return Ok(vec![task_input_from_payload(task)?]);
-        }
-        return Err(DowError::new(
-            "stdin input must be a JSON object or array",
-            2,
-        ));
+        return parse_task_create_stdin(&stdin_data);
     }
 
-    // Use flags — all fields required
-    let title = match args.title {
-        Some(t) => t,
-        None => return Ok(Vec::new()),
-    };
-    let task_type = args
-        .task_type
-        .ok_or_else(|| DowError::new("--task-type is required", 2))?;
-    let priority = args
-        .priority
-        .ok_or_else(|| DowError::new("--priority is required", 2))?;
-    let refs = args
-        .refs
-        .ok_or_else(|| DowError::new("--refs is required", 2))?;
-    let file = args
-        .file
-        .ok_or_else(|| DowError::new("--file is required", 2))?;
-    let depends_on = args
-        .depends_on
-        .ok_or_else(|| DowError::new("--depends-on is required", 2))?;
-    let complexity = args
-        .complexity
-        .ok_or_else(|| DowError::new("--complexity is required", 2))?;
-    let done_when = args
-        .done_when
-        .ok_or_else(|| DowError::new("--done-when is required", 2))?;
+    if !has_flags {
+        return Ok(Vec::new());
+    }
 
-    let task = TaskCreatePayload {
+    let TaskCreateArgs {
         title,
         task_type,
         priority,
         refs,
-        files: parse_task_files_arg(&file)?,
-        depends_on: split_comma(&Some(depends_on)),
-        parallel: args.parallel,
+        file,
+        depends_on,
+        parallel,
         complexity,
-        done_when: split_comma(&Some(done_when)),
+        done_when,
+    } = args;
+
+    let mut errors = ValidationErrors::default();
+    let candidate = TaskCreateCandidate {
+        title: required_cli_value(title, "--title", "title", &mut errors),
+        task_type: required_cli_value(task_type, "--type", "type", &mut errors),
+        priority: required_cli_value(priority, "--priority", "priority", &mut errors),
+        refs: required_cli_value(refs, "--refs", "refs", &mut errors),
+        files: match file {
+            Some(value) => parse_task_files_arg_value(&value, "files", &mut errors),
+            None => {
+                errors.push(
+                    "--file is required (JSON: files; expected a JSON object with create/modify/test arrays)",
+                );
+                None
+            }
+        },
+        depends_on: depends_on.map(|value| split_comma(&Some(value))).or_else(|| {
+            errors.push("depends_on (CLI: --depends-on): missing; pass comma-separated task IDs or an empty value");
+            None
+        }),
+        parallel: Some(parallel),
+        complexity: required_cli_value(complexity, "--complexity", "complexity", &mut errors),
+        done_when: done_when.map(|value| split_comma(&Some(value))).or_else(|| {
+            errors.push("done_when (CLI: --done-when): missing; pass comma-separated acceptance criteria or an empty value");
+            None
+        }),
     };
 
-    Ok(vec![task_input_from_payload(task)?])
+    let task = task_input_from_candidate(candidate, "", &mut errors, false);
+    errors.finish(
+        "task create",
+        "run 'dow task schema' for the complete field contract, or pipe a JSON object with the required fields to stdin",
+    )?;
+    Ok(vec![task.expect("validated task input")])
+}
+
+fn parse_task_create_stdin(input: &str) -> Result<Vec<TaskInput>, DowError> {
+    let value: Value = serde_json::from_str(input).map_err(|error| {
+        invalid_json_error(
+            "task create stdin",
+            &error,
+            "expected one task object or an array of task objects; run 'dow task schema' for the required fields",
+        )
+    })?;
+
+    let mut errors = ValidationErrors::default();
+    let mut tasks = Vec::new();
+    match &value {
+        Value::Object(_) => {
+            if let Some(task) = task_create_from_json(&value, "", &mut errors) {
+                tasks.push(task);
+            }
+        }
+        Value::Array(values) => {
+            if values.is_empty() {
+                errors.push("input: expected a non-empty JSON array");
+            }
+            for (index, value) in values.iter().enumerate() {
+                if let Some(task) =
+                    task_create_from_json(value, &format!("[{}]", index), &mut errors)
+                {
+                    tasks.push(task);
+                }
+            }
+        }
+        _ => {
+            errors.push("input: expected a JSON object or an array of JSON objects");
+        }
+    }
+
+    errors.finish(
+        "task create JSON",
+        "run 'dow task schema' for the complete field contract",
+    )?;
+    Ok(tasks)
+}
+
+fn task_create_from_json(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<TaskInput> {
+    let object = object(value, path, errors)?;
+    unknown_fields(
+        object,
+        &[
+            "title",
+            "type",
+            "priority",
+            "refs",
+            "files",
+            "depends_on",
+            "parallel",
+            "complexity",
+            "done_when",
+        ],
+        path,
+        errors,
+    );
+
+    let files = match object.get("files") {
+        Some(value) => parse_task_files_value(value, &field_path(path, "files"), errors),
+        None => {
+            errors.push(format!(
+                "{}: missing (expected an object with create/modify/test arrays)",
+                field_path(path, "files")
+            ));
+            None
+        }
+    };
+    let candidate = TaskCreateCandidate {
+        title: required_string(object, "title", path, errors),
+        task_type: required_string(object, "type", path, errors),
+        priority: required_string(object, "priority", path, errors),
+        refs: required_string(object, "refs", path, errors),
+        files,
+        depends_on: required_string_array(object, "depends_on", path, errors),
+        parallel: required_bool(object, "parallel", path, errors),
+        complexity: required_string(object, "complexity", path, errors),
+        done_when: required_string_array(object, "done_when", path, errors),
+    };
+
+    task_input_from_candidate(candidate, path, errors, false)
 }
 
 fn has_any_task_create_flag(args: &TaskCreateArgs) -> bool {
@@ -401,9 +495,80 @@ fn read_stdin_if_available() -> Option<String> {
     }
 }
 
+fn required_cli_value(
+    value: Option<String>,
+    option: &str,
+    json_path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<String> {
+    value.or_else(|| {
+        errors.push(format!(
+            "{} is required (JSON: {}; expected a string)",
+            option, json_path
+        ));
+        None
+    })
+}
+
 fn parse_task_files_arg(value: &str) -> Result<TaskFilesInput, DowError> {
-    serde_json::from_str(value)
-        .map_err(|e| DowError::new(format!("invalid --file JSON object: {}", e), 2))
+    let json: Value = serde_json::from_str(value).map_err(|error| {
+        invalid_json_error(
+            "--file",
+            &error,
+            "expected an object such as {\"modify\":[\"src/example.rs\"]}",
+        )
+    })?;
+    let mut errors = ValidationErrors::default();
+    let files = parse_task_files_value(&json, "files", &mut errors);
+    if let Some(files) = files.as_ref() {
+        validate_task_file_scope(files, "", &mut errors);
+    }
+    errors.finish(
+        "--file",
+        "expected an object with optional create/modify/test arrays and at least one non-empty create or modify path",
+    )?;
+    files.ok_or_else(|| DowError::new("--file: invalid file scope", 2))
+}
+
+fn parse_task_files_arg_value(
+    value: &str,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<TaskFilesInput> {
+    let json: Value = match serde_json::from_str(value) {
+        Ok(json) => json,
+        Err(error) => {
+            errors.push(format!(
+                "{}: invalid JSON at line {}, column {}: {}",
+                path,
+                error.line(),
+                error.column(),
+                error
+            ));
+            return None;
+        }
+    };
+    parse_task_files_value(&json, path, errors)
+}
+
+fn parse_task_files_value(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<TaskFilesInput> {
+    let object = object(value, path, errors)?;
+    unknown_fields(object, &["create", "modify", "test"], path, errors);
+    let before = errors.len();
+    let files = TaskFilesInput {
+        create: optional_string_array(object, "create", path, errors),
+        modify: optional_string_array(object, "modify", path, errors),
+        test: optional_string_array(object, "test", path, errors),
+    };
+    if errors.len() == before {
+        Some(files)
+    } else {
+        None
+    }
 }
 
 fn normalize_task_files(files: &mut TaskFilesInput) {
@@ -418,7 +583,7 @@ fn normalize_task_files(files: &mut TaskFilesInput) {
     }
 }
 
-fn validate_task_file_scope(files: &TaskFilesInput, operation: &str) -> Result<(), DowError> {
+fn validate_task_file_scope(files: &TaskFilesInput, path: &str, errors: &mut ValidationErrors) {
     let has_create = files
         .create
         .as_ref()
@@ -428,34 +593,110 @@ fn validate_task_file_scope(files: &TaskFilesInput, operation: &str) -> Result<(
         .as_ref()
         .is_some_and(|values| !values.is_empty());
     if has_create || has_modify {
-        return Ok(());
+        return;
     }
 
-    Err(DowError::new(
-        format!(
-            "{} requires at least one non-empty files.create or files.modify list",
-            operation
-        ),
-        2,
-    ))
+    errors.push(format!(
+        "{}: at least one non-empty files.create or files.modify path is required",
+        field_path(path, "files")
+    ));
 }
 
-fn task_input_from_payload(mut payload: TaskCreatePayload) -> Result<TaskInput, DowError> {
-    normalize_task_files(&mut payload.files);
-    validate_task_file_scope(&payload.files, "task create")?;
+fn task_input_from_candidate(
+    mut candidate: TaskCreateCandidate,
+    path: &str,
+    errors: &mut ValidationErrors,
+    report_missing: bool,
+) -> Option<TaskInput> {
+    let before = errors.len();
 
-    Ok(TaskInput {
-        title: payload.title,
-        r#type: payload.task_type,
-        priority: payload.priority,
-        refs: payload.refs,
-        files_modify: payload.files.modify.unwrap_or_default(),
-        files_create: payload.files.create.unwrap_or_default(),
-        files_test: payload.files.test.unwrap_or_default(),
-        depends_on: payload.depends_on,
-        parallel: payload.parallel,
-        complexity: payload.complexity,
-        done_when: payload.done_when,
+    if report_missing {
+        if candidate.title.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a string",
+                field_path(path, "title")
+            ));
+        }
+        if candidate.task_type.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a string",
+                field_path(path, "type")
+            ));
+        }
+        if candidate.priority.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a string",
+                field_path(path, "priority")
+            ));
+        }
+        if candidate.refs.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a string",
+                field_path(path, "refs")
+            ));
+        }
+        if candidate.files.is_none() {
+            errors.push(format!(
+                "{}: missing; expected an object with create/modify/test arrays",
+                field_path(path, "files")
+            ));
+        }
+        if candidate.depends_on.is_none() {
+            errors.push(format!(
+                "{}: missing; expected an array of strings",
+                field_path(path, "depends_on")
+            ));
+        }
+        if candidate.parallel.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a boolean",
+                field_path(path, "parallel")
+            ));
+        }
+        if candidate.complexity.is_none() {
+            errors.push(format!(
+                "{}: missing; expected a string",
+                field_path(path, "complexity")
+            ));
+        }
+        if candidate.done_when.is_none() {
+            errors.push(format!(
+                "{}: missing; expected an array of strings",
+                field_path(path, "done_when")
+            ));
+        }
+    }
+
+    if let Some(task_type) = candidate.task_type.as_deref() {
+        validate_task_type(task_type, &field_path(path, "type"), errors);
+    }
+    if let Some(priority) = candidate.priority.as_deref() {
+        validate_task_priority(priority, &field_path(path, "priority"), errors);
+    }
+    if let Some(complexity) = candidate.complexity.as_deref() {
+        validate_complexity(complexity, &field_path(path, "complexity"), errors);
+    }
+    if let Some(files) = candidate.files.as_mut() {
+        normalize_task_files(files);
+        validate_task_file_scope(files, path, errors);
+    }
+
+    if errors.len() != before {
+        return None;
+    }
+
+    Some(TaskInput {
+        title: candidate.title?,
+        r#type: candidate.task_type?,
+        priority: candidate.priority?,
+        refs: candidate.refs?,
+        files_modify: candidate.files.as_ref()?.modify.clone().unwrap_or_default(),
+        files_create: candidate.files.as_ref()?.create.clone().unwrap_or_default(),
+        files_test: candidate.files.as_ref()?.test.clone().unwrap_or_default(),
+        depends_on: candidate.depends_on?,
+        parallel: candidate.parallel?,
+        complexity: candidate.complexity?,
+        done_when: candidate.done_when?,
     })
 }
 
@@ -466,17 +707,39 @@ fn split_comma(opt: &Option<String>) -> Vec<String> {
     }
 }
 
-fn validate_complexity(complexity: &str) -> Result<(), DowError> {
-    if ["S", "M", "L"].contains(&complexity) {
-        return Ok(());
+fn validate_task_type(value: &str, path: &str, errors: &mut ValidationErrors) {
+    let valid = ["feat", "fix", "refactor", "docs", "perf", "test", "style"];
+    if !valid.contains(&value) {
+        errors.push(format!(
+            "{}: Invalid type '{}'; allowed: {}",
+            path,
+            value,
+            valid.join("/")
+        ));
     }
-    Err(DowError::new(
-        format!(
-            "invalid complexity '{}', valid: S/M/L; split oversized work into multiple Tasks",
-            complexity
-        ),
-        2,
-    ))
+}
+
+fn validate_task_priority(value: &str, path: &str, errors: &mut ValidationErrors) {
+    let valid = ["P0", "P1", "P2"];
+    if !valid.contains(&value) {
+        errors.push(format!(
+            "{}: Invalid priority '{}'; allowed: {}",
+            path,
+            value,
+            valid.join("/")
+        ));
+    }
+}
+
+fn validate_complexity(value: &str, path: &str, errors: &mut ValidationErrors) {
+    let valid = ["S", "M", "L"];
+    if !valid.contains(&value) {
+        errors.push(format!(
+            "{}: Invalid complexity '{}'; valid: S/M/L; split oversized work into multiple Tasks",
+            path,
+            value
+        ));
+    }
 }
 
 fn scan_next_id(task_dir: &Path) -> usize {
@@ -651,11 +914,9 @@ fn update_frontmatter_nums(content: &str, new_count: usize) -> String {
 
 // ─── Update ─────────────────────────────────────────────────────────────────
 
-#[derive(Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(Default)]
 struct TaskUpdateInput {
     title: Option<String>,
-    #[serde(rename = "type")]
     task_type: Option<String>,
     priority: Option<String>,
     refs: Option<String>,
@@ -669,44 +930,32 @@ struct TaskUpdateInput {
 fn update(args: TaskUpdateArgs) -> Result<i32, DowError> {
     let id = args.id.clone();
     let mut input = resolve_update_input(args)?;
+    let mut errors = ValidationErrors::default();
 
     if !has_any_task_update(&input) {
-        return Err(DowError::new(
-            "no fields to update (provide at least one --field)",
-            2,
-        ));
+        errors.push(
+            "no fields to update; provide at least one of title, type, priority, refs, files, depends_on, parallel, complexity, or done_when",
+        );
     }
 
     if let Some(files) = input.files.as_mut() {
         normalize_task_files(files);
-        validate_task_file_scope(files, "task update")?;
+        validate_task_file_scope(files, "", &mut errors);
     }
 
-    // Validate enum fields if provided
     if let Some(ref t) = input.task_type {
-        let valid = ["feat", "fix", "refactor", "docs", "perf", "test", "style"];
-        if !valid.contains(&t.as_str()) {
-            return Err(DowError::new(
-                format!(
-                    "invalid type '{}', valid: feat/fix/refactor/docs/perf/test/style",
-                    t
-                ),
-                2,
-            ));
-        }
+        validate_task_type(t, "type", &mut errors);
     }
     if let Some(ref p) = input.priority {
-        let valid = ["P0", "P1", "P2"];
-        if !valid.contains(&p.as_str()) {
-            return Err(DowError::new(
-                format!("invalid priority '{}', valid: P0/P1/P2", p),
-                2,
-            ));
-        }
+        validate_task_priority(p, "priority", &mut errors);
     }
     if let Some(ref c) = input.complexity {
-        validate_complexity(c)?;
+        validate_complexity(c, "complexity", &mut errors);
     }
+    errors.finish(
+        "task update",
+        "provide a JSON object or CLI fields; run 'dow task schema' for task field names and types",
+    )?;
 
     let task_dir = resolve_task_dir()?;
     let all_files = all_task_files_including_done(&task_dir);
@@ -796,16 +1045,7 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         ));
     }
     if let Some(stdin_data) = stdin_data {
-        let trimmed = stdin_data.trim();
-        if trimmed.starts_with('{') {
-            let input: TaskUpdateInput = serde_json::from_str(trimmed)
-                .map_err(|e| DowError::new(format!("invalid JSON from stdin: {}", e), 2))?;
-            return Ok(input);
-        }
-        return Err(DowError::new(
-            "task update stdin input must be a JSON object",
-            2,
-        ));
+        return parse_task_update_stdin(&stdin_data);
     }
 
     Ok(TaskUpdateInput {
@@ -822,6 +1062,87 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         complexity: args.complexity,
         done_when: args.done_when.map(|s| split_comma(&Some(s))),
     })
+}
+
+fn parse_task_update_stdin(input: &str) -> Result<TaskUpdateInput, DowError> {
+    let value: Value = serde_json::from_str(input).map_err(|error| {
+        invalid_json_error(
+            "task update stdin",
+            &error,
+            "expected one JSON object containing only fields to update",
+        )
+    })?;
+    let mut errors = ValidationErrors::default();
+    let input = match value {
+        Value::Object(_) => task_update_from_json(&value, "", &mut errors),
+        _ => {
+            errors.push("input: expected a JSON object");
+            None
+        }
+    };
+    errors.finish(
+        "task update JSON",
+        "provide at least one update field; run 'dow task schema' for the accepted field names and types",
+    )?;
+    input.ok_or_else(|| DowError::new("task update JSON: invalid input", 2))
+}
+
+fn task_update_from_json(
+    value: &Value,
+    path: &str,
+    errors: &mut ValidationErrors,
+) -> Option<TaskUpdateInput> {
+    let object = object(value, path, errors)?;
+    unknown_fields(
+        object,
+        &[
+            "title",
+            "type",
+            "priority",
+            "refs",
+            "files",
+            "depends_on",
+            "parallel",
+            "complexity",
+            "done_when",
+        ],
+        path,
+        errors,
+    );
+    let before = errors.len();
+    let input = TaskUpdateInput {
+        title: optional_string(object, "title", path, errors),
+        task_type: optional_string(object, "type", path, errors),
+        priority: optional_string(object, "priority", path, errors),
+        refs: optional_string(object, "refs", path, errors),
+        files: object
+            .get("files")
+            .map(|value| parse_task_files_value(value, &field_path(path, "files"), errors))
+            .flatten(),
+        depends_on: optional_string_array(object, "depends_on", path, errors),
+        parallel: optional_bool(object, "parallel", path, errors),
+        complexity: optional_string(object, "complexity", path, errors),
+        done_when: optional_string_array(object, "done_when", path, errors),
+    };
+    if let Some(task_type) = input.task_type.as_deref() {
+        validate_task_type(task_type, &field_path(path, "type"), errors);
+    }
+    if let Some(priority) = input.priority.as_deref() {
+        validate_task_priority(priority, &field_path(path, "priority"), errors);
+    }
+    if let Some(complexity) = input.complexity.as_deref() {
+        validate_complexity(complexity, &field_path(path, "complexity"), errors);
+    }
+    if let Some(files) = input.files.as_ref() {
+        let mut files = files.clone();
+        normalize_task_files(&mut files);
+        validate_task_file_scope(&files, path, errors);
+    }
+    if errors.len() == before {
+        Some(input)
+    } else {
+        None
+    }
 }
 
 fn has_any_task_update(input: &TaskUpdateInput) -> bool {

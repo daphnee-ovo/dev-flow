@@ -4,6 +4,7 @@
 mod common;
 
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
@@ -491,6 +492,151 @@ fn test_issue_create_missing_title() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("--title is required"), "stderr: {}", stderr);
+}
+
+#[test]
+fn test_issue_create_reports_all_missing_cli_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let _doc = setup_env(dir.path());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create", "--title", "Incomplete issue"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for expected in [
+        "--severity",
+        "--location",
+        "--desc",
+        "--reproduce",
+        "--source",
+        "--file",
+    ] {
+        assert!(
+            stderr.contains(expected),
+            "missing {} in: {}",
+            expected,
+            stderr
+        );
+    }
+    assert!(stderr.contains("dow issue schema"));
+}
+
+#[test]
+fn test_issue_create_json_reports_batch_errors_and_fix_lifecycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let json_input = r#"[
+        {"title":"missing fields"},
+        {"title":"invalid","severity":"P9","location":"b.rs:2","desc":"d","reproduce":"r","source":"bad","fix":"resolved","files":{"modify":[]}}
+    ]"#;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "create"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    use std::io::Write;
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[0].severity"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].severity"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].source"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].fix"), "stderr: {}", stderr);
+    assert!(stderr.contains("resolve the issue first"));
+    assert!(stderr.contains("dow issue update"));
+    assert!(stderr.contains("dow issue close"));
+    assert_eq!(fs::read_dir(doc.join("issue")).unwrap().count(), 0);
+}
+
+#[test]
+fn test_issue_update_and_close_explain_fix_lifecycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let doc = setup_env(dir.path());
+    let create = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args([
+            "issue",
+            "create",
+            "--title",
+            "Needs fix",
+            "--severity",
+            "P1",
+            "--location",
+            "src/a.rs:1",
+            "--desc",
+            "description",
+            "--reproduce",
+            "reproduce",
+            "--source",
+            "other",
+            "--file",
+            r#"{"modify":["src/a.rs"]}"#,
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(create.status.success());
+
+    let close = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "close", "ISSUE-I001"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    assert!(!close.status.success());
+    let stderr = String::from_utf8_lossy(&close.stderr);
+    assert!(
+        stderr.contains("Resolve the issue first"),
+        "stderr: {}",
+        stderr
+    );
+    assert!(stderr.contains("dow issue update ISSUE-I001 --fix"));
+    assert!(stderr.contains("dow issue close ISSUE-I001"));
+
+    let issue_file = fs::read_dir(doc.join("issue"))
+        .unwrap()
+        .flatten()
+        .find(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("issue_other_")
+        })
+        .unwrap();
+    let original = fs::read_to_string(issue_file.path()).unwrap();
+    let mut update = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["issue", "update", "ISSUE-I001"])
+        .current_dir(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    update
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(br#"{"severity":"P9","unexpected":true}"#)
+        .unwrap();
+    let update_output = update.wait_with_output().unwrap();
+    assert!(!update_output.status.success());
+    let update_stderr = String::from_utf8_lossy(&update_output.stderr);
+    assert!(update_stderr.contains("unknown field"));
+    assert!(update_stderr.contains("Invalid severity"));
+    assert_eq!(fs::read_to_string(issue_file.path()).unwrap(), original);
 }
 
 #[test]

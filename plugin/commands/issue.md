@@ -48,6 +48,11 @@ The required fields are `title`, `severity`, `location`, `desc`, `reproduce`,
 `source`, and `files`. Within `files`, `create` and `modify` are individually
 optional, but at least one must contain a non-empty path:
 
+Create and update failures report all missing or invalid fields in one response.
+JSON batch errors include the record index, and malformed JSON reports its line
+and column. Use 'dow issue schema' for the authoritative field names, types, and
+allowed values.
+
 ```bash
 dow issue create --file '{"modify":["src/a.rs","src/b.rs"],"create":["tests/a.rs"]}'
 ```
@@ -82,6 +87,17 @@ dow issue update I001 --file '{"modify":["+new.rs","-old.rs"]}'
 ```
 Without `+`/`-` prefix = full replacement. An update cannot remove the last
 create/modify path.
+
+The `fix` field is not accepted during issue creation. After resolving the
+issue, record the resolution before closing it:
+
+```bash
+dow issue update I001 --fix "Describe the resolution"
+dow issue close I001
+```
+
+Closing an issue without a recorded `fix` fails and repeats this
+resolve → update → close sequence.
 
 ## Notes
 

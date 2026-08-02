@@ -104,6 +104,86 @@ fn test_task_create_with_flags() {
 }
 
 #[test]
+fn test_task_create_reports_all_missing_cli_fields() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let output = Command::new(dow_cmd())
+        .args(["task", "create", "--title", "Incomplete task"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for expected in [
+        "--type",
+        "--priority",
+        "--refs",
+        "--file",
+        "--depends-on",
+        "--complexity",
+        "--done-when",
+    ] {
+        assert!(
+            stderr.contains(expected),
+            "missing {} in: {}",
+            expected,
+            stderr
+        );
+    }
+    assert!(stderr.contains("dow task schema"));
+    let branch = default_branch(&dir);
+    assert_eq!(
+        fs::read_dir(dir.join(".dev-doc").join(branch).join("task"))
+            .unwrap()
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn test_task_create_json_reports_all_batch_errors() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+
+    let json_input = r#"[
+        {"title":"missing fields"},
+        {"title":"invalid values","type":"unknown","priority":"P3","refs":"","files":{"modify":[]},"depends_on":[],"parallel":false,"complexity":"X","done_when":[]}
+    ]"#;
+    let mut child = Command::new(dow_cmd())
+        .args(["task", "create"])
+        .current_dir(&dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(json_input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("[0].type"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].type"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].priority"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].complexity"), "stderr: {}", stderr);
+    assert!(stderr.contains("[1].files"));
+    let branch = default_branch(&dir);
+    assert_eq!(
+        fs::read_dir(dir.join(".dev-doc").join(branch).join("task"))
+            .unwrap()
+            .count(),
+        0
+    );
+}
+
+#[test]
 fn test_task_create_with_stdin_json_object() {
     let dir = create_test_dir();
     setup_env(&dir);
@@ -402,6 +482,43 @@ fn test_task_create_rejects_mixed_cli_and_stdin() {
 
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot combine"));
+}
+
+#[test]
+fn test_task_update_json_reports_unknown_and_enum_errors() {
+    let dir = create_test_dir();
+    setup_env(&dir);
+    let branch = default_branch(&dir);
+    let task_path = dir
+        .join(".dev-doc")
+        .join(&branch)
+        .join("task/task_2026-06-25_1.md");
+    let original = "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: Keep task\n  - type: feat\n  - priority: P1\n  - files:\n      create: []\n      modify: [old.rs]\n      test: []\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - unchanged\n";
+    fs::write(&task_path, original).unwrap();
+
+    let mut child = Command::new(dow_cmd())
+        .args(["task", "update", "TASK-T001"])
+        .current_dir(&dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(br#"{"type":"unknown","priority":"P3","complexity":"X","unexpected":true}"#)
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unknown field"), "stderr: {}", stderr);
+    assert!(stderr.contains("Invalid type"), "stderr: {}", stderr);
+    assert!(stderr.contains("Invalid priority"), "stderr: {}", stderr);
+    assert!(stderr.contains("Invalid complexity"), "stderr: {}", stderr);
+    assert_eq!(fs::read_to_string(task_path).unwrap(), original);
 }
 
 #[test]

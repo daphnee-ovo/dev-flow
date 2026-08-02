@@ -87,9 +87,14 @@ are not accepted.
 
 **Batch creation**: pipe a JSON array to stdin to create multiple tasks at once:
 ```bash
-echo '[{"title":"Task A","priority":"P0"},{"title":"Task B","depends_on":["TASK-T001"]}]' | dow task create
+echo '[{"title":"Task A","type":"feat","priority":"P0","refs":"user-request","files":{"modify":["src/a.rs"]},"depends_on":[],"parallel":false,"complexity":"S","done_when":["Task A is complete"]},{"title":"Task B","type":"fix","priority":"P1","refs":"user-request","files":{"modify":["src/b.rs"]},"depends_on":["TASK-T001"],"parallel":false,"complexity":"S","done_when":["Task B is complete"]}]' | dow task create
 ```
 This is the preferred method when decomposing multiple tasks — one command instead of N.
+
+Create and update failures report all missing or invalid fields in one response.
+JSON batch errors include the record index, and malformed JSON reports its line
+and column. Use 'dow task schema' for the authoritative field names, types, and
+allowed values.
 
 **Incremental update**: array fields support `+item` (append) / `-item` (remove) syntax:
 ```bash
