@@ -872,6 +872,15 @@ fn test_guard_allows_code_write_with_active_task() {
     let dir = create_test_dir();
     setup_branch_env(&dir); // has undone task
 
+    // Add file scope to the task so guard allows write
+    let branch = default_branch(&dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::write(
+        doc.join("task/task_2026-05-26_1.md"),
+        "- [ ] TASK-T001: active work\n  - priority: P1\n  - files:\n      modify: src/main.rs\n",
+    )
+    .unwrap();
+
     // claim task so guard allows write
     Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["claim", "T001"])

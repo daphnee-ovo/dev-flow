@@ -354,47 +354,10 @@ fn check_phase_write(path: &GuardPath, ctx: &GuardContext) -> Option<PhaseDecisi
                 path.display()
             )));
         }
-        // DEV phase: check agent mismatch (advisory warning, not block)
+        // DEV phase: unified file access check
         if phase == "DEV" {
-            if let Some(warning) = check_claim_agent_mismatch(&ctx.doc_root_path()) {
-                return Some(PhaseDecision::Ask(warning));
-            }
-        }
-        // DEV phase with active claim: check file scope
-        if phase == "DEV" && has_active_claim(&ctx.doc_root_path()) {
-            if let Some(warning) = check_claim_file_scope(&ctx.doc_root_path(), &ctx.root, path) {
-                return Some(PhaseDecision::Ask(warning));
-            }
-        }
-        // DEV phase with no active claim → distinguish reason
-        if phase == "DEV" && !has_active_claim(&ctx.doc_root_path()) {
-            let doc_root = ctx.doc_root_path();
-            let has_undone = has_pending_work(&doc_root);
-            if has_undone {
-                let expired = crate::core::claim::has_expired_claims(&doc_root);
-                let msg = if expired {
-                    format!(
-                        "[dev-flow BLOCKED] claim expired, writing to {} not allowed. Please:\n\
-                        → `dow claim <TASK_ID>` to re-claim your task",
-                        path.display()
-                    )
-                } else {
-                    format!(
-                        "[dev-flow BLOCKED] DEV phase has pending tasks/issues but none claimed, writing to {} not allowed. Please:\n\
-                        → `dow claim <TASK_ID>` to claim a task to work on",
-                        path.display()
-                    )
-                };
-                return Some(PhaseDecision::Deny(msg));
-            } else {
-                return Some(PhaseDecision::Deny(format!(
-                    "[dev-flow BLOCKED] You are in DEV phase, but there are no pending tasks or open issues. \
-                    Writing code or modifying source files is prohibited (attempted: {}). \
-                    You may still edit documentation (docs/) or continue discussion (create auxiliary files under tmp/).\n\
-                    To proceed: create a task/issue, or switch phase.\n\
-                    IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval. Ask the user what they want to do first.",
-                    path.display()
-                )));
+            if let Some(reason) = check_agent_file_access(&ctx.doc_root_path(), &ctx.root, path) {
+                return Some(PhaseDecision::Deny(reason));
             }
         }
         return None;
@@ -548,53 +511,57 @@ fn has_active_claim(doc_root: &Path) -> bool {
     !crate::core::claim::get_active_claims(doc_root).is_empty()
 }
 
-/// Check if the current agent matches the claim owner.
-/// Uses ancestor-chain verification: if the claimed PID is an ancestor of the
-/// current process, they belong to the same agent session.
-/// Returns warning message only on genuine mismatch.
-fn check_claim_agent_mismatch(doc_root: &Path) -> Option<String> {
-    let claim_agent = crate::core::claim::get_claim_agent_id(doc_root)?;
-    let current_agent = crate::core::claim::detect_agent_id()?;
-
-    // Direct match (same PID, same TTY, same DOW_AGENT_ID)
-    if claim_agent == current_agent {
-        return None;
-    }
-
-    // Ancestor-chain verification: if the claimed agent_id is a PID,
-    // check if it's an ancestor of the current process.
-    // This handles the case where claim was recorded with a different PID
-    // in the same process tree (e.g., legacy claims using parent PID).
-    if let Some(claimed_pid) = crate::core::process::parse_pid_agent_id(&claim_agent) {
-        if crate::core::process::is_ancestor_of_current(claimed_pid) {
-            return None; // Same agent session — different intermediate shell
-        }
-        // If the claimed PID is dead, treat as stale (not a competing agent)
-        if !crate::core::process::is_process_alive(claimed_pid) {
-            return None; // Stale claim from a dead process — allow takeover
-        }
-    }
-
-    Some(format!(
-        "[dev-flow WARNING] another agent ({}) holds the claim. You may be modifying files owned by a different session.",
-        claim_agent
-    ))
-}
-
-fn check_claim_file_scope(
+/// Unified file access check for DEV phase.
+/// Determines if the current agent has permission to write to the given path.
+/// Returns a deny reason if access is not allowed.
+fn check_agent_file_access(
     doc_root: &Path,
     project_root: &Path,
     path: &GuardPath,
 ) -> Option<String> {
-    let claimed_ids = crate::core::claim::get_active_claims(doc_root);
-    if claimed_ids.is_empty() {
-        return None;
+    let my_claims = crate::core::claim::get_claims_for_current_agent(doc_root);
+
+    // No claim held by current agent
+    if my_claims.is_empty() {
+        let has_any_claim = has_active_claim(doc_root);
+        let has_undone = has_pending_work(doc_root);
+        let expired = crate::core::claim::has_expired_claims(doc_root);
+
+        if has_any_claim {
+            return Some(format!(
+                "[dev-flow BLOCKED] another agent holds the active claim. \
+                Writing to {} is not allowed.\n\
+                → Run `dow claim <TASK_ID>` in your own session to claim a task.",
+                path.display()
+            ));
+        } else if expired {
+            return Some(format!(
+                "[dev-flow BLOCKED] claim expired. Writing to {} is not allowed.\n\
+                → `dow claim <TASK_ID>` to re-claim your task.",
+                path.display()
+            ));
+        } else if has_undone {
+            return Some(format!(
+                "[dev-flow BLOCKED] no active claim. Writing to {} is not allowed.\n\
+                → `dow claim <TASK_ID>` to claim a task before writing.",
+                path.display()
+            ));
+        } else {
+            return Some(format!(
+                "[dev-flow BLOCKED] no pending tasks or open issues. \
+                Writing to {} is not allowed.\n\
+                → Create a task/issue first, or switch phase.\n\
+                IMPORTANT: Do NOT create tasks/issues and start coding without explicit user approval.",
+                path.display()
+            ));
+        }
     }
 
+    // Current agent has claim(s) — collect declared file scope
     let all_tasks = crate::commands::task::get_all_task_details(doc_root);
     let mut allowed_files: Vec<String> = Vec::new();
 
-    for cid in &claimed_ids {
+    for cid in &my_claims {
         let full_id = crate::core::item_id::normalize_full(cid);
         if let Some(parsed) = crate::core::item_id::parse(cid) {
             match parsed.kind {
@@ -621,13 +588,26 @@ fn check_claim_file_scope(
         }
     }
 
-    // If no files declared in any claimed item, skip scope check
+    // No files declared in claimed task/issue → deny
     if allowed_files.is_empty() {
-        return None;
+        let ids_display = my_claims.join(", ");
+        return Some(format!(
+            "[dev-flow BLOCKED] claimed item(s) ({}) have no declared files. \
+            Writing to {} is not allowed.\n\
+            → `dow task update <ID> --file '{{\"modify\":[\"+{}\"]}}'` to declare file scope.",
+            ids_display,
+            path.display(),
+            path.relative_to(project_root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.display().to_string())
+        ));
     }
 
-    // Get relative path from project root
-    let rel_path = path.relative_to(project_root)?;
+    // Check if file is within declared scope
+    let rel_path = match path.relative_to(project_root) {
+        Some(r) => r,
+        None => return None, // Cannot determine relative path — allow
+    };
     let rel_str = rel_path.to_string_lossy();
 
     let in_scope = allowed_files
@@ -638,9 +618,11 @@ fn check_claim_file_scope(
         None
     } else {
         Some(format!(
-            "[dev-flow WARNING] writing to {} which is outside claimed task's declared files.\n\
-            → Consider `dow task update <ID> --file '{{\"modify\":[\"{}\"]}}'` to declare this file.",
+            "[dev-flow BLOCKED] file {} is outside claimed task's declared scope.\n\
+            Allowed files: {}\n\
+            → `dow task update <ID> --file '{{\"modify\":[\"+{}\"]}}'` to add it.",
             path.display(),
+            allowed_files.join(", "),
             rel_str
         ))
     }

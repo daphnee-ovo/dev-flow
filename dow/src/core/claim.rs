@@ -95,6 +95,57 @@ pub fn get_claim_agent_id(doc_root: &Path) -> Option<String> {
         .find_map(|c| c.agent_id.clone())
 }
 
+/// Return active claim IDs that belong to the current agent.
+/// Uses identity matching: direct match, ancestor-chain PID verification,
+/// or dead-process takeover (stale claims are considered "ours" to allow recovery).
+pub fn get_claims_for_current_agent(doc_root: &Path) -> Vec<String> {
+    let lock = match read_claim_lock(doc_root) {
+        Some(l) => l,
+        None => return Vec::new(),
+    };
+    let current_agent = match detect_agent_id() {
+        Some(id) => id,
+        None => return Vec::new(),
+    };
+
+    lock.claims
+        .iter()
+        .filter(|c| is_valid_claim(c, lock.ttl))
+        .filter(|c| is_claim_owned_by(&current_agent, c))
+        .map(|c| c.id.clone())
+        .collect()
+}
+
+/// Determine if a claim belongs to the given agent identity.
+/// Matching rules:
+/// 1. Direct match (same agent_id string)
+/// 2. Ancestor-chain: claimed PID is an ancestor of current process
+/// 3. Dead process: claimed PID is no longer alive (stale → allow takeover)
+fn is_claim_owned_by(current_agent: &str, claim: &Claim) -> bool {
+    let claim_agent = match &claim.agent_id {
+        Some(id) => id,
+        None => return false,
+    };
+
+    // Direct match
+    if claim_agent == current_agent {
+        return true;
+    }
+
+    // Ancestor-chain verification for PID-based identities
+    if let Some(claimed_pid) = super::process::parse_pid_agent_id(claim_agent) {
+        if super::process::is_ancestor_of_current(claimed_pid) {
+            return true;
+        }
+        // Dead process → stale claim, allow takeover
+        if !super::process::is_process_alive(claimed_pid) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Detect current agent ID.
 /// Priority: DOW_AGENT_ID env → TTY (Unix) → stable ancestor PID → caller PID
 pub fn detect_agent_id() -> Option<String> {

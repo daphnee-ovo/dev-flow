@@ -69,6 +69,51 @@ fn setup_env(dir: &Path, phase: &str, mode: &str) {
     }
 }
 
+/// setup_env variant that declares files in the task
+fn setup_env_with_files(dir: &Path, phase: &str, mode: &str, files: &[&str]) {
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    fs::write(dir.join("dummy.txt"), "init").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "init"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+
+    let branch = default_branch(dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    fs::create_dir_all(doc.join("task")).unwrap();
+    fs::create_dir_all(doc.join("issue")).unwrap();
+    fs::create_dir_all(dir.join("tmp")).unwrap();
+    fs::create_dir_all(dir.join("docs")).unwrap();
+    fs::write(
+        doc.join("STATUS.yaml"),
+        format!(
+            "name: test\nphase: {}\nmode: {}\nupdated: 2026-05-31 10:00\nstarted: 2026-05-31 09:00\n",
+            phase, mode
+        ),
+    )
+    .unwrap();
+
+    let files_str = files.join(", ");
+    fs::write(
+        doc.join("task/task_2026-05-31_1.md"),
+        format!(
+            "- [ ] TASK-T001: active\n  - priority: P1\n  - files:\n      modify: {}\n",
+            files_str
+        ),
+    )
+    .unwrap();
+}
+
 fn run_guard(dir: &Path, target: &str) -> (String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["hooks", "guard", target])
@@ -241,7 +286,7 @@ fn test_prd_traversal_stays_in_tmp_asks() {
 #[test]
 fn test_dev_source_allowed() {
     let dir = create_test_dir();
-    setup_env(&dir, "DEV", "quick");
+    setup_env_with_files(&dir, "DEV", "quick", &["src/main.rs"]);
     Command::new(env!("CARGO_BIN_EXE_dow"))
         .args(["claim", "T001"])
         .current_dir(&dir)
@@ -267,7 +312,7 @@ fn test_dev_no_claim_denied_with_hint() {
     let (stdout, _) = run_guard(&dir, "src/main.rs");
     assert_deny(&stdout);
     assert!(
-        stdout.contains("none claimed"),
+        stdout.contains("no active claim"),
         "should hint about claim, got: {}",
         stdout
     );
@@ -338,4 +383,94 @@ fn test_test_phase_devdoc_allowed() {
     fs::write(&test_md, "# Test\n").unwrap();
     let (stdout, _) = run_guard(&dir, &target);
     assert_allow(&stdout);
+}
+
+// ─── DEV phase: file scope enforcement (regression for GitHub issue #24) ──────
+
+#[test]
+fn test_dev_file_outside_scope_denied() {
+    let dir = create_test_dir();
+    setup_env_with_files(&dir, "DEV", "quick", &["src/main.rs"]);
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    // Write to a file NOT in the declared scope
+    let (stdout, _) = run_guard(&dir, "src/other.rs");
+    assert_deny(&stdout);
+    assert!(
+        stdout.contains("outside claimed task"),
+        "should mention scope violation, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_dev_file_in_scope_allowed() {
+    let dir = create_test_dir();
+    setup_env_with_files(&dir, "DEV", "quick", &["src/main.rs", "src/lib.rs"]);
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let (stdout, _) = run_guard(&dir, "src/main.rs");
+    assert_allow(&stdout);
+    let (stdout, _) = run_guard(&dir, "src/lib.rs");
+    assert_allow(&stdout);
+}
+
+#[test]
+fn test_dev_no_files_declared_denied() {
+    let dir = create_test_dir();
+    setup_env(&dir, "DEV", "quick");
+    // Task has no files declared
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let (stdout, _) = run_guard(&dir, "src/main.rs");
+    assert_deny(&stdout);
+    assert!(
+        stdout.contains("no declared files"),
+        "should mention missing files, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_dev_another_agent_claim_denied() {
+    let dir = create_test_dir();
+    setup_env_with_files(&dir, "DEV", "quick", &["src/main.rs"]);
+    // Simulate another agent's claim by writing claim.lock with a foreign agent_id.
+    // Use a non-PID format so it won't be treated as a dead-process takeover.
+    let branch = default_branch(&dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+    let claim_lock = r#"{"claims":[{"id":"TASK-T001","ts":9999999999,"agent_id":"/dev/pts/999"}],"ttl":600}"#;
+    fs::write(doc.join("claim.lock"), claim_lock).unwrap();
+
+    // Current agent is different from /dev/pts/999
+    let (stdout, _) = run_guard(&dir, "src/main.rs");
+    assert_deny(&stdout);
+    assert!(
+        stdout.contains("another agent"),
+        "should mention another agent, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_dev_nonexistent_file_outside_scope_denied() {
+    let dir = create_test_dir();
+    setup_env_with_files(&dir, "DEV", "quick", &["src/main.rs"]);
+    Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["claim", "T001"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    // Even a nonexistent random path is denied if outside scope
+    let (stdout, _) = run_guard(&dir, "src/nonexistent_random.py");
+    assert_deny(&stdout);
 }
