@@ -337,14 +337,15 @@ fn test_context_blocks_when_all_tasks_done() {
     assert_eq!(json["decision"], "block");
     let reason = json["reason"].as_str().unwrap();
     assert!(
-        reason.contains("dow task create"),
-        "should suggest dow task create"
+        reason.contains("no pending tasks or open issues"),
+        "should mention no pending work, got: {}",
+        reason
     );
     assert!(
-        reason.contains("dow issue create"),
-        "should suggest dow issue create"
+        reason.contains("create a task/issue"),
+        "should suggest creating task/issue, got: {}",
+        reason
     );
-    assert!(reason.contains("/test"), "should suggest /test");
 }
 
 #[test]
@@ -397,10 +398,13 @@ fn test_context_codex_hook_injects_context_without_blocking() {
     let context: serde_json::Value = serde_json::from_str(context_json).unwrap();
     assert_eq!(context["blocked"], true);
     assert!(context["guard_notice"].as_str().is_some());
-    assert!(context["reason"]
-        .as_str()
-        .unwrap()
-        .contains("dow task create"));
+    assert!(
+        context["reason"]
+            .as_str()
+            .unwrap()
+            .contains("no pending tasks or open issues"),
+        "should mention no pending work in codex context"
+    );
 }
 
 #[test]
@@ -470,8 +474,9 @@ fn test_guard_blocks_code_write_when_all_done() {
     );
     assert!(stdout.contains("deny"), "should deny code write");
     assert!(
-        stdout.contains("dow task create"),
-        "should suggest dow task create"
+        stdout.contains("no pending tasks or open issues"),
+        "should mention no pending work, got: {}",
+        stdout
     );
 }
 
@@ -927,7 +932,7 @@ fn test_save_changelog_codex_hook_outputs_stop_json() {
     setup_branch_env(&dir);
 
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
-        .args(["hooks", "save-changelog", "--codex-hook"])
+        .args(["hooks", "session-stop", "--codex-hook"])
         .current_dir(&dir)
         .output()
         .unwrap();
