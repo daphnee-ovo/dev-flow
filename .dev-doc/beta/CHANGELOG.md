@@ -17,3 +17,6 @@
 - 04:29 fix: Fix nested-project workflow root resolution
 - 17:02 fix(cli): aggregate task and issue validation errors
 - 17:10 feat: show claimed item details
+
+## 2026-08-03
+- 14:51 fix: update stale test assertions in test_dow_branch.rs
