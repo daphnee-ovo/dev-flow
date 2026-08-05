@@ -4,6 +4,25 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// 保存 container 内所有 .files-section 的 open 状态
+function saveDetailsState(container) {
+  const state = new Set();
+  container.querySelectorAll('.files-section[open]').forEach(d => {
+    const item = d.closest('[id]');
+    if (item) state.add(item.id);
+  });
+  return state;
+}
+
+// 恢复 .files-section 的 open 状态
+function restoreDetailsState(container, state) {
+  if (!state || state.size === 0) return;
+  state.forEach(id => {
+    const el = container.querySelector(`#${CSS.escape(id)} .files-section`);
+    if (el) el.setAttribute('open', '');
+  });
+}
+
 // ─── Confirmation Modal ───
 function showConfirmModal({ title, message, confirmLabel, danger, onConfirm }) {
   const existing = document.querySelector('.confirm-modal-backdrop');
@@ -128,6 +147,8 @@ function renderHome(data) {
   items.sort((a, b) => a.id.localeCompare(b.id));
 
   const panel = document.getElementById('items-panel');
+  // 保存 overlay 中 files-section 的 open 状态
+  const homeFilesOpen = panel.querySelector('.item-detail-overlay .files-section[open]') !== null;
 
   // Always render the list
   const itemsHtml = items.map(item => {
@@ -157,6 +178,11 @@ function renderHome(data) {
         ${(item.done_when||[]).length ? '<ul class="done-list">' + item.done_when.map(d => `<li>${esc(d)}</li>`).join('') + '</ul>' : ''}
       `;
       panel.appendChild(overlay);
+      // 恢复 files-section open 状态
+      if (homeFilesOpen) {
+        const fs = overlay.querySelector('.files-section');
+        if (fs) fs.setAttribute('open', '');
+      }
       overlay.querySelector('#back-to-list').addEventListener('click', () => {
         selectedItemId = null;
         renderHome(data);
@@ -269,6 +295,7 @@ const taskFilters = { priority: 'all', status: 'all' };
 
 function renderTasks(data) {
   const el = document.getElementById('view-tasks');
+  const openState = saveDetailsState(el);
   const tasks = data.tasks.filter(t => {
     if (taskFilters.priority !== 'all' && t.priority !== taskFilters.priority) return false;
     if (taskFilters.status !== 'all' && t.status !== taskFilters.status) return false;
@@ -362,6 +389,7 @@ function renderTasks(data) {
 
   bindKanbanToggles(el);
   bindActionButtons(el);
+  restoreDetailsState(el, openState);
 }
 
 // ─── Issues View ───
@@ -369,6 +397,7 @@ const issueFilters = { severity: 'all', status: 'all' };
 
 function renderIssues(data) {
   const el = document.getElementById('view-issues');
+  const openState = saveDetailsState(el);
   const issues = data.issues.filter(i => {
     if (issueFilters.severity !== 'all' && i.severity !== issueFilters.severity) return false;
     if (issueFilters.status !== 'all') {
@@ -459,6 +488,7 @@ function renderIssues(data) {
 
   bindKanbanToggles(el);
   bindActionButtons(el);
+  restoreDetailsState(el, openState);
 }
 
 // ─── Helpers ───

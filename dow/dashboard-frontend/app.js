@@ -1,6 +1,14 @@
 let appData = null;
 let lastDataJson = '';
 
+// 比较数据是否变化，跳过不必要的重渲染
+function dataChanged(newData) {
+  const json = JSON.stringify(newData);
+  if (json === lastDataJson) return false;
+  lastDataJson = json;
+  return true;
+}
+
 // ─── SSE Connection ───
 function connectSSE() {
   const evtSource = new EventSource('/api/v1/events');
@@ -45,12 +53,14 @@ async function refreshData() {
     }
   }
 
-  appData = {
+  const newData = {
     status,
     tasks: tasksData.items,
     issues: issuesData.items,
     docs,
   };
+  if (!dataChanged(newData)) return;
+  appData = newData;
   renderCurrentView();
 }
 
