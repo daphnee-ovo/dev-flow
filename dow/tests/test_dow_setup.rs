@@ -11,6 +11,7 @@ use std::os::unix::fs::PermissionsExt;
 
 const DEV_FLOW_MARKER: &str = "<!-- dev-flow -->";
 const CODEX_HOOK_DISCIPLINE_MARKER: &str = "<!-- dev-flow-codex-hooks -->";
+const CODEX_DISCIPLINE_PLACEHOLDER: &str = "{CODEX DEV FLOW Discipline}";
 
 fn write_fake_codex(bin_dir: &Path) {
     fs::create_dir_all(bin_dir).unwrap();
@@ -101,11 +102,26 @@ fn test_setup_codex_injects_hook_discipline_without_touching_claude() {
 
     let codex_content = fs::read_to_string(&codex_agents).unwrap();
     assert!(codex_content.contains(CODEX_HOOK_DISCIPLINE_MARKER));
-    assert!(codex_content.contains("Prefer Codex file edit/write tools"));
+    let codex_hook_start = codex_content
+        .find(CODEX_HOOK_DISCIPLINE_MARKER)
+        .unwrap()
+        + CODEX_HOOK_DISCIPLINE_MARKER.len();
+    let codex_hook_end = codex_content[codex_hook_start..]
+        .find("</dev-flow>")
+        .map(|offset| codex_hook_start + offset)
+        .expect("Codex injection should remain inside the dev-flow block");
+    assert!(
+        !codex_content[codex_hook_start..codex_hook_end]
+            .trim()
+            .is_empty(),
+        "Codex-specific injection should not be empty"
+    );
+    assert!(!codex_content.contains(CODEX_DISCIPLINE_PLACEHOLDER));
     assert_eq!(codex_content.matches(DEV_FLOW_MARKER).count(), 1);
 
     let claude_content = fs::read_to_string(&claude_agents).unwrap();
     assert!(!claude_content.contains(CODEX_HOOK_DISCIPLINE_MARKER));
+    assert!(!claude_content.contains(CODEX_DISCIPLINE_PLACEHOLDER));
 
     let plugin_dir = home.join(".codex").join("plugins").join("dev-flow");
     assert!(plugin_dir.is_dir());
