@@ -950,3 +950,32 @@ fn test_save_changelog_codex_hook_outputs_stop_json() {
         .any(|content| content.contains("feat: active work"));
     assert!(has_changelog_entry);
 }
+
+#[test]
+fn test_session_stop_revokes_claim_with_different_pid() {
+    let dir = create_test_dir();
+    setup_branch_env(&dir);
+
+    let branch = default_branch(&dir);
+    let doc = dir.join(".dev-doc").join(&branch);
+
+    // Simulate a claim written by a dead process (pid:99999999)
+    let claim_lock = serde_json::json!({
+        "claims": [{"id": "TASK-T001", "ts": 9999999999u64, "agent_id": "pid:99999999"}],
+        "ttl": 600
+    });
+    fs::write(doc.join("claim.lock"), claim_lock.to_string()).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_dow"))
+        .args(["hooks", "session-stop"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    // claim.lock should be removed (dead process → owned by current agent → revoked)
+    assert!(
+        !doc.join("claim.lock").exists(),
+        "claim.lock should be removed after session-stop revokes dead-process claim"
+    );
+}

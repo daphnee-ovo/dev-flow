@@ -280,7 +280,7 @@ pub fn revoke_by_agent(doc_root: &Path, agent_id: Option<&str>) -> std::io::Resu
     let revoked: Vec<String> = lock
         .claims
         .iter()
-        .filter(|c| c.agent_id.as_deref() == Some(agent_id))
+        .filter(|c| is_claim_owned_by(agent_id, c))
         .map(|c| c.id.clone())
         .collect();
 
@@ -288,8 +288,7 @@ pub fn revoke_by_agent(doc_root: &Path, agent_id: Option<&str>) -> std::io::Resu
         return Ok(Vec::new());
     }
 
-    lock.claims
-        .retain(|c| c.agent_id.as_deref() != Some(agent_id));
+    lock.claims.retain(|c| !is_claim_owned_by(agent_id, c));
 
     if lock.claims.is_empty() {
         remove_claim_lock(doc_root);

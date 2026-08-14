@@ -20,3 +20,6 @@
 
 ## 2026-08-03
 - 14:51 fix: update stale test assertions in test_dow_branch.rs
+
+## 2026-08-05
+- 11:28 docs: sync dev docs
