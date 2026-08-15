@@ -178,6 +178,19 @@ assemble_agent() {
   echo "[assemble] ✓ $agent → dist/$agent/"
 }
 
+install_workflow_docs() {
+  local src="$PROJECT_ROOT/dow/references/docs"
+  local dest="$DIST_DIR/docs"
+  if [ ! -d "$src" ]; then
+    echo "[assemble] Missing workflow docs: $src" >&2
+    exit 1
+  fi
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  cp -R "$src/." "$dest/"
+  echo "[assemble] ✓ docs → dist/docs/"
+}
+
 if [ -z "$1" ]; then
   echo "Usage: bash devtools/assemble.sh <claude|codex|kiro|pi|all>" >&2
   exit 1
@@ -215,3 +228,5 @@ case "$1" in
     exit 1
     ;;
 esac
+
+install_workflow_docs

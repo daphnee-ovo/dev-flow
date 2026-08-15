@@ -41,10 +41,17 @@ case "$1" in
     cp -r "$PROJECT_ROOT/dist/kiro" "$BUNDLE_DIR/kiro"
     cp -r "$PROJECT_ROOT/dist/pi" "$BUNDLE_DIR/pi"
     ;;
-  *)
+    *)
     cp -r "$PROJECT_ROOT/dist/$1" "$BUNDLE_DIR/$1"
     ;;
 esac
+
+if [ ! -d "$PROJECT_ROOT/dist/docs" ]; then
+  echo "[deploy] ✗ missing assembled docs: $PROJECT_ROOT/dist/docs" >&2
+  exit 1
+fi
+rm -rf "$BUNDLE_DIR/docs"
+cp -r "$PROJECT_ROOT/dist/docs" "$BUNDLE_DIR/docs"
 echo "[deploy] ✓ bundle → $BUNDLE_DIR"
 
 # 5. 调用 dow setup 完成正式注册

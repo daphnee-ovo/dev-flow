@@ -60,6 +60,10 @@ fn write_minimal_codex_bundle(data_dir: &Path) -> PathBuf {
     fs::write(codex_bundle.join(".app.json"), "{}\n").unwrap();
     fs::write(codex_bundle.join(".codex-plugin/plugin.json"), "{}\n").unwrap();
 
+    let docs_dir = data_dir.join("dow").join("bundle").join("docs");
+    fs::create_dir_all(&docs_dir).unwrap();
+    fs::write(docs_dir.join("guides.md"), "# GUIDES.md\n").unwrap();
+
     codex_bundle
 }
 
@@ -117,6 +121,18 @@ fn test_setup_codex_injects_hook_discipline_without_touching_claude() {
         "Codex-specific injection should not be empty"
     );
     assert!(!codex_content.contains(CODEX_DISCIPLINE_PLACEHOLDER));
+    assert!(!codex_content.contains("{WORKFLOW_GUIDE_PATH}"));
+    let expected_guide = data
+        .join("dow")
+        .join("docs")
+        .join("guides.md")
+        .display()
+        .to_string();
+    assert!(codex_content.contains(&expected_guide));
+    assert!(
+        data.join("dow").join("docs").join("guides.md").is_file(),
+        "setup should copy workflow docs to data_dir()/docs"
+    );
     assert_eq!(codex_content.matches(DEV_FLOW_MARKER).count(), 1);
 
     let claude_content = fs::read_to_string(&claude_agents).unwrap();

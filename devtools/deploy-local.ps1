@@ -124,6 +124,16 @@ try {
         }
         Copy-Item -LiteralPath $sourceDir -Destination $destinationDir -Recurse -Force
     }
+
+    $docsSource = Join-Path $projectRoot "dist\docs"
+    if (-not (Test-Path -LiteralPath $docsSource -PathType Container)) {
+        throw "找不到已组装的 docs: $docsSource"
+    }
+    $docsDestination = Join-Path $bundleDir "docs"
+    if (Test-Path -LiteralPath $docsDestination) {
+        Remove-Item -LiteralPath $docsDestination -Recurse -Force
+    }
+    Copy-Item -LiteralPath $docsSource -Destination $docsDestination -Recurse -Force
     Write-Host "[deploy] ✓ bundle → $bundleDir"
 
     # 5. 调用 dow setup 完成正式注册

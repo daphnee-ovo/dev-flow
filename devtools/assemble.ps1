@@ -287,6 +287,17 @@ try {
     foreach ($agentName in $agentsToAssemble) {
         Assemble-Agent -AgentName $agentName -Version $version
     }
+
+    $docsSource = Join-Path $projectRoot "dow\references\docs"
+    $docsDest = Join-Path $distDir "docs"
+    if (-not (Test-Path -LiteralPath $docsSource -PathType Container)) {
+        throw "Missing workflow docs: $docsSource"
+    }
+    if (Test-Path -LiteralPath $docsDest) {
+        Remove-Item -LiteralPath $docsDest -Recurse -Force
+    }
+    Copy-DirectoryContents -Source $docsSource -Destination $docsDest
+    Write-Host "[assemble] ✓ docs → dist/docs/"
 } catch {
     Write-Host "[assemble] ✗ Assembly failed: $($_.Exception.Message)" -ForegroundColor Red
     throw

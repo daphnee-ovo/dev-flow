@@ -24,6 +24,8 @@ pub fn run(agent: Option<String>, _human: bool) -> Result<i32, DowError> {
         ));
     }
     validate_agent_bundles(&agents, &bundle)?;
+    agent_registry::install_docs(&bundle)
+        .map_err(|e| DowError::new(&format!("Failed to install workflow docs: {}", e), 1))?;
 
     let mut config = DowConfig::load();
 

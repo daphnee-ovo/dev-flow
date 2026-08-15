@@ -96,6 +96,8 @@ fn do_update() -> Result<i32, DowError> {
 fn sync_agents() -> Result<(), DowError> {
     let config = DowConfig::load();
     let bundle_dir = platform::bundle_dir();
+    agent_registry::install_docs(&bundle_dir)
+        .map_err(|e| DowError::new(&format!("Failed to install workflow docs: {}", e), 1))?;
     for agent in &config.registered_agents {
         match agent_registry::deploy_plugin(agent, &bundle_dir) {
             Ok(()) => eprintln!("[dow]   {} plugin deployed", agent),

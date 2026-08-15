@@ -2,20 +2,7 @@
 
 # **MUST use DEV-FLOW to manage the development workflow if a `dev-flow status` injection is present in the UserPrompt; otherwise, only recommend using it.**
 
-## Slash Commands
-| Command | Phase | Purpose |
-|---------|-------|---------|
-| `/init` | any | Initialize project |
-| `/status` | any | Report status |
-| `/mode` | any | Set dev mode |
-| `/issue` | any | Create issue |
-| `/brainstorm` | BRAINSTORM | Collaborative exploration |
-| `/prd` | PRD | Write requirements |
-| `/spec` | SPEC | Technical design |
-| `/task` | TASK | Decompose into tasks |
-| `/fix` | DEV | User-triggered workflow to read, claim, fix, verify, and close open issues |
-| `/test` | TEST | Full project test; Task tests use dow test TASK-ID |
-| `/iterate` | ITERATE | Archive + commit + tag + bump |
+Attend to the injected `dev-flow status` to understand the current state, and make decisions according to that state.
 
 ## Discipline
 
@@ -107,14 +94,18 @@ must contain a non-empty path. CLI input uses `--file '{"modify":["src/a.rs"]}'`
 Issue `files` has no `test` category. Legacy flat file fields and `--files-*`
 flags are not accepted. CLI and stdin input cannot be combined.
 
-### Feedback
-- If you encounter any issue while using dev-flow (unexpected behavior, command failure, documentation mismatch, etc.), and the user permits, create a GitHub issue directly in the dev-flow repository (`daphnee-ovo/dev-flow`) to report it. Use `gh issue create --repo daphnee-ovo/dev-flow --title "<title>" --body "<description>"`.
-
 ### Role isolation
 - BRAINSTORM/PRD/SPEC: main agent writes artifact directly, then spawns audit subagent for independent review.
 - TASK: main agent decomposes (low complexity) or spawns adversarial subagents (high complexity).
 - TEST: runs in an independent agent with strict isolation, but only after the user explicitly invokes `/test` or asks to enter the TEST phase. 
 
 {CODEX DEV FLOW Discipline}
+
+## USER GUIDES
+
+If the user has any questions or confusion related to dev-flow, refer to `{WORKFLOW_GUIDE_PATH}` as needed; otherwise, do not reference it.
+
+### Feedback
+- If you encounter any issue while using dev-flow (unexpected behavior, command failure, documentation mismatch, etc.), and the user permits, create a GitHub issue directly in the dev-flow repository (`daphnee-ovo/dev-flow`) to report it. Use `gh issue create --repo daphnee-ovo/dev-flow --title "<title>" --body "<description>"`.
 
 </dev-flow>

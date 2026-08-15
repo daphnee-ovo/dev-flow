@@ -13,17 +13,17 @@ fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 echo "=== T13: 验证 skills 和项目级文档 ==="
 echo ""
 
-# --- 检查1: inject_prompt/dev_flow.md 含 /issue ---
-echo "[1] inject_prompt/dev_flow.md 含 /issue"
+# --- 检查1: guides.md 含 /issue ---
+echo "[1] guides.md 含 /issue"
 
-INJECT="$PROJ_ROOT/dow/references/binary/inject_prompt/dev_flow.md"
-if [ ! -f "$INJECT" ]; then
-  fail "$INJECT 文件不存在"
+GUIDES="$PROJ_ROOT/dow/references/docs/guides.md"
+if [ ! -f "$GUIDES" ]; then
+  fail "$GUIDES 文件不存在"
 else
-  if grep -q "/issue" "$INJECT"; then
-    pass "inject_prompt 含 /issue"
+  if grep -q "/issue" "$GUIDES"; then
+    pass "guides.md 含 /issue"
   else
-    fail "inject_prompt 不含 /issue"
+    fail "guides.md 不含 /issue"
   fi
 fi
 
@@ -31,10 +31,25 @@ fi
 echo ""
 echo "[2] inject_prompt/dev_flow.md 含 dow task"
 
-if grep -q 'dow task' "$INJECT"; then
+INJECT="$PROJ_ROOT/dow/references/binary/inject_prompt/dev_flow.md"
+if [ ! -f "$INJECT" ]; then
+  fail "$INJECT 文件不存在"
+elif grep -q 'dow task' "$INJECT"; then
   pass "inject_prompt 含 dow task"
 else
   fail "inject_prompt 不含 dow task"
+fi
+
+# --- 检查2b: inject_prompt 含 USER GUIDES 路径占位符 ---
+echo ""
+echo "[2b] inject_prompt 含 USER GUIDES 路径占位符"
+
+if [ ! -f "$INJECT" ]; then
+  fail "$INJECT 文件不存在"
+elif grep -q '{WORKFLOW_GUIDE_PATH}' "$INJECT" && grep -q 'USER GUIDES' "$INJECT"; then
+  pass "inject_prompt 含 USER GUIDES 与路径占位符"
+else
+  fail "inject_prompt 缺少 USER GUIDES 或 {WORKFLOW_GUIDE_PATH}"
 fi
 
 # --- 检查3: CLAUDE.md (skipped, now imports AGENTS.md) ---

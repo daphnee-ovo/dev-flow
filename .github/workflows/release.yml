@@ -81,6 +81,11 @@ jobs:
             echo "No agent targets found under targets/" >&2
             exit 1
           fi
+          if [ ! -d "dist/docs" ]; then
+            echo "Missing assembled workflow docs: dist/docs" >&2
+            exit 1
+          fi
+          cp -r "dist/docs" "_package/bundle/docs"
           tar -czf "dow-${TAG}-${{ matrix.platform }}.tar.gz" -C _package .
         shell: bash
 

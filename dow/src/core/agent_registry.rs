@@ -6,6 +6,7 @@
 // ├── deploy_plugin()
 // ├── inject_global_instructions()
 // │   └── build_global_instruction_content()
+// ├── install_docs()
 // ├── verify_plugin_integrity()
 // └── copy_dir_recursive()
 //
@@ -13,13 +14,14 @@
 // - [Agent Instructions](../../../AGENTS.md#dev-flow)
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::platform;
 
 const DEV_FLOW_TAG_OPEN: &str = "<dev-flow>";
 const DEV_FLOW_TAG_CLOSE: &str = "</dev-flow>";
 const CODEX_DISCIPLINE_PLACEHOLDER: &str = "{CODEX DEV FLOW Discipline}";
+const WORKFLOW_GUIDE_PLACEHOLDER: &str = "{WORKFLOW_GUIDE_PATH}";
 
 pub struct AgentInfo {
     pub name: &'static str,
@@ -94,6 +96,28 @@ pub fn inject_global_instructions(agent: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+pub fn install_docs(bundle_dir: &Path) -> Result<(), String> {
+    let source = bundle_dir.join("docs");
+    if !source.is_dir() {
+        return Err(format!(
+            "Workflow docs not found in bundle: {}",
+            source.display()
+        ));
+    }
+
+    let dest = platform::data_dir().join("docs");
+    if dest.exists() {
+        fs::remove_dir_all(&dest)
+            .map_err(|e| format!("Failed to clean old workflow docs directory: {}", e))?;
+    }
+    copy_dir_recursive(&source, &dest)?;
+    Ok(())
+}
+
+fn workflow_guide_path() -> PathBuf {
+    platform::data_dir().join("docs").join("guides.md")
+}
+
 fn build_global_instruction_content(agent: &str, content: &str) -> (String, bool) {
     let block = build_dev_flow_block(agent);
     let new_content = replace_or_append_block(content, &block);
@@ -108,7 +132,12 @@ fn build_dev_flow_block(agent: &str) -> String {
     } else {
         String::new()
     };
-    template.replace(CODEX_DISCIPLINE_PLACEHOLDER, &discipline)
+    template
+        .replace(CODEX_DISCIPLINE_PLACEHOLDER, &discipline)
+        .replace(
+            WORKFLOW_GUIDE_PLACEHOLDER,
+            &workflow_guide_path().display().to_string(),
+        )
 }
 
 fn replace_or_append_block(content: &str, block: &str) -> String {

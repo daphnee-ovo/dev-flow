@@ -81,11 +81,19 @@ for agent in "${TARGET_AGENTS[@]}"; do
   fi
 done
 
+if [[ ! -f "dist/docs/guides.md" ]]; then
+  echo "❌ FAIL: dist/docs/guides.md not created"
+  FAILED=1
+else
+  echo "✓ dist/docs/guides.md created"
+fi
+
 echo ""
 echo "--- Checking release packaging derives agents from targets/ ---"
 if grep -q 'for target_dir in targets/\*' .github/workflows/release.yml && \
    grep -q 'cp -r "dist/${agent}" "_package/bundle/${agent}"' .github/workflows/release.yml && \
    grep -q 'Missing assembled bundle for target' .github/workflows/release.yml && \
+   grep -q 'cp -r "dist/docs" "_package/bundle/docs"' .github/workflows/release.yml && \
    ! grep -q 'cp -r dist/claude\|cp -r dist/codex\|cp -r dist/kiro\|cp -r dist/pi' .github/workflows/release.yml; then
   echo "✓ release workflow packages targets dynamically"
 else
