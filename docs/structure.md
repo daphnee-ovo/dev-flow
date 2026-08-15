@@ -11,7 +11,9 @@ dev-flow/
 │   │   └── dashboard/    # dashboard web 服务（axum + SSE + data）
 │   ├── dashboard-frontend/ # 前端静态资源（D3/Dagre/Marked，编译时嵌入）
 │   ├── tests/            # dow 集成测试
-│   ├── references/       # 参考资料和模板（inject prompt 等）
+│   ├── references/       # Reference texts (prompts, schemas, help)
+│   │   └── binary/       # Subset compiled into dow via include_str!
+│   ├── docs/             # Developer-facing specs, not compiled into dow
 │   └── tmp/              # dow 测试临时目录
 ├── vscode-extension/     # VS Code 扩展（嵌入 dashboard webview）
 ├── plugin/               # 共享插件内容（跨 agent 通用）

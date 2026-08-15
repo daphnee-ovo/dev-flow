@@ -58,7 +58,7 @@ task/
 
 ### Task 文件内容格式
 
-遵循 `references/.dev-doc/TASK-FILE.md` 定义的格式。
+遵循 `references/binary/.dev-doc/TASK-FILE.md` 定义的格式。
 
 **状态标记**：`- [ ]` 未完成，`- [x]` 已完成
 

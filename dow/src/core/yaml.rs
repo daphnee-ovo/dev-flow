@@ -2,7 +2,7 @@
 // ├── yaml.rs  -- STATUS.yaml lightweight read/write (no YAML library dependency)
 //
 // Related Docs:
-// - [STATUS Specification](../../../references/.dev-doc/STATUS.md)
+// - [STATUS Specification](../../docs/dev-docs-spec/STATUS.md)
 
 use std::collections::BTreeMap;
 use std::fs;

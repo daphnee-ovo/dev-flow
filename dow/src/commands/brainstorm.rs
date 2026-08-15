@@ -2,14 +2,14 @@
 // ├── brainstorm.rs  -- dow brainstorm (create/schema)
 //
 // Related Docs:
-// - [BRAINSTORM-FILE spec](../../references/.dev-doc/BRAINSTORM-FILE.md)
+// - [BRAINSTORM-FILE spec](../../references/binary/.dev-doc/BRAINSTORM-FILE.md)
 
 use crate::cli::BrainstormCommands;
 use crate::core::doc_root;
 use crate::error::DowError;
 use std::fs;
 
-const REF_BRAINSTORM: &str = include_str!("../../references/.dev-doc/BRAINSTORM-FILE.md");
+const REF_BRAINSTORM: &str = include_str!("../../references/binary/.dev-doc/BRAINSTORM-FILE.md");
 
 pub fn run(command: BrainstormCommands, _human: bool) -> Result<i32, DowError> {
     match command {

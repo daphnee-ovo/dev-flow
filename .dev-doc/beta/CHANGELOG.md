@@ -23,3 +23,8 @@
 
 ## 2026-08-05
 - 11:28 docs: sync dev docs
+
+## 2026-08-15
+- 01:09 fix: session-stop revoke_by_agent uses is_claim_owned_by for fuzzy matching
+- 01:21 fix: add Codex iterate permission guidance
+

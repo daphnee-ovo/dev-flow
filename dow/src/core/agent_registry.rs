@@ -102,9 +102,9 @@ fn build_global_instruction_content(agent: &str, content: &str) -> (String, bool
 }
 
 fn build_dev_flow_block(agent: &str) -> String {
-    let template = include_str!("../../references/inject_prompt/dev_flow.md");
+    let template = include_str!("../../references/binary/inject_prompt/dev_flow.md");
     let discipline = if agent == "codex" {
-        include_str!("../../references/inject_prompt/codex_hook_discipline.md").to_string()
+        include_str!("../../references/binary/inject_prompt/codex_hook_discipline.md").to_string()
     } else {
         String::new()
     };

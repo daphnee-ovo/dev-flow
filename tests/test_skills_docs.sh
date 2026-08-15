@@ -16,7 +16,7 @@ echo ""
 # --- 检查1: inject_prompt/dev_flow.md 含 /issue ---
 echo "[1] inject_prompt/dev_flow.md 含 /issue"
 
-INJECT="$PROJ_ROOT/dow/references/inject_prompt/dev_flow.md"
+INJECT="$PROJ_ROOT/dow/references/binary/inject_prompt/dev_flow.md"
 if [ ! -f "$INJECT" ]; then
   fail "$INJECT 文件不存在"
 else
@@ -52,11 +52,11 @@ else
   fail "AGENTS.md 不含 /issue"
 fi
 
-# --- 检查5: dow/references/dev-flow-spec.md 含 task/ 目录 ---
+# --- 检查5: dow/docs/dev-flow-spec.md 含 task/ 目录 ---
 echo ""
-echo "[5] dow/references/dev-flow-spec.md 含 task/ 目录"
+echo "[5] dow/docs/dev-flow-spec.md 含 task/ 目录"
 
-SPEC="$PROJ_ROOT/dow/references/dev-flow-spec.md"
+SPEC="$PROJ_ROOT/dow/docs/dev-flow-spec.md"
 if [ ! -f "$SPEC" ]; then
   fail "$SPEC 文件不存在"
 else
@@ -67,9 +67,9 @@ else
   fi
 fi
 
-# --- 检查6: dow/references/dev-flow-spec.md 不含旧的 TASK.md 引用 ---
+# --- 检查6: dow/docs/dev-flow-spec.md 不含旧的 TASK.md 引用 ---
 echo ""
-echo "[6] dow/references/dev-flow-spec.md 不含 TASK.md（已替换为 task/）"
+echo "[6] dow/docs/dev-flow-spec.md 不含 TASK.md（已替换为 task/）"
 
 if [ -f "$SPEC" ]; then
   if grep -q "TASK\.md" "$SPEC"; then
@@ -79,9 +79,9 @@ if [ -f "$SPEC" ]; then
   fi
 fi
 
-# --- 检查7: dow/references/dev-flow-spec.md archive 使用 SQLite archive.db ---
+# --- 检查7: dow/docs/dev-flow-spec.md archive 使用 SQLite archive.db ---
 echo ""
-echo "[7] dow/references/dev-flow-spec.md archive 使用 archive.db"
+echo "[7] dow/docs/dev-flow-spec.md archive 使用 archive.db"
 
 if [ -f "$SPEC" ]; then
   if grep -q ".dev-doc/archive.db" "$SPEC" && grep -q "dow archive list/show/tasks/issues/doc/stats" "$SPEC"; then

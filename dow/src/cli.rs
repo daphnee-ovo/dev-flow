@@ -4,7 +4,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "dow", about = "dev-flow unified CLI dispatcher", long_about = include_str!("../references/dow-help.md"), version = env!("DOW_VERSION"))]
+#[command(name = "dow", about = "dev-flow unified CLI dispatcher", long_about = include_str!("../references/binary/dow-help.md"), version = env!("DOW_VERSION"))]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

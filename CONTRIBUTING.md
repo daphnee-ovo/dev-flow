@@ -47,7 +47,8 @@ dev-flow/
 │   │   └── core/               # Shared libraries (config, platform, archive_db...)
 │   ├── dashboard-frontend/     # Static frontend assets (D3, embedded at build)
 │   ├── tests/                  # Integration tests
-│   ├── references/             # Reference docs and templates (inject prompts)
+│   ├── references/             # Reference texts; binary/ is compiled into dow
+│   ├── docs/                   # Developer-facing specs, not compiled into dow
 │   └── Cargo.toml
 ├── plugin/                     # Shared plugin content (agent-agnostic)
 │   ├── commands/               # Slash command definitions (.md)

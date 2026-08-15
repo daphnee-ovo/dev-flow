@@ -2,14 +2,14 @@
 // ├── spec_cmd.rs  -- dow spec (create/schema)
 //
 // Related Docs:
-// - [SPEC-FILE spec](../../references/.dev-doc/SPEC-FILE.md)
+// - [SPEC-FILE spec](../../references/binary/.dev-doc/SPEC-FILE.md)
 
 use crate::cli::SpecCommands;
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
 use std::fs;
 
-const REF_SPEC: &str = include_str!("../../references/.dev-doc/SPEC-FILE.md");
+const REF_SPEC: &str = include_str!("../../references/binary/.dev-doc/SPEC-FILE.md");
 
 pub fn run(command: SpecCommands, _human: bool) -> Result<i32, DowError> {
     match command {

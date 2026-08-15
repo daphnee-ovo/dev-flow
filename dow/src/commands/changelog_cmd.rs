@@ -2,7 +2,7 @@
 // ├── changelog_cmd.rs  -- dow changelog (list/add/schema)
 //
 // Related Docs:
-// - [CHANGELOG spec](../../references/.dev-doc/CHANGELOG.md)
+// - [CHANGELOG spec](../../references/binary/.dev-doc/CHANGELOG.md)
 
 use crate::cli::{ChangelogAddArgs, ChangelogCommands};
 use crate::core::doc_root;
@@ -12,7 +12,7 @@ use chrono::Local;
 use serde_json::json;
 use std::fs;
 
-const REF_CHANGELOG: &str = include_str!("../../references/.dev-doc/CHANGELOG.md");
+const REF_CHANGELOG: &str = include_str!("../../references/binary/.dev-doc/CHANGELOG.md");
 
 pub fn run(command: ChangelogCommands, human: bool) -> Result<i32, DowError> {
     match command {

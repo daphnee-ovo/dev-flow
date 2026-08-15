@@ -374,7 +374,8 @@ dev-flow/
 │   │   ├── views.js
 │   │   ├── style.css
 │   │   └── vendor/
-│   ├── references/               # Inject prompts & document specs
+│   ├── references/               # Reference texts; binary/ is compiled into dow
+│   ├── docs/                     # Developer-facing specs, not compiled into dow
 │   └── Cargo.toml
 ├── plugin/                       # Shared plugin content (agent-agnostic)
 │   ├── commands/                 # Slash command markdown files

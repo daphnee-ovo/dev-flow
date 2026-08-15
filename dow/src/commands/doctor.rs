@@ -8,8 +8,8 @@
 // - fix.rs: auto-fix logic (--fix mode)
 //
 // Related Docs:
-// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
-// - [TASK Specification](../../../references/.dev-doc/TASK-FILE.md)
+// - [ISSUE Specification](../../references/binary/.dev-doc/ISSUE.md)
+// - [TASK Specification](../../references/binary/.dev-doc/TASK-FILE.md)
 
 use crate::cli::DoctorArgs;
 use crate::core::{doc_root, doc_validator, yaml};

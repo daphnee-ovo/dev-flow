@@ -1,17 +1,17 @@
 // dow/src/core/
 // ├── doc_validator.rs  -- .dev-doc file validity validation
-//    Embed specifications from references/.dev-doc/*.md at compile time, parse and validate files at runtime
+//    Embed specifications from references/binary/.dev-doc/*.md at compile time, parse and validate files at runtime
 //
 // Related Docs:
-// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
-// - [TASK Specification](../../../references/.dev-doc/TASK-FILE.md)
+// - [ISSUE Specification](../../references/binary/.dev-doc/ISSUE.md)
+// - [TASK Specification](../../references/binary/.dev-doc/TASK-FILE.md)
 
 use std::fs;
 use std::path::Path;
 
 // Embed specification md at compile time
-const REF_ISSUE: &str = include_str!("../../references/.dev-doc/ISSUE.md");
-const REF_TASK: &str = include_str!("../../references/.dev-doc/TASK-FILE.md");
+const REF_ISSUE: &str = include_str!("../../references/binary/.dev-doc/ISSUE.md");
+const REF_TASK: &str = include_str!("../../references/binary/.dev-doc/TASK-FILE.md");
 
 /// Validation error
 #[derive(Debug, Clone)]

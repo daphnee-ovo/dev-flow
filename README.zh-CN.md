@@ -372,7 +372,8 @@ dev-flow/
 │   │   ├── views.js
 │   │   ├── style.css
 │   │   └── vendor/
-│   ├── references/               # 注入提示词与文档规范
+│   ├── references/               # 参考文本；其中 binary/ 会编进 dow
+│   ├── docs/                     # 不编进二进制的开发者规范
 │   └── Cargo.toml
 ├── plugin/                       # 共享插件内容（agent 无关）
 │   ├── commands/                 # Slash command markdown 文件

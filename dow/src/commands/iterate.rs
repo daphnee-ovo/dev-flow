@@ -3,7 +3,7 @@
 //
 // Related Docs:
 // - [CLAUDE.md - Commands](../../../CLAUDE.md#Commands)
-// - [dev-flow Specification](../../references/dev-flow-spec.md)
+// - [dev-flow Specification](../../docs/dev-flow-spec.md)
 
 use crate::cli::IterateArgs;
 use crate::core::{archive_db, doc_root, doc_validator, version, yaml};

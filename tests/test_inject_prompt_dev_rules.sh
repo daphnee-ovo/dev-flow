@@ -8,7 +8,7 @@ cd "$REPO_ROOT"
 echo "=== Test: Inject Prompt DEV Ad-hoc Request Rules ==="
 
 FAILED=0
-INJECT_FILE="dow/references/inject_prompt/dev_flow.md"
+INJECT_FILE="dow/references/binary/inject_prompt/dev_flow.md"
 
 echo "Checking $INJECT_FILE..."
 

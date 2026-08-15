@@ -5,7 +5,7 @@
 //
 // Related Docs:
 // - [Claim Core](../core/claim.rs)
-// - [CHANGELOG specification](../../../references/.dev-doc/CHANGELOG.md)
+// - [CHANGELOG specification](../../references/binary/.dev-doc/CHANGELOG.md)
 
 use crate::core::{claim, doc_root};
 use crate::error::DowError;

@@ -2,7 +2,7 @@
 // ├── status.rs  -- dow status subcommand (read/write STATUS.yaml + mode coordination)
 //
 // Related Docs:
-// - [STATUS specification](../../../references/.dev-doc/STATUS.md)
+// - [STATUS specification](../../docs/dev-docs-spec/STATUS.md)
 // - [CLAUDE.md - dow CLI](../../../CLAUDE.md#dow-cli)
 
 use crate::cli::{StatusArgs, StatusCommands, StatusSetArgs};

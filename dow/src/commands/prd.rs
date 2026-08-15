@@ -2,14 +2,14 @@
 // ├── prd.rs  -- dow prd (create/schema)
 //
 // Related Docs:
-// - [PRD-FILE spec](../../references/.dev-doc/PRD-FILE.md)
+// - [PRD-FILE spec](../../references/binary/.dev-doc/PRD-FILE.md)
 
 use crate::cli::PrdCommands;
 use crate::core::{doc_root, yaml};
 use crate::error::DowError;
 use std::fs;
 
-const REF_PRD: &str = include_str!("../../references/.dev-doc/PRD-FILE.md");
+const REF_PRD: &str = include_str!("../../references/binary/.dev-doc/PRD-FILE.md");
 
 pub fn run(command: PrdCommands, _human: bool) -> Result<i32, DowError> {
     match command {

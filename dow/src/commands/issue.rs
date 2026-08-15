@@ -71,7 +71,7 @@
 //    ├── generate_iro_token()
 //
 // Related Docs:
-// - [ISSUE Specification](../../../references/.dev-doc/ISSUE.md)
+// - [ISSUE Specification](../../references/binary/.dev-doc/ISSUE.md)
 
 use crate::cli::{
     IssueCommands, IssueCreateArgs, IssueListArgs, IssueRemoveArgs, IssueReopenArgs,
