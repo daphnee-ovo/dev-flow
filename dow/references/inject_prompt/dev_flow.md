@@ -1,6 +1,6 @@
 <dev-flow>
 
-# **MUST use DEV-FLOW to manage development workflow.**
+# **MUST use DEV-FLOW to manage the development workflow if a `dev-flow status` injection is present in the UserPrompt; otherwise, only recommend using it.**
 
 ## Slash Commands
 | Command | Phase | Purpose |
