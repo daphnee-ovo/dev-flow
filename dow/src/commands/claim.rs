@@ -96,7 +96,13 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
             let show_id = item_id::normalize_full(id);
             match item_id::parse(id).map(|parsed| parsed.kind) {
                 Some(item_id::ItemKind::Task) => {
-                    task_cmd::run(TaskCommands::Show { id: show_id }, human)?;
+                    task_cmd::run(
+                        TaskCommands::Show {
+                            ids: vec![show_id],
+                            verbose: false,
+                        },
+                        human,
+                    )?;
                 }
                 Some(item_id::ItemKind::Issue) => {
                     issue_cmd::run(IssueCommands::Show { id: show_id }, human)?;

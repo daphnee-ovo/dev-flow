@@ -56,6 +56,10 @@
 // ├── show()
 // ├── parse_task_detail()
 // ├── parse_inline_list()
+// ├── struct TaskShowOutput
+// ├── compact_task_files()
+// ├── compact_file_list()
+// ├── brace_expression()
 // ├── print_task_detail_human()
 // ├── done_multi()
 // ├── done_single()
@@ -171,6 +175,27 @@ pub(crate) struct TaskFiles {
 }
 
 #[derive(Serialize)]
+struct TaskShowOutput {
+    id: String,
+    title: String,
+    r#type: String,
+    priority: String,
+    status: String,
+    refs: String,
+    complexity: String,
+    depends_on: Vec<String>,
+    parallel: bool,
+    done_when: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<TaskFiles>,
+}
+
+struct BraceGroup {
+    paths: Vec<String>,
+    rendered: String,
+}
+
+#[derive(Serialize)]
 struct ReopenImpact {
     id: String,
     title: String,
@@ -250,7 +275,10 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
             remove(args, human)
         }
         TaskCommands::List(args) => list(args, human),
-        TaskCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        TaskCommands::Show { ids, verbose } => {
+            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
+            show(&ids, human, verbose)
+        }
         TaskCommands::Done { ids } => {
             let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
             done_multi(&ids)
@@ -1574,25 +1602,156 @@ fn parse_all_tasks_in_file(content: &str, filename: &str) -> Vec<TaskListItem> {
 
 // ─── Show ────────────────────────────────────────────────────────────────────
 
-fn show(id: &str, human: bool) -> Result<i32, DowError> {
-    let task_dir = resolve_task_dir()?;
-    let all_files = all_task_files_including_done(&task_dir);
-
-    for path in &all_files {
-        let filename = path.file_name().unwrap().to_string_lossy().to_string();
-        if let Ok(content) = fs::read_to_string(path) {
-            if let Some(detail) = parse_task_detail(&content, id, &filename) {
-                if human {
-                    print_task_detail_human(&detail);
-                } else {
-                    output::print_json(&detail);
-                }
-                return Ok(0);
-            }
-        }
+fn show(ids: &[String], human: bool, verbose: bool) -> Result<i32, DowError> {
+    if ids.is_empty() {
+        return Err(DowError::new("dow task show requires at least one ID", 2));
     }
 
-    Err(DowError::new(format!("task {} not found", id), 1))
+    let task_dir = resolve_task_dir()?;
+    let all_files = all_task_files_including_done(&task_dir);
+    let mut details = Vec::with_capacity(ids.len());
+
+    for id in ids {
+        let mut found = None;
+        for path in &all_files {
+            let filename = path.file_name().unwrap().to_string_lossy().to_string();
+            if let Ok(content) = fs::read_to_string(path) {
+                if let Some(detail) = parse_task_detail(&content, id, &filename) {
+                    found = Some(detail);
+                    break;
+                }
+            }
+        }
+
+        details.push(found.ok_or_else(|| DowError::new(format!("task {} not found", id), 1))?);
+    }
+
+    let shown: Vec<TaskShowOutput> = details
+        .into_iter()
+        .map(|detail| TaskShowOutput {
+            id: detail.id,
+            title: detail.title,
+            r#type: detail.r#type,
+            priority: detail.priority,
+            status: detail.status,
+            refs: detail.refs,
+            complexity: detail.complexity,
+            depends_on: detail.depends_on,
+            parallel: detail.parallel,
+            done_when: detail.done_when,
+            files: verbose.then(|| compact_task_files(detail.files)),
+        })
+        .collect();
+
+    if human {
+        for (index, detail) in shown.iter().enumerate() {
+            if index > 0 {
+                println!();
+            }
+            print_task_detail_human(detail);
+        }
+    } else if shown.len() == 1 {
+        output::print_json(&shown[0]);
+    } else {
+        output::print_json(&shown);
+    }
+
+    Ok(0)
+}
+
+fn compact_task_files(files: TaskFiles) -> TaskFiles {
+    TaskFiles {
+        create: compact_file_list(files.create),
+        modify: compact_file_list(files.modify),
+        test: compact_file_list(files.test),
+    }
+}
+
+fn compact_file_list(files: Vec<String>) -> Vec<String> {
+    let mut groups: Vec<BraceGroup> = files
+        .into_iter()
+        .map(|path| BraceGroup {
+            rendered: path.clone(),
+            paths: vec![path],
+        })
+        .collect();
+
+    loop {
+        let mut best: Option<(usize, Vec<String>, String, usize)> = None;
+        for index in 0..groups.len().saturating_sub(1) {
+            let left = &groups[index];
+            let right = &groups[index + 1];
+            let mut paths = left.paths.clone();
+            paths.extend(right.paths.iter().cloned());
+            let Some(rendered) = brace_expression(&paths) else {
+                continue;
+            };
+            let current_len = left.rendered.len() + 2 + right.rendered.len();
+            let savings = current_len.saturating_sub(rendered.len());
+            if savings > best.as_ref().map(|entry| entry.3).unwrap_or(0) {
+                best = Some((index, paths, rendered, savings));
+            }
+        }
+
+        let Some((index, paths, rendered, _)) = best else {
+            break;
+        };
+        groups[index] = BraceGroup { paths, rendered };
+        groups.remove(index + 1);
+    }
+
+    groups.into_iter().map(|group| group.rendered).collect()
+}
+
+fn brace_expression(paths: &[String]) -> Option<String> {
+    if paths.len() < 2
+        || paths
+            .iter()
+            .any(|path| path.contains('{') || path.contains('}') || path.contains(','))
+    {
+        return None;
+    }
+
+    let path_chars: Vec<Vec<char>> = paths.iter().map(|path| path.chars().collect()).collect();
+    let first = path_chars.first()?;
+    let common_prefix_len = (0..first.len())
+        .take_while(|&index| path_chars.iter().all(|path| path.get(index) == first.get(index)))
+        .count();
+    let prefix: String = first[..common_prefix_len].iter().collect();
+    let mut common_suffix_len = 0;
+    while common_suffix_len < first.len().saturating_sub(common_prefix_len)
+        && path_chars.iter().all(|path| {
+            path.len()
+                .checked_sub(common_suffix_len + 1)
+                .and_then(|index| path.get(index))
+                == first.get(first.len() - common_suffix_len - 1)
+        })
+    {
+        common_suffix_len += 1;
+    }
+    let suffix: String = first[first.len() - common_suffix_len..].iter().collect();
+
+    let mut choices = Vec::with_capacity(paths.len());
+    for chars in &path_chars {
+        if chars.len() < common_prefix_len + common_suffix_len {
+            return None;
+        }
+        let choice: String = chars[common_prefix_len..chars.len() - common_suffix_len]
+            .iter()
+            .collect();
+        if choice.trim() != choice {
+            return None;
+        }
+        choices.push(choice);
+    }
+    if choices.iter().collect::<std::collections::HashSet<_>>().len() != choices.len() {
+        return None;
+    }
+
+    let rendered = format!("{}{{{}}}{}", prefix, choices.join(","), suffix);
+    let source_len: usize = paths.iter().map(String::len).sum();
+    let source_len = source_len + 2 * (paths.len() - 1);
+    (rendered.len() < source_len).then_some(rendered)
 }
 
 pub(crate) fn parse_task_detail(
@@ -1764,30 +1923,30 @@ pub(crate) fn parse_inline_list(s: &str) -> Vec<String> {
         .collect()
 }
 
-fn print_task_detail_human(detail: &TaskDetail) {
-    let marker = if detail.status == "done" { "x" } else { " " };
-    println!("[{}] {} — {}", marker, detail.id, detail.title);
+fn print_task_detail_human(detail: &TaskShowOutput) {
+    println!("id: {}", detail.id);
+    println!("title: {}", detail.title);
     println!("  type: {}", detail.r#type);
     println!("  priority: {}", detail.priority);
-    if !detail.refs.is_empty() {
-        println!("  refs: {}", detail.refs);
-    }
-    println!("  files:");
-    println!("    create: {:?}", detail.files.create);
-    println!("    modify: {:?}", detail.files.modify);
-    println!("    test: {:?}", detail.files.test);
-    if !detail.depends_on.is_empty() {
-        println!("  depends_on: {:?}", detail.depends_on);
-    }
-    println!("  parallel: {}", detail.parallel);
+    println!("  status: {}", detail.status);
+    println!("  refs: {}", detail.refs);
     println!("  complexity: {}", detail.complexity);
-    if !detail.done_when.is_empty() {
-        println!("  done_when:");
+    println!("  depends_on: {:?}", detail.depends_on);
+    println!("  parallel: {}", detail.parallel);
+    println!("  done_when:");
+    if detail.done_when.is_empty() {
+        println!("    []");
+    } else {
         for crit in &detail.done_when {
             println!("    - {}", crit);
         }
     }
-    println!("  file: {}", detail.file);
+    if let Some(files) = &detail.files {
+        println!("  files:");
+        println!("    create: {:?}", files.create);
+        println!("    modify: {:?}", files.modify);
+        println!("    test: {:?}", files.test);
+    }
 }
 
 // ─── Done ────────────────────────────────────────────────────────────────────

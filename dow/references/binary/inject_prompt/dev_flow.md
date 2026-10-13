@@ -18,7 +18,7 @@ Attend to the injected `dev-flow status` to understand the current state, and ma
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
-- Before starting a task, use `dow task show <ID>` for full context (done_when, files, refs). If `refs` exists, read corresponding SPEC sections.
+- Before starting tasks, use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `--verbose` to include compacted files. If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --file ...`).
 - **Completion sequence (MUST execute immediately, no delay):**
@@ -56,7 +56,7 @@ Examples:
 |-----------|---------|-------|
 | create | `echo '<JSON>' \| dow task create` | pipe JSON object or array to stdin; all fields required |
 | list | `dow task list [--all]` | default shows pending only |
-| show | `dow task show <ID>` | full detail with files, deps, done_when |
+| show | `dow task show <task-ids> [--verbose]` | concise details by default; `--verbose` includes compacted files |
 | update | `dow task update <ID> --field value` | only passed fields change; array fields support incremental syntax |
 | done/close | `dow task done <ID>` / `dow issue close <ID>` | marks complete |
 | remove | `dow task remove <ID>` | preview → confirm token (destructive) |

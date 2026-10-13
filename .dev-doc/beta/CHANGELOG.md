@@ -28,3 +28,6 @@
 - 01:09 fix: session-stop revoke_by_agent uses is_claim_owned_by for fuzzy matching
 - 01:21 fix: add Codex iterate permission guidance
 
+
+## 2026-10-14
+- 00:32 feat: install on-demand workflow guides under data_dir()/docs

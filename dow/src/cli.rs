@@ -133,8 +133,16 @@ pub enum TaskCommands {
     Remove(TaskRemoveArgs),
     /// List tasks (default: pending only)
     List(TaskListArgs),
-    /// Show task details
-    Show { id: String },
+    /// Show one or more task details
+    Show {
+        /// Task IDs
+        #[arg(required = true, num_args = 1..)]
+        ids: Vec<String>,
+
+        /// Include compacted file scopes
+        #[arg(long)]
+        verbose: bool,
+    },
     /// Mark task(s) as done
     Done { ids: Vec<String> },
     /// Reopen a completed task
