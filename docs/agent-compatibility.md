@@ -16,11 +16,14 @@ dev-flow provides identical workflow experience across all supported agents. The
 ## Shared File-Scope Input
 
 All agents use the same nested file-scope contract for task and issue
-create/update commands. CLI calls pass one JSON object through `--file`, for
-example `--file '{"modify":["src/main.rs"]}'`; stdin JSON places the object
-under the top-level `files` key. The `create` and `modify` lists are
-individually optional, but at least one must contain a non-empty path. Legacy
-flat file fields and `--files-*` flags are not part of the shared contract.
+create/update commands. Task CLI calls pass one JSON object through `--files`;
+issue CLI calls use `--file`. For example, task scope can use
+`--files '{"modify":["src/main.rs"]}'`. Task file paths also accept brace
+expressions for shared directory or filename prefixes/suffixes, and expand
+before storage. Stdin JSON places the nested object under the top-level
+`files` key. The `create` and `modify` lists are individually optional, but at
+least one must contain a non-empty path. Legacy flat file fields and
+`--files-*` flags are not part of the shared contract.
 
 ## Implementation Differences
 

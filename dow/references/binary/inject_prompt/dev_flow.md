@@ -20,7 +20,7 @@ Attend to the injected `dev-flow status` to understand the current state, and ma
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
 - Before starting tasks, use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `--verbose` to include compacted files. If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
-- Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --file ...`).
+- Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --files ...`).
 - **Completion sequence (MUST execute immediately, no delay):**
   - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success)
   - Issue fixed: `dow issue close <ID>` (auto-revokes claim on success)
@@ -72,7 +72,7 @@ Nested `files` arrays, `depends_on`, and `done_when` support incremental operati
 - `-item` → remove
 
 ```bash
-dow task update T001 --file '{"modify":["+new.rs","-old.rs"]}'   # append new.rs, remove old.rs
+dow task update T001 --files '{"modify":["+new.rs","-old.rs"]}'   # append new.rs, remove old.rs
 dow task update T001 --done-when "+新验收标准"            # append criterion
 ```
 
@@ -84,7 +84,8 @@ If NO item has `+`/`-` prefix → full replacement (backward compatible). Mixing
 {"title":"string", "type":"feat|fix|refactor|docs|perf|test|style", "priority":"P0|P1|P2", "refs":"string", "files":{"create":[], "modify":["src/a.rs"], "test":[]}, "depends_on":[], "parallel":false, "complexity":"S|M|L", "done_when":["criterion"]}
 ```
 `files.create` and `files.modify` are individually optional, but at least one
-must contain a non-empty path. CLI input uses `--file '{"modify":["src/a.rs"]}'`.
+must contain a non-empty path. CLI input uses `--files '{"modify":["src/a.rs"]}'`.
+`--files` supports brace expressions to combine common prefixes or suffixes in task paths.
 
 #### issue create — nested file scope
 

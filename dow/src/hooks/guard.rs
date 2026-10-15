@@ -594,7 +594,7 @@ fn check_agent_file_access(
         return Some(format!(
             "[dev-flow BLOCKED] claimed item(s) ({}) have no declared files. \
             Writing to {} is not allowed.\n\
-            → `dow task update <ID> --file '{{\"modify\":[\"+{}\"]}}'` to declare file scope.",
+            → `dow task update <ID> --files '{{\"modify\":[\"+{}\"]}}'` to declare file scope.",
             ids_display,
             path.display(),
             path.relative_to(project_root)
@@ -620,7 +620,7 @@ fn check_agent_file_access(
         Some(format!(
             "[dev-flow BLOCKED] file {} is outside claimed task's declared scope.\n\
             Allowed files: {}\n\
-            → `dow task update <ID> --file '{{\"modify\":[\"+{}\"]}}'` to add it.",
+            → `dow task update <ID> --files '{{\"modify\":[\"+{}\"]}}'` to add it.",
             path.display(),
             allowed_files.join(", "),
             rel_str
@@ -881,7 +881,7 @@ fn extract_apply_patch_targets(tool_input: &serde_json::Value) -> Vec<String> {
 /// metadata arguments out of the path scanner.
 fn extract_command_targets(cmd: &str) -> Vec<String> {
     // A trusted flow-management command may contain values such as
-    // `src/example.rs` in --file, refs, or stdin JSON.
+    // `src/example.rs` in --files, refs, or stdin JSON.
     // Those values describe the task; they are not writes performed by Bash.
     // Classify this command before scanning metadata so prose cannot create
     // fake targets. Shell operators make the command ineligible for trust and

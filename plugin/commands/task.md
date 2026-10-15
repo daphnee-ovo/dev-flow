@@ -77,7 +77,7 @@ individually optional, but at least one must contain a non-empty path;
 
 ```bash
 dow task create --title "Add auth" --type feat --priority P1 --refs user-request \
-  --file '{"modify":["src/auth.rs"],"test":["tests/auth.rs"]}' \
+  --files '{"modify":["src/auth.rs"],"test":["tests/auth.rs"]}' \
   --depends-on "" --complexity S --done-when "auth works"
 ```
 
@@ -98,7 +98,7 @@ allowed values.
 
 **Incremental update**: array fields support `+item` (append) / `-item` (remove) syntax:
 ```bash
-dow task update T001 --file '{"modify":["+new.rs","-old.rs"]}'
+dow task update T001 --files '{"modify":["+new.rs","-old.rs"]}'
 dow task update T001 --done-when "+新验收标准"
 ```
 Without `+`/`-` prefix = full replacement. Applies to the nested `files`

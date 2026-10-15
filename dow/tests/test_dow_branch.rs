@@ -488,7 +488,7 @@ fn test_guard_allows_task_create_metadata_paths_without_claim() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --title 'fix example' --file '{\"modify\":[\"src/example.rs\"],\"create\":[\"src/generated.rs\"]}'"
+            "command": "dow task create --title 'fix example' --files '{\"modify\":[\"src/example.rs\"],\"create\":[\"src/generated.rs\"]}'"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -514,7 +514,7 @@ fn test_guard_allows_flow_create_with_prose_metadata() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --title 'fix example' --refs 'GitHub issue prose: tee cp mv sed perl dd and > are data' --file '{\"modify\":[\"dow/src/hooks/guard.rs\"],\"test\":[\"dow/tests/test_dow_branch.rs\"]}' --complexity M --done-when 'criterion one,criterion two'"
+            "command": "dow task create --title 'fix example' --refs 'GitHub issue prose: tee cp mv sed perl dd and > are data' --files '{\"modify\":[\"dow/src/hooks/guard.rs\"],\"test\":[\"dow/tests/test_dow_branch.rs\"]}' --complexity M --done-when 'criterion one,criterion two'"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -676,7 +676,7 @@ fn test_guard_allows_task_create_refs_containing_tee_word() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --title 'fix example' --priority P0 --refs 'User-defined send steer queue interaction-group semantics' --file '{\"modify\":[\"crates/rozsa-app/src/agent_session.rs\",\"crates/rozsa-gui/src/commands.rs\"],\"test\":[\"crates/rozsa-gui/tests/turn_diff_test.rs\"]}' --complexity L --done-when 'Interaction summary works'"
+            "command": "dow task create --title 'fix example' --priority P0 --refs 'User-defined send steer queue interaction-group semantics' --files '{\"modify\":[\"crates/rozsa-app/src/agent_session.rs\",\"crates/rozsa-gui/src/commands.rs\"],\"test\":[\"crates/rozsa-gui/tests/turn_diff_test.rs\"]}' --complexity L --done-when 'Interaction summary works'"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -728,7 +728,7 @@ fn test_guard_allows_positional_trusted_flow_command() {
         .args([
             "hooks",
             "guard",
-            "dow task create --file '{\"modify\":[\"src/example.rs\"]}'",
+            "dow task create --files '{\"modify\":[\"src/example.rs\"]}'",
         ])
         .current_dir(&dir)
         .output()
@@ -747,7 +747,7 @@ fn test_guard_allows_absolute_current_dow_metadata_command() {
     let dir = create_test_dir();
     setup_dev_all_done(&dir);
     let command = format!(
-        "{} task create --file '{{\"modify\":[\"src/example.rs\"]}}'",
+        "{} task create --files '{{\"modify\":[\"src/example.rs\"]}}'",
         env!("CARGO_BIN_EXE_dow")
     );
 
@@ -773,7 +773,7 @@ fn test_guard_does_not_exempt_flow_command_with_redirect() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --file '{\"modify\":[\"src/example.rs\"]}' > output"
+            "command": "dow task create --files '{\"modify\":[\"src/example.rs\"]}' > output"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))
@@ -799,7 +799,7 @@ fn test_guard_does_not_exempt_flow_command_with_tee() {
     let tool_input = serde_json::json!({
         "tool_name": "Bash",
         "tool_input": {
-            "command": "dow task create --file '{\"modify\":[\"src/example.rs\"]}' | tee output"
+            "command": "dow task create --files '{\"modify\":[\"src/example.rs\"]}' | tee output"
         }
     });
     let output = Command::new(env!("CARGO_BIN_EXE_dow"))

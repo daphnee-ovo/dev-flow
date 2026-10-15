@@ -31,3 +31,4 @@
 
 ## 2026-10-14
 - 00:32 feat: install on-demand workflow guides under data_dir()/docs
+- 00:43 feat: simplify task show output

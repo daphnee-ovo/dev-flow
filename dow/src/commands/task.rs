@@ -298,7 +298,7 @@ fn create(args: TaskCreateArgs, _human: bool) -> Result<i32, DowError> {
     let tasks = resolve_create_input(args)?;
     if tasks.is_empty() {
         return Err(DowError::new(
-            "no task input provided; use CLI options (--title, --type, --priority, --refs, --file, --depends-on, --complexity, --done-when) or pipe a task JSON object/array to stdin",
+            "no task input provided; use CLI options (--title, --type, --priority, --refs, --files, --depends-on, --complexity, --done-when) or pipe a task JSON object/array to stdin",
             2,
         ));
     }
@@ -363,7 +363,7 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
         task_type,
         priority,
         refs,
-        file,
+        files,
         depends_on,
         parallel,
         complexity,
@@ -376,11 +376,11 @@ fn resolve_create_input(args: TaskCreateArgs) -> Result<Vec<TaskInput>, DowError
         task_type: required_cli_value(task_type, "--type", "type", &mut errors),
         priority: required_cli_value(priority, "--priority", "priority", &mut errors),
         refs: required_cli_value(refs, "--refs", "refs", &mut errors),
-        files: match file {
+        files: match files {
             Some(value) => parse_task_files_arg_value(&value, "files", &mut errors),
             None => {
                 errors.push(
-                    "--file is required (JSON: files; expected a JSON object with create/modify/test arrays)",
+                    "--files is required (JSON: files; expected a JSON object with create/modify/test arrays)",
                 );
                 None
             }
@@ -499,7 +499,7 @@ fn has_any_task_create_flag(args: &TaskCreateArgs) -> bool {
         || args.task_type.is_some()
         || args.priority.is_some()
         || args.refs.is_some()
-        || args.file.is_some()
+        || args.files.is_some()
         || args.depends_on.is_some()
         || args.complexity.is_some()
         || args.done_when.is_some()
@@ -541,7 +541,7 @@ fn required_cli_value(
 fn parse_task_files_arg(value: &str) -> Result<TaskFilesInput, DowError> {
     let json: Value = serde_json::from_str(value).map_err(|error| {
         invalid_json_error(
-            "--file",
+            "--files",
             &error,
             "expected an object such as {\"modify\":[\"src/example.rs\"]}",
         )
@@ -552,10 +552,10 @@ fn parse_task_files_arg(value: &str) -> Result<TaskFilesInput, DowError> {
         validate_task_file_scope(files, "", &mut errors);
     }
     errors.finish(
-        "--file",
+        "--files",
         "expected an object with optional create/modify/test arrays and at least one non-empty create or modify path",
     )?;
-    files.ok_or_else(|| DowError::new("--file: invalid file scope", 2))
+    files.ok_or_else(|| DowError::new("--files: invalid file scope", 2))
 }
 
 fn parse_task_files_arg_value(
@@ -1060,7 +1060,7 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         || args.task_type.is_some()
         || args.priority.is_some()
         || args.refs.is_some()
-        || args.file.is_some()
+        || args.files.is_some()
         || args.depends_on.is_some()
         || args.parallel.is_some()
         || args.complexity.is_some()
@@ -1082,7 +1082,7 @@ fn resolve_update_input(args: TaskUpdateArgs) -> Result<TaskUpdateInput, DowErro
         priority: args.priority,
         refs: args.refs,
         files: args
-            .file
+            .files
             .map(|value| parse_task_files_arg(&value))
             .transpose()?,
         depends_on: args.depends_on.map(|s| split_comma(&Some(s))),

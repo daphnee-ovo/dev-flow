@@ -169,9 +169,9 @@ pub struct TaskCreateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// File scope as a JSON object: {"create":[],"modify":[],"test":[]}
+    /// File scopes as JSON; brace expressions are expanded in each path
     #[arg(long)]
-    pub file: Option<String>,
+    pub files: Option<String>,
 
     /// Dependencies (comma-separated task IDs)
     #[arg(long)]
@@ -228,9 +228,9 @@ pub struct TaskUpdateArgs {
     #[arg(long)]
     pub refs: Option<String>,
 
-    /// File scope as a JSON object; array items support +item/-item updates
+    /// File scopes as JSON; brace expressions and +item/-item updates are supported
     #[arg(long)]
-    pub file: Option<String>,
+    pub files: Option<String>,
 
     /// Dependencies (comma-separated task IDs; +item to append, -item to remove)
     #[arg(long)]
