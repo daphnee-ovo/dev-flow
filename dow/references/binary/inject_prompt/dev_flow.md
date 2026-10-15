@@ -46,6 +46,7 @@ Examples:
 
 ### .dev-doc management
 - Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands. Never Read/Write directly.
+- `.dev-doc/` documents are archived by `/iterate`; do not use them as the basis for persistent content such as Git commit messages or long-lived, maintained documentation.
 - Document files (PRD.md/SPEC.md/BRAINSTORM.md): Create via dow (`dow prd create` etc), edit directly after creation.
 - **When unsure about any dow command syntax, run `dow <command> --help` first.**
 - Commands with `--confirm` tokens (remove, reopen, iterate) are destructive or hard to reverse. NEVER generate or execute them without explicit user approval — always show the action and token to the user first and wait for confirmation. The preview and the confirmed execution MUST happen in separate turns.
