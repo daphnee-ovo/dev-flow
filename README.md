@@ -175,6 +175,7 @@ No manual operations needed:
 
 - **Context injection** — injects current phase status and spec reminders on every message
 - **Task close test gate** — dow task done TASK-ID runs dow test TASK-ID before changing the Task file
+- **Verbose task completion** — `--verbose` adds test output and completion status
 - **Doc sync check** — reminds you to sync documentation when code changes
 - **Changelog save** — automatically saves changelog on conversation end
 - **System temp blocking** — prevents writing to system temp directories; project-local `tmp` and `temp` are allowed, and new projects default to `tmp`
@@ -229,6 +230,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 - **Dependency check** — blocks claiming if upstream dependencies are unresolved
 - **File scope enforcement** — guard hook warns when writing outside declared files
 - **Claim lock** — stored in `.dev-doc/<branch>/claim.lock`, prevents concurrent claims
+- **Verbose claim details** — `dow claim <ID> --verbose` (or `-v`) prints the claimed item and its remaining claim time; `dow task show --verbose` also accepts `-v`
 - **In Progress visibility** — claimed items appear in the dashboard's In Progress column
 
 ### Issue Tracking
@@ -279,8 +281,9 @@ Commands, skills, and agents are shared across platforms. Hooks call the global 
 | `dow update` | Self-update binary + plugins |
 | `dow doctor [--fix]` | Diagnose .dev-doc structure, spec, and consistency |
 | `dow status` | Read/write STATUS.yaml |
-| `dow claim <TASK-ID\|ISSUE-ID>` | Claim a task or issue (with dependency check) |
+| `dow claim <TASK-ID\|ISSUE-ID> [--verbose\|-v]` | Claim a task or issue; verbose mode prints its details and remaining time |
 | `dow task create/update/show/list` | Task lifecycle management |
+| `dow task done <TASK-ID...> [--verbose\|-v]` | Complete tasks (`--verbose` adds test output and completion status) |
 | `dow issue create/update/close/show/list` | Issue lifecycle management |
 | `dow fix` | Compatibility alias for `dow doctor --fix` |
 | `dow test` | Full project-level test suite |

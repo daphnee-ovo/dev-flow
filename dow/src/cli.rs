@@ -140,11 +140,17 @@ pub enum TaskCommands {
         ids: Vec<String>,
 
         /// Include compacted file scopes
-        #[arg(long)]
+        #[arg(short = 'v', long)]
         verbose: bool,
     },
     /// Mark task(s) as done
-    Done { ids: Vec<String> },
+    Done {
+        ids: Vec<String>,
+
+        /// Stream test output and show the completion result
+        #[arg(short = 'v', long)]
+        verbose: bool,
+    },
     /// Reopen a completed task
     Reopen(TaskReopenArgs),
     /// Output task field schema
@@ -567,6 +573,10 @@ pub struct ClaimArgs {
     /// Claim duration in seconds (max 1800, default 600)
     #[arg(long)]
     pub timeout: Option<u64>,
+
+    /// Show claimed item details and remaining claim time
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────

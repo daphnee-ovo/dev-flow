@@ -18,11 +18,11 @@ Attend to the injected `dev-flow status` to understand the current state, and ma
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
-- Before starting tasks, use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `--verbose` to include compacted files. If `refs` exists, read corresponding SPEC sections.
+- Before starting tasks, use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `-v` to include compacted files. If `refs` exists, read corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --files ...`).
 - **Completion sequence (MUST execute immediately, no delay):**
-  - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success)
+  - Task done: `dow task done <ID>` (auto-runs tests, auto-revokes claim on success); add `-v` to stream test output and show completion status
   - Issue fixed: `dow issue close <ID>` (auto-revokes claim on success)
   - Do NOT defer these commands. Execute them as soon as the work is verified complete — before moving to the next task, before responding to the user, before any other action.
 - After all tasks complete, ask whether the user wants to enter `/test`. Never enter TEST or launch the TEST agent without an explicit user request.
@@ -57,9 +57,10 @@ Examples:
 |-----------|---------|-------|
 | create | `echo '<JSON>' \| dow task create` | pipe JSON object or array to stdin; all fields required |
 | list | `dow task list [--all]` | default shows pending only |
-| show | `dow task show <task-ids> [--verbose]` | concise details by default; `--verbose` includes compacted files |
+| show | `dow task show <task-ids> [-v]` | concise details by default; `-v` includes compacted files |
+| claim | `dow claim <TASK-ID or ISSUE-ID> [-v]` | `-v` shows the claimed item and remaining time |
 | update | `dow task update <ID> --field value` | only passed fields change; array fields support incremental syntax |
-| done/close | `dow task done <ID>` / `dow issue close <ID>` | marks complete |
+| done/close | `dow task done <ID> [-v]` / `dow issue close <ID>` | `-v` streams tests and shows completion status |
 | remove | `dow task remove <ID>` | preview → confirm token (destructive) |
 | reopen | `dow task reopen <ID>` | preview → confirm token (destructive) |
 | schema | `dow task schema` | outputs field definitions |

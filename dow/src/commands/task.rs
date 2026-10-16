@@ -93,6 +93,7 @@ use crate::commands::input_validation::{
     field_path, invalid_json_error, object, optional_bool, optional_string, optional_string_array,
     required_bool, required_string, required_string_array, unknown_fields, ValidationErrors,
 };
+use crate::commands::test_execution::{TestOutcome, TestProgress};
 use crate::commands::test_runner;
 use crate::core::{claim, doc_root, item_id, task_store};
 use crate::error::DowError;
@@ -101,7 +102,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::io::{self, Read as _};
+use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 // ─── Data Structures ─────────────────────────────────────────────────────────
@@ -279,9 +280,9 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
             let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
             show(&ids, human, verbose)
         }
-        TaskCommands::Done { ids } => {
+        TaskCommands::Done { ids, verbose } => {
             let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
-            done_multi(&ids)
+            done_multi(&ids, verbose)
         }
         TaskCommands::Reopen(args) => {
             let mut args = args;
@@ -1951,12 +1952,29 @@ fn print_task_detail_human(detail: &TaskShowOutput) {
 
 // ─── Done ────────────────────────────────────────────────────────────────────
 
-fn done_multi(ids: &[String]) -> Result<i32, DowError> {
+struct DoneResult {
+    has_tests: bool,
+    completed: bool,
+    exit_code: i32,
+}
+
+fn done_multi(ids: &[String], verbose: bool) -> Result<i32, DowError> {
     if ids.is_empty() {
         return Err(DowError::new("dow task done requires at least one ID", 2));
     }
+
+    let mut statuses = Vec::with_capacity(ids.len());
+    let mut had_tests = false;
     for id in ids {
-        done_single(id)?;
+        let result = done_single(id, verbose)?;
+        had_tests |= result.has_tests;
+        statuses.push((id.as_str(), result.completed));
+        if !result.completed {
+            if verbose {
+                print_task_done_summary(&statuses, had_tests);
+            }
+            return Ok(result.exit_code);
+        }
     }
 
     // Auto-revoke claims for completed tasks
@@ -1966,17 +1984,46 @@ fn done_multi(ids: &[String]) -> Result<i32, DowError> {
         let _ = claim::revoke_claims(&doc_root_path, Some(&normalized));
     }
 
+    if verbose {
+        print_task_done_summary(&statuses, had_tests);
+    }
+
     Ok(0)
 }
 
-fn done_single(id: &str) -> Result<i32, DowError> {
+fn done_single(id: &str, verbose: bool) -> Result<DoneResult, DowError> {
     let task_dir = resolve_task_dir()?;
     let all_files = task_store::iter_task_files(&task_dir);
 
     for path in &all_files {
         if let Ok(content) = fs::read_to_string(path) {
             if content.contains(&format!("- [ ] {}:", id)) {
-                test_runner::check_task_test(id)?;
+                let test_check = if verbose {
+                    let mut output_needs_newline = false;
+                    Some(test_runner::check_task_test_verbose(
+                        id,
+                        |progress| {
+                            print_verbose_test_progress(
+                                id,
+                                &mut output_needs_newline,
+                                progress,
+                            )
+                        },
+                    ))
+                } else {
+                    test_runner::check_task_test(id)?;
+                    None
+                };
+
+                if let Some(check) = &test_check {
+                    if !check.passed {
+                        return Ok(DoneResult {
+                            has_tests: check.has_tests,
+                            completed: false,
+                            exit_code: check.exit_code,
+                        });
+                    }
+                }
 
                 let new_content =
                     content.replace(&format!("- [ ] {}:", id), &format!("- [x] {}:", id));
@@ -2021,12 +2068,93 @@ fn done_single(id: &str) -> Result<i32, DowError> {
                     atomic_write(path, &new_content)?;
                 }
 
-                return Ok(0);
+                return Ok(DoneResult {
+                    has_tests: test_check.map(|check| check.has_tests).unwrap_or(false),
+                    completed: true,
+                    exit_code: 0,
+                });
             }
         }
     }
 
     Err(DowError::new(format!("pending task {} not found", id), 1))
+}
+
+fn print_verbose_test_progress(
+    task_id: &str,
+    output_needs_newline: &mut bool,
+    progress: TestProgress,
+) {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+
+    match progress {
+        TestProgress::Started { label } => {
+            if *output_needs_newline {
+                let _ = writeln!(stdout);
+                *output_needs_newline = false;
+            }
+            let _ = writeln!(stdout, "[dev-flow] {} {}", task_id, label);
+        }
+        TestProgress::Output { text } => {
+            let _ = stdout.write_all(text.as_bytes());
+            *output_needs_newline = !text.ends_with('\n');
+        }
+        TestProgress::Finished { label, outcome } => {
+            if *output_needs_newline {
+                let _ = writeln!(stdout);
+                *output_needs_newline = false;
+            }
+            let outcome = match outcome {
+                TestOutcome::Pass => "PASS",
+                TestOutcome::TestFailed => "FAIL",
+                TestOutcome::PreconditionFailed => "PRECONDITION FAILED",
+            };
+            let _ = writeln!(stdout, "{} {} {}", task_id, label, outcome);
+        }
+    }
+
+    let _ = stdout.flush();
+}
+
+fn print_task_done_summary(statuses: &[(&str, bool)], had_tests: bool) {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    if had_tests {
+        let _ = writeln!(stdout, "---");
+        let completed = statuses
+            .iter()
+            .filter_map(|(id, completed)| (*completed).then_some(*id))
+            .collect::<Vec<_>>();
+        let failed = statuses
+            .iter()
+            .filter_map(|(id, completed)| (!*completed).then_some(*id))
+            .collect::<Vec<_>>();
+        let mut summary = Vec::with_capacity(2);
+        if !completed.is_empty() {
+            summary.push(format!("{} completed", completed.join(", ")));
+        }
+        if !failed.is_empty() {
+            summary.push(format!("{} failed", failed.join(", ")));
+        }
+        let _ = writeln!(stdout, "[dev-flow] {}", summary.join(", "));
+    } else {
+        let completed = statuses
+            .iter()
+            .filter_map(|(id, completed)| (*completed).then_some(*id))
+            .collect::<Vec<_>>();
+        let failed = statuses
+            .iter()
+            .filter_map(|(id, completed)| (!*completed).then_some(*id))
+            .collect::<Vec<_>>();
+        if !completed.is_empty() {
+            let _ = writeln!(stdout, "[dev-flow] {} completed", completed.join(", "));
+        }
+        if !failed.is_empty() {
+            let _ = writeln!(stdout, "[dev-flow] {} failed", failed.join(", "));
+        }
+    }
+    let _ = stdout.flush();
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<(), DowError> {

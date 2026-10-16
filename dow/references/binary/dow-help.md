@@ -14,10 +14,10 @@ Modes:
 
 DEV phase rules:
   - When hook output contains [BLOCKED], stop all dev operations.
-  - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min; use `--timeout <secs>` for longer tasks, max 600).
-  - Use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `--verbose` to include compacted files.
+  - Before starting a task, run `dow claim <TASK-ID>` (expires 5 min; use `--timeout <secs>` for longer tasks, max 600). Add `-v` to show the claimed item and remaining time.
+  - Use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `-v` to include compacted files.
   - Only do tasks listed in `dow task list` — no more, no less.
-  - `dow task done <ID>` auto-runs tests and auto-revokes claim on success. After all tasks, run `dow test`.
+  - `dow task done <ID>` auto-runs tests and auto-revokes claim on success; add `-v` to show test output and completion status. After all tasks, run `dow test`.
 
 .dev-doc management:
   Structural files (task/issue/STATUS/CHANGELOG): ALL operations through dow commands.

@@ -175,6 +175,7 @@ dev-flow 的核心不是堆叠更多流程、角色和文档，而是在保持�
 
 - **上下文注入** — 每次对话注入当前阶段状态和规范提醒
 - **Task 关闭测试门禁** — dow task done TASK-ID 在改写 Task 前先执行 dow test TASK-ID
+- **Task 完成明细** — `--verbose` 可额外显示测试输出和完成状态
 - **文档同步检查** — 代码变更时提醒同步文档
 - **变更日志** — 会话结束时自动保存 CHANGELOG
 - **系统临时目录拦截** — 禁止写入系统临时目录；项目内 `tmp` 和 `temp` 都允许，新项目默认使用 `tmp`
@@ -227,6 +228,7 @@ run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
 - **依赖检查** — 上游依赖未解决时阻止认领
 - **文件范围保护** — guard hook 在写入声明文件之外时发出警告
 - **认领锁** — 存储在 `.dev-doc/<分支>/claim.lock`，防止并发认领
+- **认领明细** — `dow claim <ID> --verbose`（或 `-v`）显示认领项及剩余时间；`dow task show --verbose` 也支持 `-v`
 - **In Progress 可见性** — 已认领在看板的 In Progress 列显示
 
 ### Issue 跟踪
@@ -277,8 +279,9 @@ dev-flow 同时支持 **Claude Code** 和 **OpenAI Codex CLI**，通过共享插
 | `dow update` | 自更新二进制 + 插件 |
 | `dow doctor [--fix]` | 诊断 .dev-doc 结构和规范一致性 |
 | `dow status` | 读写 STATUS.yaml |
-| `dow claim <TASK-ID\|ISSUE-ID>` | 认领 task 或 issue（含依赖检查） |
+| `dow claim <TASK-ID\|ISSUE-ID> [--verbose\|-v]` | 认领 task 或 issue；verbose 显示明细和剩余时间 |
 | `dow task create/update/show/list` | Task 全生命周期管理 |
+| `dow task done <TASK-ID...> [--verbose\|-v]` | 完成 task（`--verbose` 额外显示测试输出和完成状态） |
 | `dow issue create/update/close/show/list` | Issue 全生命周期管理 |
 | `dow fix` | `dow doctor --fix` 的兼容别名 |
 | `dow test` | 项目级全量测试 |

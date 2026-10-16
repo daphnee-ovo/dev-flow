@@ -13,6 +13,7 @@ use crate::output;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize)]
 struct ClaimStatus {
@@ -94,22 +95,36 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
 
         for id in &normalized {
             let show_id = item_id::normalize_full(id);
+            let show_human = human || args.verbose;
             match item_id::parse(id).map(|parsed| parsed.kind) {
                 Some(item_id::ItemKind::Task) => {
                     task_cmd::run(
                         TaskCommands::Show {
-                            ids: vec![show_id],
-                            verbose: false,
+                            ids: vec![show_id.clone()],
+                            verbose: args.verbose,
                         },
-                        human,
+                        show_human,
                     )?;
                 }
                 Some(item_id::ItemKind::Issue) => {
-                    issue_cmd::run(IssueCommands::Show { id: show_id }, human)?;
+                    issue_cmd::run(
+                        IssueCommands::Show {
+                            id: show_id.clone(),
+                        },
+                        show_human,
+                    )?;
                 }
                 None => {
                     return Err(DowError::new(format!("Invalid claimed item ID: {}", id), 1));
                 }
+            }
+
+            if args.verbose {
+                let remaining_secs = claim_remaining_seconds(&doc_root_path, id)?;
+                println!(
+                    "[dev-flow] Claim {}: {} seconds remaining",
+                    show_id, remaining_secs
+                );
             }
         }
 
@@ -177,6 +192,27 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
     }
 
     Ok(0)
+}
+
+fn claim_remaining_seconds(doc_root_path: &std::path::Path, id: &str) -> Result<u64, DowError> {
+    let lock = claim::read_claim_lock(doc_root_path)
+        .ok_or_else(|| DowError::new("claim succeeded but claim.lock could not be read", 1))?;
+    let item = lock
+        .claims
+        .iter()
+        .find(|item| item.id == id)
+        .ok_or_else(|| {
+            DowError::new(
+                format!("claim succeeded but {} is missing from claim.lock", id),
+                1,
+            )
+        })?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let elapsed = now.saturating_sub(item.ts);
+    Ok(lock.ttl.saturating_sub(elapsed))
 }
 
 /// Validate claim IDs: returns (invalid_ids, duplicate_ids)

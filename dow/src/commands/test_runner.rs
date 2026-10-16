@@ -1,6 +1,8 @@
 use super::test_adapters::{self, TestTarget};
 use super::test_config;
-use super::test_execution::{execute_plans, TestFailure, TestOutcome, TestSummary};
+use super::test_execution::{
+    execute_plans_with_progress, TestFailure, TestOutcome, TestProgress, TestSummary,
+};
 use crate::cli::TestArgs;
 use crate::commands::issue::{create_issue_batch, IssueCreateRecord};
 use crate::core::doc_root;
@@ -41,6 +43,12 @@ struct RunResult {
     summary: TestSummary,
 }
 
+pub(crate) struct TaskTestCheck {
+    pub(crate) has_tests: bool,
+    pub(crate) passed: bool,
+    pub(crate) exit_code: i32,
+}
+
 pub fn run(args: TestArgs, human: bool) -> Result<i32, DowError> {
     let target = args
         .task_id
@@ -58,29 +66,49 @@ pub(crate) fn check_task_test(task_id: &str) -> Result<(), DowError> {
         return Ok(());
     }
 
-    let message = result
-        .summary
-        .failures
-        .iter()
-        .map(TestFailure::raw_message)
-        .collect::<Vec<_>>()
-        .join("\n");
-    Err(DowError::new(message, result.summary.exit_code()))
+    Err(DowError::new(
+        failure_message(&result.summary),
+        result.summary.exit_code(),
+    ))
+}
+
+pub(crate) fn check_task_test_verbose(
+    task_id: &str,
+    on_progress: impl FnMut(TestProgress),
+) -> TaskTestCheck {
+    let target = TestTarget::Task(task_id.to_string());
+    let result = execute_target_with_progress(&target, on_progress);
+    TaskTestCheck {
+        has_tests: result.summary.total > 0,
+        passed: result.status == TestRunStatus::Pass,
+        exit_code: result.summary.exit_code(),
+    }
 }
 
 fn execute_target(target: &TestTarget) -> RunResult {
+    execute_target_with_progress(target, |_| {})
+}
+
+fn execute_target_with_progress(
+    target: &TestTarget,
+    on_progress: impl FnMut(TestProgress),
+) -> RunResult {
     let project_root = doc_root::project_root();
     let config = match test_config::load(&project_root) {
         Ok(config) => config,
-        Err(error) => return precondition_result("test.ci", error.to_string()),
+        Err(error) => {
+            return precondition_result("test.ci", error.to_string(), on_progress);
+        }
     };
 
     let plans = match test_adapters::build_plans(target, &project_root, config.as_ref()) {
         Ok(plans) => plans,
-        Err(error) => return precondition_result("test target", error.to_string()),
+        Err(error) => {
+            return precondition_result("test target", error.to_string(), on_progress);
+        }
     };
 
-    let summary = execute_plans(&plans);
+    let summary = execute_plans_with_progress(&plans, on_progress);
     let status = TestRunStatus::from(summary.outcome());
     if status == TestRunStatus::TestFailed {
         create_test_issues(target, &summary, &project_root);
@@ -89,7 +117,31 @@ fn execute_target(target: &TestTarget) -> RunResult {
     RunResult { status, summary }
 }
 
-fn precondition_result(label: &str, message: String) -> RunResult {
+fn failure_message(summary: &TestSummary) -> String {
+    summary
+        .failures
+        .iter()
+        .map(TestFailure::raw_message)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn precondition_result(
+    label: &str,
+    message: String,
+    mut on_progress: impl FnMut(TestProgress),
+) -> RunResult {
+    on_progress(TestProgress::Started {
+        label: label.to_string(),
+    });
+    on_progress(TestProgress::Output {
+        text: format!("{}\n", message),
+    });
+    on_progress(TestProgress::Finished {
+        label: label.to_string(),
+        outcome: TestOutcome::PreconditionFailed,
+    });
+
     let failure = TestFailure {
         label: label.to_string(),
         command: String::new(),
