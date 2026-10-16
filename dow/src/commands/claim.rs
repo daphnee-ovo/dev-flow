@@ -102,6 +102,7 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
                         TaskCommands::Show {
                             ids: vec![show_id.clone()],
                             verbose: args.verbose,
+                            fields: None,
                         },
                         show_human,
                     )?;
@@ -109,7 +110,9 @@ pub fn run(args: ClaimArgs, human: bool) -> Result<i32, DowError> {
                 Some(item_id::ItemKind::Issue) => {
                     issue_cmd::run(
                         IssueCommands::Show {
-                            id: show_id.clone(),
+                            ids: vec![show_id.clone()],
+                            verbose: args.verbose,
+                            fields: None,
                         },
                         show_human,
                     )?;

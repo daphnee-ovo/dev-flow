@@ -25,6 +25,15 @@ before storage. Stdin JSON places the nested object under the top-level
 least one must contain a non-empty path. Legacy flat file fields and
 `--files-*` flags are not part of the shared contract.
 
+## Task and Issue Details
+
+Use `dow show <task-ids/issue-ids>` to display task or issue details; IDs may
+be mixed in one command. `dow task show` and `dow issue show` remain aliases.
+Task output keeps its existing default fields. Issue output defaults to `id`,
+`title`, `severity`, `description`, `reproduce`, and `status`; `-v` adds
+`location` and compacted `files`. Use `--fields files,done_when` to select
+fields, with `id` and `title` always included.
+
 ## Implementation Differences
 
 These are not limitations — just how each agent platform surfaces the same capabilities:

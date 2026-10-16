@@ -276,10 +276,11 @@ pub fn run(command: TaskCommands, human: bool) -> Result<i32, DowError> {
             remove(args, human)
         }
         TaskCommands::List(args) => list(args, human),
-        TaskCommands::Show { ids, verbose } => {
-            let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
-            show(&ids, human, verbose)
-        }
+        TaskCommands::Show {
+            ids,
+            verbose,
+            fields,
+        } => crate::commands::show::run(ids, Some(item_id::ItemKind::Task), human, verbose, fields),
         TaskCommands::Done { ids, verbose } => {
             let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
             done_multi(&ids, verbose)
@@ -1603,61 +1604,38 @@ fn parse_all_tasks_in_file(content: &str, filename: &str) -> Vec<TaskListItem> {
 
 // ─── Show ────────────────────────────────────────────────────────────────────
 
-fn show(ids: &[String], human: bool, verbose: bool) -> Result<i32, DowError> {
-    if ids.is_empty() {
-        return Err(DowError::new("dow task show requires at least one ID", 2));
-    }
-
+pub(crate) fn show_value(id: &str, include_files: bool) -> Result<Value, DowError> {
+    let id = item_id::normalize_full(id);
     let task_dir = resolve_task_dir()?;
     let all_files = all_task_files_including_done(&task_dir);
-    let mut details = Vec::with_capacity(ids.len());
-
-    for id in ids {
-        let mut found = None;
-        for path in &all_files {
-            let filename = path.file_name().unwrap().to_string_lossy().to_string();
-            if let Ok(content) = fs::read_to_string(path) {
-                if let Some(detail) = parse_task_detail(&content, id, &filename) {
-                    found = Some(detail);
-                    break;
-                }
+    let mut found = None;
+    for path in &all_files {
+        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Some(detail) = parse_task_detail(&content, &id, &filename) {
+                found = Some(detail);
+                break;
             }
         }
-
-        details.push(found.ok_or_else(|| DowError::new(format!("task {} not found", id), 1))?);
     }
 
-    let shown: Vec<TaskShowOutput> = details
-        .into_iter()
-        .map(|detail| TaskShowOutput {
-            id: detail.id,
-            title: detail.title,
-            r#type: detail.r#type,
-            priority: detail.priority,
-            status: detail.status,
-            refs: detail.refs,
-            complexity: detail.complexity,
-            depends_on: detail.depends_on,
-            parallel: detail.parallel,
-            done_when: detail.done_when,
-            files: verbose.then(|| compact_task_files(detail.files)),
-        })
-        .collect();
+    let detail = found.ok_or_else(|| DowError::new(format!("task {} not found", id), 1))?;
+    let shown = TaskShowOutput {
+        id: detail.id,
+        title: detail.title,
+        r#type: detail.r#type,
+        priority: detail.priority,
+        status: detail.status,
+        refs: detail.refs,
+        complexity: detail.complexity,
+        depends_on: detail.depends_on,
+        parallel: detail.parallel,
+        done_when: detail.done_when,
+        files: include_files.then(|| compact_task_files(detail.files)),
+    };
 
-    if human {
-        for (index, detail) in shown.iter().enumerate() {
-            if index > 0 {
-                println!();
-            }
-            print_task_detail_human(detail);
-        }
-    } else if shown.len() == 1 {
-        output::print_json(&shown[0]);
-    } else {
-        output::print_json(&shown);
-    }
-
-    Ok(0)
+    serde_json::to_value(shown)
+        .map_err(|error| DowError::new(format!("failed to serialize task {}: {}", id, error), 1))
 }
 
 fn compact_task_files(files: TaskFiles) -> TaskFiles {
@@ -1668,7 +1646,7 @@ fn compact_task_files(files: TaskFiles) -> TaskFiles {
     }
 }
 
-fn compact_file_list(files: Vec<String>) -> Vec<String> {
+pub(crate) fn compact_file_list(files: Vec<String>) -> Vec<String> {
     let mut groups: Vec<BraceGroup> = files
         .into_iter()
         .map(|path| BraceGroup {
@@ -1922,32 +1900,6 @@ pub(crate) fn parse_inline_list(s: &str) -> Vec<String> {
         .map(|item| item.trim().trim_matches('"').to_string())
         .filter(|s| !s.is_empty())
         .collect()
-}
-
-fn print_task_detail_human(detail: &TaskShowOutput) {
-    println!("id: {}", detail.id);
-    println!("title: {}", detail.title);
-    println!("  type: {}", detail.r#type);
-    println!("  priority: {}", detail.priority);
-    println!("  status: {}", detail.status);
-    println!("  refs: {}", detail.refs);
-    println!("  complexity: {}", detail.complexity);
-    println!("  depends_on: {:?}", detail.depends_on);
-    println!("  parallel: {}", detail.parallel);
-    println!("  done_when:");
-    if detail.done_when.is_empty() {
-        println!("    []");
-    } else {
-        for crit in &detail.done_when {
-            println!("    - {}", crit);
-        }
-    }
-    if let Some(files) = &detail.files {
-        println!("  files:");
-        println!("    create: {:?}", files.create);
-        println!("    modify: {:?}", files.modify);
-        println!("    test: {:?}", files.test);
-    }
 }
 
 // ─── Done ────────────────────────────────────────────────────────────────────

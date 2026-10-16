@@ -16,6 +16,21 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Show task and issue details
+    Show {
+        /// Task and issue IDs; mixed IDs are supported
+        #[arg(required = true, num_args = 1..)]
+        ids: Vec<String>,
+
+        /// Include verbose fields such as location and compacted files
+        #[arg(short = 'v', long)]
+        verbose: bool,
+
+        /// Select comma-separated fields; id and title are always included
+        #[arg(long, value_delimiter = ',')]
+        fields: Option<Vec<String>>,
+    },
+
     /// Task resource management
     Task {
         #[command(subcommand)]
@@ -133,7 +148,7 @@ pub enum TaskCommands {
     Remove(TaskRemoveArgs),
     /// List tasks (default: pending only)
     List(TaskListArgs),
-    /// Show one or more task details
+    /// Legacy alias for `dow show`
     Show {
         /// Task IDs
         #[arg(required = true, num_args = 1..)]
@@ -142,6 +157,10 @@ pub enum TaskCommands {
         /// Include compacted file scopes
         #[arg(short = 'v', long)]
         verbose: bool,
+
+        /// Select comma-separated fields; id and title are always included
+        #[arg(long, value_delimiter = ',')]
+        fields: Option<Vec<String>>,
     },
     /// Mark task(s) as done
     Done {
@@ -277,8 +296,20 @@ pub enum IssueCommands {
     Remove(IssueRemoveArgs),
     /// List issues (default: open only)
     List(IssueListArgs),
-    /// Show issue details
-    Show { id: String },
+    /// Legacy alias for `dow show`
+    Show {
+        /// Issue IDs
+        #[arg(required = true, num_args = 1..)]
+        ids: Vec<String>,
+
+        /// Include verbose fields such as location and compacted files
+        #[arg(short = 'v', long)]
+        verbose: bool,
+
+        /// Select comma-separated fields; id and title are always included
+        #[arg(long, value_delimiter = ',')]
+        fields: Option<Vec<String>>,
+    },
     /// Close issue(s)
     Close { ids: Vec<String> },
     /// Reopen a closed issue

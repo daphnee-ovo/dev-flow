@@ -30,6 +30,11 @@ fn main() {
     }
 
     let result = match cli.command {
+        Commands::Show {
+            ids,
+            verbose,
+            fields,
+        } => commands::show::run(ids, None, human, verbose, fields),
         Commands::Task { command } => commands::task::run(command, human),
         Commands::Issue { command } => commands::issue::run(command, human),
         Commands::Changelog { command } => commands::changelog_cmd::run(command, human),

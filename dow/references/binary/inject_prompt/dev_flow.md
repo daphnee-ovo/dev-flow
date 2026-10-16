@@ -18,7 +18,7 @@ Attend to the injected `dev-flow status` to understand the current state, and ma
 ### DEV phase rules
 - **IMPORTANT: Never modify code without an open task or issue.** If none exists, create one first (`dow task create` or `dow issue create`) before writing any code.
 - When hook output contains `[BLOCKED]`, stop all code modifications. Flow management commands (`dow task create`, `dow issue create`, `dow status`, `/iterate`) remain available.
-- Before starting tasks, use `dow task show <task-ids>` for context (done_when, refs); pass multiple IDs to inspect several tasks. Add `-v` to include compacted files. If `refs` exists, read corresponding SPEC sections.
+- Before starting tasks or issues, use `dow show <task-ids/issue-ids>` for context; mixed IDs are supported. Add `-v` for compacted files and issue locations, or `--fields files,done_when` to select fields. If a task has `refs`, read the corresponding SPEC sections.
 - Do not work on items outside `dow task list`. New requests must first become a task/issue before work begins.
 - Do not modify files outside the current task/issue's declared `files` scope. If additional files need changes, update the task scope first (`dow task update <ID> --files ...`).
 - **Completion sequence (MUST execute immediately, no delay):**
@@ -57,7 +57,7 @@ Examples:
 |-----------|---------|-------|
 | create | `echo '<JSON>' \| dow task create` | pipe JSON object or array to stdin; all fields required |
 | list | `dow task list [--all]` | default shows pending only |
-| show | `dow task show <task-ids> [-v]` | concise details by default; `-v` includes compacted files |
+| show | `dow show <task-ids/issue-ids> [-v] [--fields <names>]` | supports mixed IDs; task and issue show commands remain aliases |
 | claim | `dow claim <TASK-ID or ISSUE-ID> [-v]` | `-v` shows the claimed item and remaining time |
 | update | `dow task update <ID> --field value` | only passed fields change; array fields support incremental syntax |
 | done/close | `dow task done <ID> [-v]` / `dow issue close <ID>` | `-v` streams tests and shows completion status |

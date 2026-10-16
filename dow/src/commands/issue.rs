@@ -186,7 +186,11 @@ pub fn run(command: IssueCommands, human: bool) -> Result<i32, DowError> {
             remove(args, human)
         }
         IssueCommands::List(args) => list(args, human),
-        IssueCommands::Show { id } => show(&item_id::normalize_full(&id), human),
+        IssueCommands::Show {
+            ids,
+            verbose,
+            fields,
+        } => crate::commands::show::run(ids, Some(item_id::ItemKind::Issue), human, verbose, fields),
         IssueCommands::Close { ids } => {
             let ids: Vec<String> = ids.iter().map(|id| item_id::normalize_full(id)).collect();
             close_multi(&ids)
@@ -1280,7 +1284,7 @@ fn list(args: IssueListArgs, human: bool) -> Result<i32, DowError> {
     Ok(0)
 }
 
-fn show(id: &str, human: bool) -> Result<i32, DowError> {
+pub(crate) fn show_value(id: &str, include_files: bool) -> Result<Value, DowError> {
     let doc_root_path = doc_root::resolve(crate::core::DOC_DIR);
     let issue_dir = doc_root_path.join("issue");
 
@@ -1305,42 +1309,20 @@ fn show(id: &str, human: bool) -> Result<i32, DowError> {
         description: parsed.description.clone(),
         reproduce: parsed.reproduce.clone(),
         fix: parsed.fix.clone(),
-        files: if parsed.files_modify.is_empty() && parsed.files_create.is_empty() {
+        files: if !include_files && parsed.files_modify.is_empty() && parsed.files_create.is_empty() {
             None
         } else {
             Some(IssueFilesOutput {
-                create: parsed.files_create.clone(),
-                modify: parsed.files_modify.clone(),
+                create: crate::commands::task::compact_file_list(parsed.files_create.clone()),
+                modify: crate::commands::task::compact_file_list(parsed.files_modify.clone()),
             })
         },
         status: status.to_string(),
         file: filename,
     };
 
-    if human {
-        println!("[dev-flow] Issue: {}", result.id);
-        println!("━━━━━━━━━━━━━━━━━━━━━━");
-        println!("  Title:       {}", result.title);
-        println!("  Severity:    {}", result.severity);
-        println!("  Status:      {}", result.status);
-        println!("  Location:    {}", result.location);
-        println!("  Description: {}", result.description);
-        println!("  Reproduce:   {}", result.reproduce);
-        println!("  Fix:         {}", result.fix);
-        if let Some(files) = &result.files {
-            if !files.modify.is_empty() {
-                println!("  Files modify: {}", files.modify.join(", "));
-            }
-            if !files.create.is_empty() {
-                println!("  Files create: {}", files.create.join(", "));
-            }
-        }
-        println!("  File:        {}", result.file);
-    } else {
-        output::print_json(&result);
-    }
-
-    Ok(0)
+    serde_json::to_value(result)
+        .map_err(|error| DowError::new(format!("failed to serialize issue {}: {}", id, error), 1))
 }
 
 fn close_multi(ids: &[String]) -> Result<i32, DowError> {

@@ -17,6 +17,7 @@ pub mod rollback;
 pub mod scan;
 pub mod self_check;
 pub mod setup;
+pub mod show;
 pub mod spec_cmd;
 pub mod status;
 pub mod task;
