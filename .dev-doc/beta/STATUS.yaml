@@ -1,6 +1,6 @@
 name: dev-flow
-phase: DEV
+phase: TEST
 mode: fast
 goals_minor: dashboard功能完善、test功能更新、其他功能完善与优化
-updated: 2026-07-30 17:55
+updated: 2026-10-17 00:30
 started: 2026-06-30 11:20

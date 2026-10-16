@@ -201,6 +201,22 @@ else
 fi
 
 echo ""
+echo "[7] 项目实际 VERSION 同步命令在当前 shell 下可执行"
+version_sync_command="$(awk '/^run: .*VERSION/ { sub(/^run: /, ""); print; exit }' "$PROJ_ROOT/.dev-doc/preIterate.ci")"
+version_sync_dir="$TEST_DIR/project-version-sync"
+mkdir -p "$version_sync_dir"
+write_file "$version_sync_dir/VERSION" $'(main)0.3.9\n(beta)0.4.0\n# preserve me'
+expected_version="$(printf '%s\n' '(main)0.4.0' '(beta)0.4.0' '# preserve me')"
+if [ -z "$version_sync_command" ]; then
+  fail "项目 preIterate.ci 中缺少 VERSION 同步命令"
+elif (cd "$version_sync_dir" && sh -c "$version_sync_command") \
+  && [ "$(cat "$version_sync_dir/VERSION")" = "$expected_version" ]; then
+  pass "项目 preIterate.ci 使用当前 shell 将 beta 版本同步到 main 并保留其他行"
+else
+  fail "项目 preIterate.ci 的 VERSION 同步结果不正确"
+fi
+
+echo ""
 echo "=== 结果: $PASS 通过, $FAIL 失败 ==="
 
 if [ "$FAIL" -gt 0 ]; then

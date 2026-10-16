@@ -1,5 +1,5 @@
 run: bash tests/test_all.sh
-run: sed -i "s/^(main).*/(main)$(grep -oP '^\(beta\)\K.*' VERSION)/" VERSION
+run: tmp_file="VERSION.tmp.$$"; trap 'rm -f "$tmp_file"' 0; awk 'substr($0, 1, 6) == "(beta)" { beta = substr($0, 7); has_beta = 1 } { lines[NR] = $0 } END { if (!has_beta) exit 2; for (i = 1; i <= NR; i++) { if (substr(lines[i], 1, 6) == "(main)") { print "(main)" beta; has_main = 1 } else { print lines[i] } } if (!has_main) exit 3 }' VERSION > "$tmp_file" && mv "$tmp_file" VERSION
 sync-version: dow/Cargo.toml
 sync-version: npm/dev-flow/package.json
 run: cargo update -p dev-flow --manifest-path dow/Cargo.toml
