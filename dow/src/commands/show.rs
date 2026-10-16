@@ -1,8 +1,25 @@
 use crate::core::item_id::{self, ItemKind};
 use crate::error::DowError;
 use crate::output;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::collections::HashSet;
+
+struct OrderedShowOutput(Vec<(String, Value)>);
+
+impl Serialize for OrderedShowOutput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (key, value) in &self.0 {
+            map.serialize_entry(key, value)?;
+        }
+        map.end()
+    }
+}
 
 const TASK_DEFAULT_FIELDS: &[&str] = &[
     "id",
@@ -111,12 +128,36 @@ pub fn run(
             print_human(*kind, value);
         }
     } else if results.len() == 1 {
-        output::print_json(&results[0]);
+        output::print_json(&ordered_show_output(&results[0])?);
     } else {
-        output::print_json(&results);
+        let ordered = results
+            .iter()
+            .map(ordered_show_output)
+            .collect::<Result<Vec<_>, _>>()?;
+        output::print_json(&ordered);
     }
 
     Ok(0)
+}
+
+fn ordered_show_output(value: &Value) -> Result<OrderedShowOutput, DowError> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| DowError::new("show result must be a JSON object", 1))?;
+    let mut fields = Vec::with_capacity(object.len());
+    for field in ["id", "title"] {
+        let value = object
+            .get(field)
+            .ok_or_else(|| DowError::new(format!("show result is missing {}", field), 1))?;
+        fields.push((field.to_string(), value.clone()));
+    }
+    fields.extend(
+        object
+            .iter()
+            .filter(|(field, _)| field.as_str() != "id" && field.as_str() != "title")
+            .map(|(field, value)| (field.clone(), value.clone())),
+    );
+    Ok(OrderedShowOutput(fields))
 }
 
 fn field_available(kind: ItemKind, field: &str) -> bool {
