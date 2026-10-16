@@ -64,27 +64,28 @@ fn test_javascript_full_uses_package_test_script() {
 fn test_javascript_task_uses_node_runner() {
     let dir = tempfile::tempdir().unwrap();
     let doc = setup_project(dir.path());
-    fs::create_dir_all(dir.path().join("tests")).unwrap();
+    fs::create_dir_all(dir.path().join("apps/desktop/tests")).unwrap();
     fs::write(
-        dir.path().join("package.json"),
+        dir.path().join("apps/desktop/package.json"),
         r#"{"packageManager":"npm@10"}"#,
     )
     .unwrap();
     fs::write(
-        dir.path().join("tests/node_test.js"),
+        dir.path().join("apps/desktop/tests/node_test.js"),
         "const test = require('node:test'); const assert = require('node:assert'); test('ok', () => assert.equal(1, 1));\n",
     )
     .unwrap();
     fs::write(
         doc.join("task/task_2026-07-12_1.md"),
-        "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: node test\n  - type: test\n  - priority: P1\n  - refs: test\n  - files:\n      create: []\n      modify: []\n      test: [tests/node_test.js]\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - node test works\n",
+        "---\ntitle: TASK - batch\nnums: 1\n---\n\n- [ ] TASK-T001: node test\n  - type: test\n  - priority: P1\n  - refs: test\n  - files:\n      create: []\n      modify: []\n      test: [apps/desktop/tests/node_test.js]\n  - depends_on: []\n  - parallel: false\n  - complexity: S\n  - done_when:\n      - node test works\n",
     )
     .unwrap();
 
     let output = run_dow(dir.path(), &["test", "TASK-T001"]);
     assert!(
         output.status.success(),
-        "stderr: {}",
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
 }

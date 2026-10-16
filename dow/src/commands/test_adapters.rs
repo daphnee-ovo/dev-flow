@@ -341,6 +341,23 @@ fn javascript_task_plan(project_root: &Path, path: &Path, display_file: &str) ->
         );
     };
     let package_root = package_file.parent().unwrap_or(project_root);
+    let package_relative_file = match path.strip_prefix(package_root) {
+        Ok(relative_path) => relative_path
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/"),
+        Err(_) => {
+            return precondition_plan(
+                display_file,
+                format!(
+                    "test file {} is outside package root {}",
+                    path.display(),
+                    package_root.display()
+                ),
+            );
+        }
+    };
     let package = match read_package_json(package_root) {
         Ok(package) => package,
         Err(error) => return precondition_plan(display_file, error),
@@ -369,13 +386,13 @@ fn javascript_task_plan(project_root: &Path, path: &Path, display_file: &str) ->
     };
 
     let command = if runner == "node" {
-        format!("node --test {}", shell_quote(display_file))
+        format!("node --test {}", shell_quote(&package_relative_file))
     } else {
         let manager = match package_manager(package_root, &package) {
             Ok(manager) => manager,
             Err(error) => return precondition_plan(display_file, error),
         };
-        package_exec_command(&manager, runner, display_file)
+        package_exec_command(&manager, runner, &package_relative_file)
     };
 
     let required_command = if runner == "node" {
