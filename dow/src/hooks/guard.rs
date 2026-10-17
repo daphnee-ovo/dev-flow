@@ -185,7 +185,10 @@ fn ask(reason: &str, kiro_hook: bool) -> Result<i32, DowError> {
 // ─── Main entry ──────────────────────────────────────────────────────────────────
 
 pub fn run(file: String, kiro_hook: bool) -> Result<i32, DowError> {
-    let targets = resolve_targets(&file);
+    let targets = match resolve_targets(&file) {
+        GuardTargets::Files(targets) => targets,
+        GuardTargets::UnparseableBash => return deny(UNPARSEABLE_BASH_REASON, kiro_hook),
+    };
     if targets.is_empty() {
         return Ok(0);
     }
@@ -776,40 +779,54 @@ fn is_valid_devdoc_file(path: &GuardPath, ctx: &GuardContext) -> bool {
 
 // ─── Input parsing (unchanged) ────────────────────────────────────────────────────────
 
-fn resolve_targets(file: &str) -> Vec<String> {
+/// Write targets the guard extracted from a hook payload.
+enum GuardTargets {
+    /// Files the tool is about to write.
+    Files(Vec<String>),
+    /// A Bash command whose write targets cannot be determined safely.
+    UnparseableBash,
+}
+
+/// Reason reported when a Bash command cannot be parsed, so the guard cannot
+/// tell which files it writes.
+const UNPARSEABLE_BASH_REASON: &str = "\
+[dev-flow BLOCKED] this Bash command uses shell syntax the guard cannot interpret safely (for example `$(...)`, backticks, process substitution, unbalanced quotes, or an unterminated here-document), so its write targets are unknown.\n\
+→ Put the write in a command-level `>` / `>>` redirect (or `tee`, `cp`, `mv`, `sed -i`) and run the rest as a separate command.";
+
+fn resolve_targets(file: &str) -> GuardTargets {
     if !file.is_empty() {
         // Some integrations pass the Bash command as the positional guard
         // argument instead of using hook JSON on stdin. Classify it before
         // treating path-looking metadata values as a write target.
         if is_trusted_flow_command(file) {
-            return vec![];
+            return GuardTargets::Files(vec![]);
         }
         if let Ok(content) = std::fs::read_to_string(file) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                 return extract_targets_from_json(&json);
             }
         }
-        return vec![file.to_string()];
+        return GuardTargets::Files(vec![file.to_string()]);
     }
 
     let mut stdin_buf = String::new();
     if std::io::stdin().read_to_string(&mut stdin_buf).is_err() || stdin_buf.is_empty() {
         let tool_input = std::env::var("TOOL_INPUT").unwrap_or_default();
         if tool_input.is_empty() {
-            return vec![];
+            return GuardTargets::Files(vec![]);
         }
         stdin_buf = tool_input;
     }
 
     let json: serde_json::Value = match serde_json::from_str(&stdin_buf) {
         Ok(v) => v,
-        Err(_) => return vec![],
+        Err(_) => return GuardTargets::Files(vec![]),
     };
 
     extract_targets_from_json(&json)
 }
 
-fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
+fn extract_targets_from_json(json: &serde_json::Value) -> GuardTargets {
     let tool_input = json.get("tool_input").unwrap_or(json);
     let tool_name = json.get("tool_name").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -820,9 +837,9 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
                 .or_else(|| tool_input.get("path"))
                 .and_then(|v| v.as_str())
             {
-                vec![path.to_string()]
+                GuardTargets::Files(vec![path.to_string()])
             } else {
-                vec![]
+                GuardTargets::Files(vec![])
             }
         }
         "Bash" | "execute_bash" => {
@@ -834,7 +851,7 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
             extract_command_targets(&command)
         }
         _ if tool_name.eq_ignore_ascii_case("apply_patch") => {
-            extract_apply_patch_targets(tool_input)
+            GuardTargets::Files(extract_apply_patch_targets(tool_input))
         }
         _ => {
             if let Some(path) = tool_input
@@ -842,11 +859,11 @@ fn extract_targets_from_json(json: &serde_json::Value) -> Vec<String> {
                 .or_else(|| tool_input.get("path"))
                 .and_then(|v| v.as_str())
             {
-                vec![path.to_string()]
+                GuardTargets::Files(vec![path.to_string()])
             } else if let Some(cmd) = tool_input.get("command").and_then(|v| v.as_str()) {
                 extract_command_targets(cmd)
             } else {
-                vec![]
+                GuardTargets::Files(vec![])
             }
         }
     }
@@ -879,7 +896,7 @@ fn extract_apply_patch_targets(tool_input: &serde_json::Value) -> Vec<String> {
 
 /// Extract actual write targets from a Bash hook command while keeping dev-flow
 /// metadata arguments out of the path scanner.
-fn extract_command_targets(cmd: &str) -> Vec<String> {
+fn extract_command_targets(cmd: &str) -> GuardTargets {
     // A trusted flow-management command may contain values such as
     // `src/example.rs` in --files, refs, or stdin JSON.
     // Those values describe the task; they are not writes performed by Bash.
@@ -887,10 +904,13 @@ fn extract_command_targets(cmd: &str) -> Vec<String> {
     // fake targets. Shell operators make the command ineligible for trust and
     // are handled by the write scanner below.
     if is_trusted_flow_command(cmd) {
-        return vec![];
+        return GuardTargets::Files(vec![]);
     }
 
-    extract_write_targets_from_command(cmd)
+    match extract_write_targets_from_command(cmd) {
+        Some(targets) => GuardTargets::Files(targets),
+        None => GuardTargets::UnparseableBash,
+    }
 }
 
 /// Return true only for the trusted `dow` executable and known metadata
@@ -1067,14 +1087,122 @@ fn flush_shell_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
     }
 }
 
+/// A heredoc opened on the current command line: the delimiter that terminates
+/// its body plus whether leading tabs are stripped (`<<-`).
+struct HeredocDelimiter {
+    delimiter: String,
+    strip_tabs: bool,
+}
+
+/// Read one shell word starting at `index`, honouring quotes and backslash
+/// escapes. Returns the word and the index just past it. `None` means the word
+/// cannot be read safely.
+fn read_shell_word(chars: &[char], mut index: usize) -> Option<(String, usize)> {
+    while matches!(chars.get(index), Some(' ') | Some('\t')) {
+        index += 1;
+    }
+
+    let mut word = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    let mut saw_quote = false;
+
+    while let Some(&ch) = chars.get(index) {
+        if escaped {
+            word.push(ch);
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+                index += 1;
+                continue;
+            }
+            if ch == '\\' && active_quote == '"' {
+                escaped = true;
+                index += 1;
+                continue;
+            }
+            if ch == '$' && chars.get(index + 1) == Some(&'(') {
+                return None;
+            }
+            word.push(ch);
+            index += 1;
+            continue;
+        }
+        match ch {
+            '\\' => {
+                escaped = true;
+                index += 1;
+            }
+            '\'' | '"' => {
+                quote = Some(ch);
+                saw_quote = true;
+                index += 1;
+            }
+            c if c.is_whitespace() || matches!(c, ';' | '|' | '&' | '<' | '>' | '(' | ')') => break,
+            c => {
+                word.push(c);
+                index += 1;
+            }
+        }
+    }
+
+    if quote.is_some() || escaped || (word.is_empty() && !saw_quote) {
+        return None;
+    }
+    Some((word, index))
+}
+
+/// Skip the bodies of the heredocs opened on the command line that just ended.
+/// A heredoc body is data rather than shell syntax, so it must never reach the
+/// tokenizer. `None` means a delimiter is missing (unterminated heredoc).
+fn skip_heredoc_bodies(
+    chars: &[char],
+    mut index: usize,
+    heredocs: &mut Vec<HeredocDelimiter>,
+) -> Option<usize> {
+    for heredoc in heredocs.drain(..) {
+        loop {
+            if index >= chars.len() {
+                return None;
+            }
+            let line_start = index;
+            let mut line_end = index;
+            while line_end < chars.len() && chars[line_end] != '\n' {
+                line_end += 1;
+            }
+            let line: String = chars[line_start..line_end].iter().collect();
+            let candidate = if heredoc.strip_tabs {
+                line.trim_start_matches('\t')
+            } else {
+                line.as_str()
+            };
+            index = if line_end < chars.len() {
+                line_end + 1
+            } else {
+                line_end
+            };
+            if candidate == heredoc.delimiter.as_str() {
+                break;
+            }
+        }
+    }
+    Some(index)
+}
+
 /// Tokenize shell syntax without treating operators inside quoted arguments as
-/// shell operators. Unsupported shell constructs return `None` so callers can
-/// conservatively keep the command guarded instead of silently allowing it.
+/// shell operators. Heredoc bodies are skipped so their content cannot be
+/// mistaken for syntax. Unsupported shell constructs return `None` so callers
+/// can conservatively keep the command guarded instead of silently allowing it.
 fn tokenize_shell(cmd: &str) -> Option<Vec<ShellToken>> {
     let mut tokens = Vec::new();
     let mut current = String::new();
     let mut quote = None;
     let mut escaped = false;
+    let mut heredocs: Vec<HeredocDelimiter> = Vec::new();
     let chars: Vec<char> = cmd.chars().collect();
     let mut index = 0;
 
@@ -1117,6 +1245,15 @@ fn tokenize_shell(cmd: &str) -> Option<Vec<ShellToken>> {
         if ch == '\'' || ch == '"' {
             quote = Some(ch);
             index += 1;
+            continue;
+        }
+        if ch == '\n' {
+            // A newline ends the command line, so heredoc bodies opened on this
+            // line start on the next one.
+            flush_shell_word(&mut tokens, &mut current);
+            tokens.push(ShellToken::Semicolon);
+            index += 1;
+            index = skip_heredoc_bodies(&chars, index, &mut heredocs)?;
             continue;
         }
         if ch.is_whitespace() {
@@ -1166,12 +1303,32 @@ fn tokenize_shell(cmd: &str) -> Option<Vec<ShellToken>> {
                 index += if append { 2 } else { 1 };
             }
             '<' => {
-                if chars.get(index + 1) == Some(&'<') {
-                    return None;
-                }
                 flush_shell_word(&mut tokens, &mut current);
-                tokens.push(ShellToken::InputRedirect);
-                index += 1;
+                if chars.get(index + 1) == Some(&'<') {
+                    // Heredoc (`<<`), tab-stripping heredoc (`<<-`) or
+                    // herestring (`<<<`).
+                    let herestring = chars.get(index + 2) == Some(&'<');
+                    let strip_tabs = chars.get(index + 2) == Some(&'-');
+                    tokens.push(ShellToken::InputRedirect);
+                    index += if herestring || strip_tabs { 3 } else { 2 };
+                    if !herestring {
+                        let (delimiter, next) = read_shell_word(&chars, index)?;
+                        if delimiter.is_empty() {
+                            return None;
+                        }
+                        heredocs.push(HeredocDelimiter {
+                            delimiter: delimiter.clone(),
+                            strip_tabs,
+                        });
+                        // Keep the delimiter as a word so the input-redirect
+                        // skip in `simple_command_words` consumes it.
+                        tokens.push(ShellToken::Word(delimiter));
+                        index = next;
+                    }
+                } else {
+                    tokens.push(ShellToken::InputRedirect);
+                    index += 1;
+                }
             }
             '`' => return None,
             '$' if chars.get(index + 1) == Some(&'(') => return None,
@@ -1183,7 +1340,7 @@ fn tokenize_shell(cmd: &str) -> Option<Vec<ShellToken>> {
         }
     }
 
-    if quote.is_some() || escaped {
+    if quote.is_some() || escaped || !heredocs.is_empty() {
         return None;
     }
     flush_shell_word(&mut tokens, &mut current);
@@ -1233,12 +1390,14 @@ fn shell_words(segment: &str) -> Vec<String> {
     words
 }
 
-fn extract_write_targets_from_command(cmd: &str) -> Vec<String> {
-    let Some(tokens) = tokenize_shell(cmd) else {
-        return vec![cmd.to_string()];
-    };
-
-    extract_write_targets_from_tokens(&tokens)
+/// Extract the write targets of a shell command.
+///
+/// `None` means the command uses shell syntax the scanner cannot interpret, so
+/// its write targets are unknown. Callers must keep such a command guarded, and
+/// must never fall back to treating the raw command text as a path.
+fn extract_write_targets_from_command(cmd: &str) -> Option<Vec<String>> {
+    let tokens = tokenize_shell(cmd)?;
+    Some(extract_write_targets_from_tokens(&tokens))
 }
 
 fn extract_write_targets_from_tokens(tokens: &[ShellToken]) -> Vec<String> {
